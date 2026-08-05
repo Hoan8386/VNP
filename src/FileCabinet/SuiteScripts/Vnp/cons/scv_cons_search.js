@@ -423,6 +423,73 @@ function(search) {
 		return objRes;
 	}
 
+	const getDataSource_Mixed = (_options, _filters, _keys = [], _record = {}, _funcObjectMappingColumn) =>{
+		let resultSearch = loadSearchWithFilter(_options, _filters, _record);
+
+		let arrKeys = _keys || [];
+		if(arrKeys.length == 0){
+			arrKeys = getDataKeyByColumnSearch_V2(resultSearch.columns);
+		}
+
+		let resultSearchPaged = resultSearch.runPaged({pageSize: 1000});
+
+		let arrResult = [];
+
+		let ttlPage = resultSearchPaged.pageRanges.length;
+
+		if(ttlPage < 5){
+			arrResult = fetchResultSearchRunEach(resultSearch, function(_objSearch, _column){
+				let objResLine = {};
+
+				if(typeof(_funcObjectMappingColumn) == "function"){
+					objResLine = _funcObjectMappingColumn(_objSearch, _column);
+				}
+				else{
+					objResLine = getObjResultFromSearchByKey(_objSearch, _column, arrKeys);
+				}
+				
+				replaceValueNoneByKey(objResLine);
+
+				if(!!_objSearch?.id && !objResLine?.id){
+					objResLine.id = _objSearch.id;
+				}
+
+				return objResLine;
+			});
+		}
+		else{
+			let columns = resultSearch.columns;
+			for(let idxPage = 0; idxPage < ttlPage; idxPage++){
+				let indexStart = idxPage * 1000;
+				let indexEnd = indexStart + 1000;
+				
+				let resultSearchRange = resultSearch.run().getRange(indexStart, indexEnd);
+
+				for(var i = 0; i < resultSearchRange.length; i++){
+					let objSearch = resultSearchRange[i];
+
+					let objResLine = {};
+
+					if(typeof(_funcObjectMappingColumn) == "function"){
+						objResLine = _funcObjectMappingColumn(objSearch, columns);
+					}
+					else{
+						objResLine = getObjResultFromSearchByKey(objSearch, columns, arrKeys);
+					}
+
+					replaceValueNoneByKey(objResLine);
+
+					if(!!objSearch?.id && !objResLine?.id){
+						objResLine.id = objSearch.id;
+					}
+
+					arrResult.push(objResLine);
+				}
+			}
+		}
+
+		return arrResult;
+	}
     return {
 		ID: ID,
 		TYPE: "",
@@ -444,7 +511,8 @@ function(search) {
 		formatStringToKeyID,
 		formatStringToKeyID_V2,
 		getDataSource,
-		getDataSourceFetchPage
+		getDataSourceFetchPage,
+		getDataSource_Mixed
     };
     
 });

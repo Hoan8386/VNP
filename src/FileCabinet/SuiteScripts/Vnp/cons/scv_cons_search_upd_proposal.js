@@ -32,7 +32,7 @@ define(["N/search",
     const getFiltersDefault = (params = {}) => {
         let filters = [];
 
-        if (params.internalId) {
+        if (params.custrecord_propsourceid) {
             filters.push(
                 search.createFilter({
                     name: "internalid",
@@ -42,12 +42,13 @@ define(["N/search",
             );
         }
 
-        if (params.lineId) {
+        if (params.custrecord_propsourceline) {
             filters.push(
                 search.createFilter({
                     name: "line",
                     operator: "is",
-                    values: params.custrecord_propsourceline,
+                    values: params.custrecord_propsourceline
+                    ,
                 }),
             );
         }

@@ -8,7 +8,7 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
-define(['../common/scv_common_upd_proposal',],
+define(['../common/scv_common_upd_proposal.js',],
     (commonUPDProposal) => {
 
         /**
@@ -19,8 +19,9 @@ define(['../common/scv_common_upd_proposal',],
          */
         const beforeSubmit = (scriptContext) => {
             try {
-                if (scriptContext.type !== 'edit') return;
-                commonUPDProposal.updateInformationForProposal(scriptContext.newRecord);
+                if (scriptContext.type === 'create') {
+                    commonUPDProposal.updateInformationForProposal(scriptContext.newRecord);
+                }
             } catch (e) {
                 log.error('Error beforeSubmit', e);
             }
