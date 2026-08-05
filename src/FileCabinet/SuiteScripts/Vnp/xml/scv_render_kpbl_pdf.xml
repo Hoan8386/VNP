@@ -1,0 +1,125 @@
+<?xml version="1.0"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+    <head>
+        <link name="times" type="font" subtype="opentype"
+              src="${libPdf.font.times?html}" src-bold="${libPdf.font.times_bold?html}"
+              src-italic="${libPdf.font.times_italic?html}" src-bolditalic="${libPdf.font.times_bolditalic?html}"
+              bytes="2"/>
+        <style type="text/css">
+            * {
+            font-family: "times";
+            font-size: 12px;
+            }
+            .h1 {
+            font-size: 18px;
+            }
+            .table-cus {
+            width: 100%;
+            border-spacing: 0;
+            }
+            .cell {
+            border-left: 0.5pt solid black;
+            border-bottom: 0.5pt solid black;
+            padding: 4pt;
+            text-align: center;
+            }
+            .cell-last {
+            border-left: 0.5pt solid black;
+            border-right: 0.5pt solid black;
+            border-bottom: 0.5pt solid black;
+            padding: 4pt;
+            text-align: center;
+            }
+            .cell-top {
+            border-top: 0.5pt solid black;
+            }
+            .bold {
+            font-weight: bold;
+            }
+            .keep-together {
+            page-break-inside: avoid !important;
+            }
+        </style>
+    </head>
+    <body size="A4">
+        <table width="100%" align="center">
+            <tr>
+<!--                <td rowspan="3" width="30%">-->
+<!--                    <@filecabinet nstype="image" style="float: left; margin: 7px; width: 160px; height: 60px;"-->
+<!--                    src="https://11402665.app.netsuite.com/core/media/media.nl?id=1&amp;c=11402665&amp;h=o7PvIUw9WSn4VlhpGB_xImAEG2bhU2lZOj0KK9ZMxWmUAApe&amp;fcts=20250115232439&amp;whence="/>-->
+<!--                </td>-->
+                <td align="center">
+                    <b class="h1">
+                        PHIẾU XUẤT ĐIỀU CHUYỂN
+                    </b>
+<!--                    <p style="margin: 0">Liên: ${lien}</p>-->
+<!--                    <p style="margin: 0">Ngày: ${dataJson.createdDate}</p>-->
+                </td>
+            </tr>
+        </table>
+
+        <table width="100%" align="center">
+<!--            <tr>-->
+<!--                <td width="25%" style="word-wrap: break-word;">Đơn vị nhận: ${dataJson.transferLocation?html}</td>-->
+<!--                <td width="50%" style="word-wrap: break-word; padding-left: 10px;">Địa chỉ: ${dataJson.custrecord_scv_sub_address_en?html}</td>-->
+<!--                <td width="25%" style="padding-left: 10px;">Số Ctừ: ${record.tranid}/${dataJson.createdTranId}</td>-->
+<!--            </tr>-->
+<!--            <tr>-->
+<!--                <td width="25%" style="word-wrap: break-word;">Họ và tên người nhận hàng: ${record.custbody_scv_deliveryman?html}</td>-->
+<!--                <td width="50%" style="word-wrap: break-word; padding-left: 10px;">Lý do xuất kho: ${record.memo?html}</td>-->
+<!--                <td width="25%" style="padding-left: 10px;">Xuất tại kho: ${dataJson.location?html}</td>-->
+<!--            </tr>-->
+<!--            <tr>-->
+<!--                <td width="25%" style="word-wrap: break-word;">Người nhận hàng: ${record.custbody_scv_receiver?html}</td>-->
+<!--                <td width="50%" style="word-wrap: break-word; padding-left: 10px;">Lý do xuất kho: ${record.custbody_atlas_inv_adj_reason?html}</td>-->
+<!--                <td width="25%" style="padding-left: 10px;">Xuất tại kho: ${dataJson.adjlocation?html}</td>-->
+<!--            </tr>-->
+        </table>
+        <table width="100%" class="table-cus" align="center">
+            <thead>
+                <tr>
+                    <td class="cell cell-top bold">STT</td>
+                    <td class="cell cell-top bold">Mã hàng</td>
+                    <td class="cell cell-top bold" colspan="3">Tên hàng hoá</td>
+                    <td class="cell cell-top bold">KLTB</td>
+                    <td class="cell cell-top bold">ĐVT</td>
+                    <td class="cell cell-top bold" colspan="2">Hạn sử dụng</td>
+                    <td class="cell cell-top bold">Thực xuất</td>
+                    <td class="cell-last cell-top bold" colspan="2">Tổng mã cân thực tế</td>
+                </tr>
+            </thead>
+            <tbody>
+<!--                <#list dataJson.pickTaskLineRecord as line>-->
+<!--                    <tr>-->
+<!--                        <td class="cell">${line.stt}</td>-->
+<!--                        <td class="cell">${line.infoItems.internalCode}</td>-->
+<!--                        <td class="cell" colspan="3">${line.infoItems.itemName?html}</td>-->
+<!--                        <td class="cell">${line.averageQuantity}</td>-->
+<!--                        <td class="cell">Thùng</td>-->
+<!--                        <td class="cell" colspan="2">${line.serialLotDisplay}</td>-->
+<!--                        <td class="cell">${line.pickQty}</td>-->
+<!--                        <td class="cell-last" colspan="2">${line.packQuantity?number?string.number}</td>-->
+<!--                    </tr>-->
+<!--                </#list>-->
+            </tbody>
+        </table>
+
+        <table width="100%"  style="margin-top: 10px;">
+            <tr>
+                <td align="center">
+                    <b>THỦ KHO</b>
+                </td>
+                <td align="center">
+                    <b>KẾ TOÁN KHO</b>
+                </td>
+                <td align="center">
+                    <b>LÁI XE(SĐT)</b>
+                </td>
+                <td align="center">
+                    <b>ĐƠN VỊ NHẬN</b>
+                </td>
+            </tr>
+        </table>
+    </body>
+</pdf>

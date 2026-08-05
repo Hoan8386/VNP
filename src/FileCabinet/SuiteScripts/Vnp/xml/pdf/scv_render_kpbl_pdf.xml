@@ -1,0 +1,190 @@
+<?xml version="1.0"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+    <head>
+        <link name="Times" type="font" subtype="opentype"
+              src="${libPdf.font.times?html}"
+              src-bold="${libPdf.font.times_bold?html}"
+              src-italic="${libPdf.font.times_italic?html}"
+              src-bolditalic="${libPdf.font.times_bolditalic?html}"
+              bytes="2"/>
+        <style type="text/css">
+            * {
+            font-family: Times;
+            font-size: 10pt;
+            }
+            table {
+            font-family: Times;
+            font-size: 10pt;
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            }
+            td {
+            font-family: Times;
+            font-size: 10pt;
+            text-align: center;
+<!--            vertical-align: middle;-->
+            }
+            .h1 {
+            font-size: 18pt;
+            }
+            .table-cus {
+            width: 100%;
+            border-spacing: 0;
+            }
+            .cell {
+            border-left: 0.5pt solid black;
+            border-bottom: 0.5pt solid black;
+            padding: 4pt;
+            text-align: center;
+            }
+            .cell-last {
+            border-left: 0.5pt solid black;
+            border-right: 0.5pt solid black;
+            border-bottom: 0.5pt solid black;
+            padding: 4pt;
+            text-align: center;
+            }
+            .cell-top {
+            border-top: 0.5pt solid black;
+            }
+            .bold {
+            font-weight: bold;
+            }
+            .m-0{
+            margin: 0;
+            padding: 0;
+            }
+        </style>
+    </head>
+    <body size="A4" width="297mm" height="210mm" orientation="landscape" padding="30px">
+        <!-- 1, 2: Subsidiary info + BM code -->
+        <table width="100%">
+            <tr margin-bottom="20px">
+                <td style="text-align: left;" width="60%">
+                    <p class="bold" margin="0" padding="0">${dataJson.legalname}</p>
+                    <p margin="0" padding="0">${dataJson.mainaddress_text}</p>
+                </td>
+                <td style="text-align: right;" align="right" width="40%">
+                    <i padding="0" margin="0" class="m-0">BM.01.QT.KDXNK.08</i>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Title -->
+        <table width="100%">
+            <tr>
+                <td align="center">
+                    <b class="h1">PHIẾU XUẤT KHO KIÊM PHIẾU BÁO LÔ</b>
+                </td>
+            </tr>
+            <!-- 3: Ngày tháng năm -->
+            <tr>
+                <td align="center"><i>Ngày ${dataJson.tranday} tháng ${dataJson.tranmonth} năm ${dataJson.tranyear}</i></td>
+            </tr>
+            <!-- 4: Số phiếu -->
+            <tr>
+                <td align="center"><i>Số phiếu: ${dataJson.tranid}</i></td>
+            </tr>
+        </table>
+
+        <!-- 5-8: Info -->
+        <table width="100%">
+            <tr>
+                <td style="text-align: left;">Người nhận hàng: ${dataJson.receiver}</td>
+            </tr>
+            <tr>
+                <td style="text-align: left;">Đơn vị: ${dataJson.entityLegalName}</td>
+            </tr>
+            <tr>
+                <td style="text-align: left;">Địa chỉ: ${dataJson.shipaddress}</td>
+            </tr>
+            <tr>
+                <td style="text-align: left;">Nội dung: ${dataJson.memo}</td>
+            </tr>
+        </table>
+
+        <table width="100%" class="table-cus" align="center">
+            <thead>
+                <tr>
+                    <td class="cell cell-top bold" rowspan="2" width="5%" align="center">STT</td>
+                    <td class="cell cell-top bold" rowspan="2" width="22%" align="center">Tên hàng hóa, vật tư</td>
+                    <td class="cell cell-top bold" rowspan="2" width="10%" align="center">Quy cách</td>
+                    <td class="cell cell-top bold" rowspan="2" width="14%" align="center">Nhà sản xuất</td>
+                    <td class="cell cell-top bold" rowspan="2" width="10%" align="center">Số lô</td>
+                    <td class="cell cell-top bold" rowspan="2" width="5%" align="center">ĐVT</td>
+                    <td class="cell cell-top bold" colspan="2" width="18%" align="center">Số lượng</td>
+                    <td class="cell cell-top bold" rowspan="2" width="9%" align="center">Đơn giá</td>
+                    <td class="cell-last cell-top bold" rowspan="2" width="7%"><p align="center">Thành tiền</p></td>
+                </tr>
+                <tr>
+                    <td class="cell bold" width="9%"><p align="center"> Theo chứng từ</p></td>
+                    <td class="cell bold" width="9%"><p align="center">Thực xuất</p></td>
+                </tr>
+            </thead>
+            <tbody>
+                <#list dataJson.lines as line>
+                <tr>
+                    <td class="cell" align="center">${line.stt}</td>
+                    <td class="cell">${line.description}</td>
+                    <td class="cell">${line.quyCachDongGoi}</td>
+                    <td class="cell">${line.nhaSanXuat}</td>
+                    <td class="cell" align="center">${line.soLo}</td>
+                    <td class="cell" align="center">${line.unitsdisplay}</td>
+                    <td class="cell" align="center">${line.quantity}</td>
+                    <td class="cell" align="center">${line.thucXuat}</td>
+                    <td class="cell">${line.donGia}</td>
+                    <td class="cell-last">${line.thanhTien}</td>
+                </tr>
+                </#list>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td class="cell cell-top" align="center" colspan="9" style="border-top: 0;"><b>Cộng</b></td>
+                    <td class="cell-last cell-top" style="border-top: 0"></td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <!-- 19-21: Tổng tiền, số chứng từ -->
+        <table width="100%" margin-top="10px">
+            <tr>
+                <td style="text-align: left; width: 15%" vertical-align="middle">Tổng số tiền (bằng chữ):</td>
+                <td style="border-bottom: 0.5pt dotted black;" margin-bottom="7px"></td>
+            </tr>
+            <tr>
+                <td style="text-align: left; width: 15%" vertical-align="middle">Số chứng từ gốc kèm theo:</td>
+                <td style="border-bottom: 0.5pt dotted black;"  margin-bottom="7px"></td>
+            </tr>
+        </table>
+
+        <!-- 22-26: Signature section -->
+        <table width="100%" style="margin-top: 10px;">
+            <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td align="center"><i>Ngày...... tháng...... năm......</i></td>
+            </tr>
+            <tr>
+                <td align="center" width="25%">
+                    <p  align="center" class="bold" margin="0" padding="0">NGƯỜI LẬP PHIẾU</p>
+                    <p margin="0" padding="0">(Ký, họ tên)</p>
+                </td>
+                <td align="center" width="25%">
+                    <p  align="center" class="bold" margin="0" padding="0">NGƯỜI NHẬN HÀNG</p>
+                    <p margin="0" padding="0">(Ký, họ tên)</p>
+                </td>
+                <td align="center" width="25%">
+                    <p  align="center" class="bold" margin="0" padding="0">THỦ KHO</p>
+                    <p margin="0" padding="0">(Ký, họ tên)</p>
+                </td>
+                <td align="center" width="25%">
+                    <p align="center" class="bold" margin="0" padding="0">DƯỢC SĨ PHỤ TRÁCH CHUYÊN MÔN</p>
+                    <p margin="0" padding="0">(Ký, họ tên)</p>
+                </td>
+            </tr>
+        </table>
+    </body>
+</pdf>

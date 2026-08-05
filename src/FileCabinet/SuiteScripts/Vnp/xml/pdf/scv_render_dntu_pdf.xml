@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+<head>
+    <link name="Times" type="font" subtype="opentype"
+        src="${libPdf.font.times?html}"
+        src-bold="${libPdf.font.times_bold?html}"
+        src-italic="${libPdf.font.times_italic?html}"
+        src-bolditalic="${libPdf.font.times_bolditalic?html}"
+        bytes="2"/>
+    <style type="text/css">
+        * { font-family: Times; font-size: 13pt; }
+        p { margin: 0 0 3px 0; }
+        table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 0; }
+        .no-border, .no-border td { border: none; }
+        .company, .national { font-weight: bold; }
+        .underline-thin { border-bottom: 0.5pt solid #000000; }
+        .rule-row td { border: none; font-size: 1pt; line-height: 1pt; padding: 0; }
+        .rule-row td.rule-mid { border-bottom: 0.5pt solid #000000; }
+        .ul-table { width: 100%; margin: 0; border-spacing: 0; }
+        .ul-table td { border: none; font-size: 1pt; line-height: 1pt; padding: 0; }
+        .ul-pad { width: 30%; }
+        .ul-line { width: 40%; border-bottom: 0.5pt solid #000000; }
+        .national, .center { text-align: center; }
+        .date { font-style: italic; text-align: right; }
+        .title { font-size: 14pt; font-weight: bold; text-align: center; }
+        .cell { border: 0.5pt solid #000000; padding: 4px; text-align: center; }
+        .cell-top { border-top: 0.5pt solid #000000; }
+        .cell-left { border: 0.5pt solid #000000; padding: 4px; text-align: left; }
+        .bold { font-weight: bold; }
+        .info-table td { padding: 5px 0 5px 50px; vertical-align: top; }
+        .money-label { font-style: italic; text-align: right; }
+        .quochieu { font-weight: bold; font-size: 12pt; }
+        .signature { padding-top: 8px; vertical-align: top; }
+        .signature p { font-size: 10pt; word-break: keep-all; }
+        .signature-space { height: 42px; }
+    </style>
+</head>
+<body size="A4" orientation="portrait" padding="30px">
+    <p class="bold" align="right">Mẫu số ${(dataJson.mauSo!'')?html}</p>
+    <table class="no-border">
+        <tr>
+            <td width="48%" class="no-border">
+                <p class="company" align="left" margin="0">${(dataJson.tenCongTy!'')?html}</p>
+                <!-- Theo Nghị định 30/2020/NĐ-CP: đường kẻ dưới tên cơ quan/tổ chức
+                     dài 1/3-1/2 dòng chữ, đặt cân đối - không phải gạch chân sát chữ.
+                     font-size 1pt để ô rỗng không chiếm nguyên một dòng chữ 13pt,
+                     nếu không đường kẻ bị đẩy xuống xa khỏi chữ. -->
+                <table>
+                    <tr class="rule-row">
+                        <td width="30%">&#160;</td>
+                        <td width="40%" class="rule-mid">&#160;</td>
+                        <td width="30%">&#160;</td>
+                    </tr>
+                </table>
+                <p align="center" margin-top="7px">Đơn vị: ${(dataJson.donVi!'')?html}</p>
+            </td>
+            <td width="4%" class="no-border">&#160;</td>
+            <td width="48%" class="no-border">
+                <p class="quochieu" align="center">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                <p class="national" align="center"><span class="underline-thin">Độc lập - Tự do - Hạnh phúc</span></p>
+                <p class="date" align="right">Hà Nội, ngày ${(dataJson.ngay!'')?html} tháng ${(dataJson.thang!'')?html} năm ${(dataJson.nam!'')?html}</p>
+            </td>
+        </tr>
+    </table>
+    <!-- TODO(BA-Q10): Hà Nội is currently fixed by the approved specification. -->
+    <p class="title" align="center" margin-top="60px" margin-bottom="18px">${(dataJson.tieuDe!'')?html}</p>
+
+    <table class="no-border info-table">
+        <tr>
+            <td class="no-border bold" align="center">Kính gửi: ..................................................</td>
+        </tr>
+        <tr>
+            <td class="no-border">
+                ${(dataJson.nhan.nguoiDeNghi!'')?html}: ${(dataJson.nguoiDeNghi!'')?html}
+            </td>
+        </tr>
+        <tr>
+            <td class="no-border">Đơn vị: ${(dataJson.donVi!'')?html}</td>
+        </tr>
+        <tr>
+            <td class="no-border">Căn cứ: ....................................................</td>
+        </tr>
+        <tr>
+            <td class="no-border">
+                ${(dataJson.nhan.noiDung!'')?html}: ${(dataJson.noiDung!'')?html}
+            </td>
+        </tr>
+        <#if (dataJson.thoiHan!'')?has_content>
+            <tr>
+                <td class="no-border">
+                    Thời hạn thanh toán trước ngày ${(dataJson.thoiHan!'')?html}
+                </td>
+            </tr>
+        </#if>
+        <!-- TODO(BA-Q12): use ASCII marks to keep Times font compatibility. -->
+        <tr>
+            <td class="no-border">
+                ${(dataJson.nhan.hinhThuc!'')?html}:
+                Tiền mặt <#if (dataJson.tickTienMat!'') == 'X'>[X]<#else>[ ]</#if>
+                &#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;
+                Chuyển khoản <#if (dataJson.tickChuyenKhoan!'') == 'X'>[X]<#else>[ ]</#if>
+            </td>
+        </tr>
+        <tr>
+            <td class="no-border">
+                ${(dataJson.nhan.chuTaiKhoan!'')?html}:
+                ${(dataJson.chuTaiKhoan!'')?html}
+            </td>
+        </tr>
+        <tr>
+            <td class="no-border">
+                ${(dataJson.nhan.soTaiKhoan!'')?html}: ${(dataJson.soTaiKhoan!'')?html}
+            </td>
+        </tr>
+        <tr>
+            <td class="no-border">
+                ${(dataJson.nhan.nganHang!'')?html}: ${(dataJson.nganHang!'')?html}
+            </td>
+        </tr>
+        <tr>
+            <td class="no-border">${(dataJson.nhan.cauDan!'')?html}</td>
+        </tr>
+        <tr>
+            <td class="no-border money-label" align="right">
+                ${(dataJson.nhan.donViTien!'')?html}: ${(dataJson.tenTienTe!'')?html}
+            </td>
+        </tr>
+    </table>
+
+    <table>
+        <thead>
+            <tr>
+                <td width="8%" class="cell bold" align="center">STT</td>
+                <td width="44%" class="cell bold" align="center">Diễn giải</td>
+                <td width="22%" class="cell bold" align="center">Số tiền</td>
+                <td width="26%" class="cell bold" align="center">Chứng từ kèm theo</td>
+            </tr>
+        </thead>
+        <tbody>
+            <#list (dataJson.lines![]) as line>
+                <tr>
+                    <td class="cell" align="center">${(line.stt!'')?html}</td>
+                    <td class="cell-left" align="left">${(line.dienGiai!'')?html}</td>
+                    <td class="cell" align="right">${(line.soTien!'')?html}</td>
+                    <td class="cell">&#160;</td>
+                </tr>
+            </#list>
+            <!-- Chỉ in dòng có dữ liệu thật. Mockup vẽ 6 dòng trống vì đó là
+                 mẫu giấy để viết tay, không phải yêu cầu của bản in hệ thống. -->
+            <tr>
+                <td class="cell">&#160;</td>
+                <td class="cell bold" align="center">Tổng cộng</td>
+                <td class="cell bold" align="right">${(dataJson.tongCong!'')?html}</td>
+                <td class="cell">&#160;</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p class="bold"><i>(Bằng chữ: ${(dataJson.tongCongBangChu!'')?html})</i></p>
+
+    <table class="no-border">
+        <tr>
+            <td width="16%" class="no-border signature">
+                <p align="center">TỔNG GIÁM<br/>ĐỐC</p>
+                <p class="signature-space">&#160;</p>
+                <p align="center">${(dataJson.kyDuyet.tongGiamDoc!'')?html}</p>
+            </td>
+            <td width="16%" class="no-border signature">
+                <p align="center">KẾ TOÁN<br/>TRƯỞNG</p>
+                <p class="signature-space">&#160;</p>
+                <p align="center">${(dataJson.kyDuyet.keToanTruong!'')?html}</p>
+            </td>
+            <td width="16%" class="no-border signature">
+                <p align="center">PHÓ TRƯỞNG<br/>PHÒNG TCKT</p>
+                <p class="signature-space">&#160;</p>
+                <p align="center">${(dataJson.kyDuyet.phoTruongPhongTCKT!'')?html}</p>
+            </td>
+            <td width="16%" class="no-border signature">
+                <p align="center">KẾ TOÁN<br/>THANH TOÁN</p>
+                <p class="signature-space">&#160;</p>
+                <p align="center">${(dataJson.kyDuyet.keToanThanhToan!'')?html}</p>
+            </td>
+            <td width="16%" class="no-border signature">
+                <p align="center">TRƯỞNG<br/>ĐƠN VỊ</p>
+                <p class="signature-space">&#160;</p>
+                <p align="center">${(dataJson.kyDuyet.truongDonVi!'')?html}</p>
+            </td>
+            <td width="16%" class="no-border signature">
+                <p align="center">NGƯỜI<br/>ĐỀ NGHỊ</p>
+                <p class="signature-space">&#160;</p>
+                <p align="center">${(dataJson.kyDuyet.nguoiDeNghi!'')?html}</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</pdf>

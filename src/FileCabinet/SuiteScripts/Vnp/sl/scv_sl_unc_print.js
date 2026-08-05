@@ -1,0 +1,205 @@
+/**
+ * @NApiVersion 2.1
+ * @NScriptType Suitelet
+ */
+define(['N/query', 'N/render',
+        '../lib/scv_lib_pdf.js',
+        '../lib/scv_lib_amount_in_word.js',
+        '../lib/scv_lib_utils.js'], (query, render, libPdf, libAmount, libUtils) => {
+    // TODO(BA-Q1): Chọn mẫu theo ngân hàng tài khoản chi tiền và xử lý ngân hàng thứ 4.
+    const NganHang = {
+        TPBANK: {
+            tuKhoa: ['TPBANK', 'TIENPHONGBANK'],
+            printfile: 'scv_render_unc_tpbank_pdf',
+            coTinhTP: true, coChiNhanh: false
+        },
+        VIETINBANK: {
+            // 'VIETTINBANK' 2 chu T: ke toan dang go sai chinh ta tren 3 tai khoan
+            // that (id 145, 147, 802). Thieu tu khoa nay la 3 tai khoan do khong
+            // bao gio ra button.
+            tuKhoa: ['VIETINBANK', 'VIETTINBANK', 'CONGTHUONG'],
+            printfile: 'scv_render_unc_vietinbank_pdf',
+            coTinhTP: false, coChiNhanh: true
+        },
+        SHB: {
+            tuKhoa: ['SHB', 'SAIGONHANOI'],
+            printfile: 'scv_render_unc_shb_pdf',
+            coTinhTP: false, coChiNhanh: true
+        }
+    };
+
+    // BA-Q9 da chot bang SuiteQL tren account that: bang transaction CHI co cot
+    // 'total'. 't.usertotal' va 't.payment' deu nem loi, du FDD ghi 2 ten do cho
+    // man hinh Check va Vendor Prepayment - do la field id tren RECORD, khong phai
+    // cot SuiteQL. Ca 3 loai chung tu deu lay ABS(t.total).
+    // Dictionary nay gio chi con lam whitelist loai chung tu duoc phep in.
+    const ManHinh = {check: true, vendorprepayment: true, vendorpayment: true};
+
+    // TODO(BA-Q10): Bổ sung symbol tiền tệ khi NetSuite trả giá trị mới.
+    const MaTienTeTheoSymbol = {VND: 'VND', 'VNĐ': 'VND', '₫': 'VND', 'đ': 'VND'};
+
+    const chuanHoa=s=>libUtils.removeVietnameseTones(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')
+
+    const timNganHang = (ten) => {
+        const tenDaChuanHoa = chuanHoa(ten);
+        return Object.keys(NganHang).find((maNganHang) =>
+            NganHang[maNganHang].tuKhoa.some((tuKhoa) => tenDaChuanHoa.includes(tuKhoa)));
+    };
+
+    const asText = (value) => (value == null ? '' : String(value));
+
+    const getMaTienTe = (symbol) => {
+        const giaTri = asText(symbol);
+        const maTienTe = MaTienTeTheoSymbol[giaTri];
+        if (!maTienTe) {
+            throw new Error('Chưa map mã tiền tệ cho symbol: ' + giaTri);
+        }
+        return maTienTe;
+    };
+
+    const getTickTienTe = (maTienTe) => {
+        // TODO(BA-Q6): BA xác nhận cách tick các mã tiền tệ ngoài VND, USD, EUR.
+        return {
+            tickVND: maTienTe === 'VND' ? 'X' : '',
+            tickUSD: maTienTe === 'USD' ? 'X' : '',
+            tickEUR: maTienTe === 'EUR' ? 'X' : '',
+            tickKhac: !['VND', 'USD', 'EUR'].includes(maTienTe) ? 'X' : ''
+        };
+    };
+
+    const getTickPhi = (maNganHang) => {
+        // TODO(BA-Q7): BA xác nhận ô phí có hardcode hay lấy từ field nào.
+        const tickTheoNganHang = {
+            TPBANK: {
+                tickPhiNguoiChuyen: 'X', tickPhiNguoiHuong: '',
+                tickPhiTrong: '', tickPhiNgoai: ''
+            },
+            VIETINBANK: {
+                tickPhiNguoiChuyen: '', tickPhiNguoiHuong: '',
+                tickPhiTrong: '', tickPhiNgoai: 'X'
+            },
+            SHB: {
+                tickPhiNguoiChuyen: '', tickPhiNguoiHuong: '',
+                tickPhiTrong: '', tickPhiNgoai: ''
+            }
+        };
+        return tickTheoNganHang[maNganHang];
+    };
+
+    const ghepNganHang = (ten, chiNhanh, coChiNhanh) => {
+        const tenNganHang = asText(ten);
+        const tenChiNhanh = asText(chiNhanh);
+        return coChiNhanh && tenChiNhanh ?
+            tenNganHang + ' - ' + tenChiNhanh : tenNganHang;
+    };
+
+    const getHeader = (recid) => {
+        const sql = `
+            SELECT
+                t.id,
+                TO_CHAR(t.trandate, 'DD/MM/YYYY') AS ngay_ct,
+                t.memo AS noi_dung,
+                ABS(t.total) AS so_tien, -- BA-Q9: chi co cot 'total', va no am
+                cur.symbol AS ma_tien_te,
+                sub.legalname AS ten_nguoi_tra,
+                acc.custrecord_scv_acc_bank_acc AS stk_nguoi_tra, -- TODO(BA-Q3)
+                acc.custrecord_scv_acc_bank_name AS nh_nguoi_tra, -- TODO(BA-Q3)
+                -- Chi dung de DINH TUYEN mau in, KHONG in ra chung tu.
+                -- custrecord_scv_acc_bank_name hien rong tren 100% tai khoan, nen
+                -- tam do ten tai khoan. TODO(BA-Q11): TechLead chot lai.
+                COALESCE(acc.custrecord_scv_acc_bank_name,
+                         acc.accountsearchdisplayname) AS nguon_dinh_tuyen,
+                acc.custrecord_scv_acc_bank_branch AS cn_nguoi_tra, -- TODO(BA-Q3)
+                acc.custrecord_scv_acc_province AS tinh_nguoi_tra, -- TODO(BA-Q3)
+                t.custbody_scv_beneficiary_bank AS ten_nguoi_huong, -- TODO(BA-Q4)
+                t.custbody_scv_bank_account AS stk_nguoi_huong,
+                t.custbody_scv_bank_name AS nh_nguoi_huong,
+                t.custbody_scv_bank_branch AS cn_nguoi_huong,
+                t.custbody_scv_province AS tinh_nguoi_huong
+            FROM transaction t
+            LEFT JOIN transactionline tl ON tl.transaction = t.id
+                AND tl.mainline = 'T' -- TODO(BA-Q8)
+            -- transactionline.account bi NOT_EXPOSED trong SuiteQL, phai di vong
+            -- qua transactionaccountingline moi lay duoc tai khoan ngan hang.
+            LEFT JOIN transactionaccountingline tal ON tal.transaction = t.id
+                AND tal.transactionline = tl.id
+            LEFT JOIN account acc ON acc.id = tal.account
+            LEFT JOIN subsidiary sub ON sub.id = t.subsidiary
+            LEFT JOIN currency cur ON cur.id = t.currency
+            WHERE t.id = ?
+        `;
+        const rows = query.runSuiteQL({query: sql, params: [recid]}).asMappedResults();
+        if (rows.length !== 1) {
+            throw new Error('Không tìm thấy chứng từ cần in.');
+        }
+        return rows[0];
+    };
+
+    const buildDataJson = (header, maNganHang, config) => {
+        const soTien = Number(header.so_tien);
+        const maTienTe = getMaTienTe(header.ma_tien_te);
+        const tickTienTe = getTickTienTe(maTienTe);
+        const tickPhi = getTickPhi(maNganHang);
+        const nhNguoiTra = ghepNganHang(
+            header.nh_nguoi_tra, header.cn_nguoi_tra, config.coChiNhanh
+        );
+        const nhNguoiHuong = ghepNganHang(
+            header.nh_nguoi_huong, header.cn_nguoi_huong, config.coChiNhanh
+        );
+        return {
+            ngayCT: asText(header.ngay_ct),
+            tenNguoiTra: asText(header.ten_nguoi_tra),
+            stkNguoiTra: asText(header.stk_nguoi_tra),
+            nhNguoiTra,
+            tinhNguoiTra: config.coTinhTP ? asText(header.tinh_nguoi_tra) : '',
+            tenNguoiHuong: asText(header.ten_nguoi_huong),
+            stkNguoiHuong: asText(header.stk_nguoi_huong),
+            nhNguoiHuong,
+            tinhNguoiHuong: config.coTinhTP ? asText(header.tinh_nguoi_huong) : '',
+            soTien: libPdf.formatNumber(soTien),
+            soTienBangChu: libAmount.DocTienBangChu(soTien, maTienTe),
+            maTienTe,
+            noiDung: asText(header.noi_dung),
+            tickVND: tickTienTe.tickVND,
+            tickUSD: tickTienTe.tickUSD,
+            tickEUR: tickTienTe.tickEUR,
+            tickKhac: tickTienTe.tickKhac,
+            tickPhiNguoiChuyen: tickPhi.tickPhiNguoiChuyen,
+            tickPhiNguoiHuong: tickPhi.tickPhiNguoiHuong,
+            tickPhiTrong: tickPhi.tickPhiTrong,
+            tickPhiNgoai: tickPhi.tickPhiNgoai
+        };
+    };
+
+    const renderPdf = (response, config, dataJson) => {
+        const renderer = libPdf.renderTemplateWithXml(config.printfile);
+        renderer.addCustomDataSource({
+            format: render.DataSource.OBJECT,
+            alias: 'dataJson',
+            data: dataJson
+        });
+        response.writeFile({file: renderer.renderAsPdf(), isInline: true});
+    };
+
+    const onRequest = (scriptContext) => {
+        const params = scriptContext.request.parameters;
+        if (!params.recid) {
+            throw new Error('Thiếu mã chứng từ cần in.');
+        }
+        if (!ManHinh[params.rectype]) {
+            throw new Error('Loại màn hình không hợp lệ: ' + asText(params.rectype));
+        }
+        const header = getHeader(params.recid);
+        const tenNganHang = asText(header.nguon_dinh_tuyen);
+        const maNganHang = timNganHang(tenNganHang);
+        // TODO(BA-Q1): Không có mẫu mặc định cho ngân hàng không khớp.
+        if (!maNganHang) {
+            throw new Error('Chưa có mẫu UNC cho ngân hàng: ' + tenNganHang);
+        }
+        const config = NganHang[maNganHang];
+        const dataJson = buildDataJson(header, maNganHang, config);
+        renderPdf(scriptContext.response, config, dataJson);
+    };
+
+    return {onRequest};
+});

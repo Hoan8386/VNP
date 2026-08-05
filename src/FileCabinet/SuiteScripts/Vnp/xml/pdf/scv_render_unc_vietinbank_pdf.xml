@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+<head>
+    <link name="Times" type="font" subtype="opentype"
+        src="${libPdf.font.times?html}"
+        src-bold="${libPdf.font.times_bold?html}"
+        src-italic="${libPdf.font.times_italic?html}"
+        src-bolditalic="${libPdf.font.times_bolditalic?html}"
+        bytes="2"/>
+    <style type="text/css">
+        * { font-family: Times; font-size: 12pt; }
+        p { margin: 0 0 4px 0; }
+        table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+        td { vertical-align: middle; }
+        .no-border, .no-border td { border: none; }
+        .logo-space { height: 42px; width: 115px; }
+        .bank-name { color: #155a9c; font-weight: bold; }
+        .title { color: #155a9c; font-size: 16pt; font-weight: bold; text-align: center; }
+        .subtitle { color: #155a9c; font-size: 14pt; font-weight: bold; text-align: center; }
+        .gray td { background-color: #d9d9d9; border: 0.4pt solid #666666; padding: 4px; }
+        .form { border: 0.6pt solid #155a9c; }
+        .form td { border-bottom: 0.35pt dotted #555555; padding: 4px; }
+        .label { width: 34%; }
+        .value { font-weight: normal; }
+        .bold { font-weight: bold; }
+        .tick { border: 0.6pt solid #000000; height: 14px; text-align: center; width: 14px; }
+        .signature td {
+            background-color: #d9d9d9; border: 0.4pt solid #666666;
+            height: 62px; padding: 5px; text-align: center; vertical-align: top;
+        }
+        .vertical { color: #b51e3d; font-size: 9pt; text-align: center; writing-mode: tb-rl; }
+        .memo { height: 33px; vertical-align: top; }
+    </style>
+</head>
+<body size="A4" width="297mm" height="210mm" orientation="landscape" padding="30px">
+    <table class="no-border">
+        <tr>
+            <td width="42%" class="bank-name">Ngân Hàng TMCP Công Thương Việt Nam</td>
+            <td width="42%">&#160;</td>
+            <td width="16%" class="logo-space">
+                <!-- TODO: logo ngân hàng, chưa có file trong File Cabinet -->
+            </td>
+        </tr>
+    </table>
+    <p class="title">Chứng từ giao dịch</p>
+    <p class="subtitle">Ủy nhiệm chi Payment Order</p>
+    <table class="no-border">
+        <tr>
+            <td width="50%">Số No.: ....................................</td>
+            <td width="50%">Ngày Date: ${(dataJson.ngayCT!'')?html}</td>
+        </tr>
+    </table>
+    <table class="gray">
+        <tr>
+            <td width="20%">Ký hiệu</td>
+            <td width="20%">Số HĐ</td>
+            <td width="27%">Mẫu số 01GTKT2/003</td>
+            <td width="33%">Liên 1 . Lưu Copy 1, Bank's copy</td>
+        </tr>
+        <tr><td>&#160;</td><td>&#160;</td><td>&#160;</td><td>&#160;</td></tr>
+    </table>
+    <table class="no-border">
+        <tr>
+            <td width="96%">
+                <table class="form">
+                    <tr>
+                        <td class="label">Tên người trả tiền</td>
+                        <td class="value">${(dataJson.tenNguoiTra!'')?html}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Số Tài khoản</td>
+                        <td class="value">${(dataJson.stkNguoiTra!'')?html}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Tại ngân hàng</td>
+                        <td class="value">${(dataJson.nhNguoiTra!'')?html}</td>
+                    </tr>
+                    <tr>
+                        <td class="label bold">Tên người hưởng</td>
+                        <td class="value bold">${(dataJson.tenNguoiHuong!'')?html}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Số Tài khoản</td>
+                        <td class="value">${(dataJson.stkNguoiHuong!'')?html}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Số CMT/HC ID/PP No</td>
+                        <td class="value">Ngày cấp Date of Issue: &#160;
+                            Nơi cấp Place of Issue: &#160;</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Tại ngân hàng</td>
+                        <td class="value">${(dataJson.nhNguoiHuong!'')?html}</td>
+                    </tr>
+                    <tr>
+                        <td class="label bold">Số tiền bằng số</td>
+                        <td class="value bold">${(dataJson.soTien!'')?html}
+                            ${(dataJson.maTienTe!'')?html}</td>
+                    </tr>
+                    <tr>
+                        <td class="label bold">Số tiền bằng chữ</td>
+                        <td class="value bold">${(dataJson.soTienBangChu!'')?html}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Phí ngân hàng Fee</td>
+                        <td class="value">
+                            <table class="no-border">
+                                <tr>
+                                    <td class="tick">${(dataJson.tickPhiTrong!'')?html}</td>
+                                    <td>Phí trong Including</td>
+                                    <td class="tick">${(dataJson.tickPhiNgoai!'')?html}</td>
+                                    <td>Phí ngoài Excluding</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="label bold">Nội dung</td>
+                        <td class="value bold memo">${(dataJson.noiDung!'')?html}</td>
+                    </tr>
+                </table>
+            </td>
+            <td width="4%" class="vertical">Mẫu số 01GTKT2/027</td>
+        </tr>
+    </table>
+    <table class="signature">
+        <tr>
+            <td width="25%">Kế toán trưởng</td>
+            <td width="25%">Chủ tài khoản A/C holder</td>
+            <td width="25%">Giao dịch viên Teller</td>
+            <td width="25%">Kiểm soát viên Supervisor</td>
+        </tr>
+    </table>
+</body>
+</pdf>

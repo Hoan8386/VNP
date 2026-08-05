@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+<head>
+    <link name="Times" type="font" subtype="opentype"
+        src="${libPdf.font.times?html}"
+        src-bold="${libPdf.font.times_bold?html}"
+        src-italic="${libPdf.font.times_italic?html}"
+        src-bolditalic="${libPdf.font.times_bolditalic?html}"
+        bytes="2"/>
+    <style type="text/css">
+        * { font-family: Times; font-size: 12pt; }
+        p { margin: 0 0 4px 0; }
+        table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+        td { vertical-align: top; }
+        .no-border, .no-border td { border: none; }
+        .logo-space { height: 42px; width: 115px; }
+        .title { color: #b21f3a; font-size: 16pt; font-weight: bold; text-align: right; }
+        .subtitle { color: #b21f3a; font-size: 10pt; text-align: right; }
+        .panel { border: 0.6pt solid #6a398e; }
+        .panel td { padding: 5px; }
+        .band { background-color: #6a398e; color: #ffffff; font-weight: bold; }
+        .right-panel { border: 0.6pt solid #6a398e; }
+        .right-panel td { padding: 5px; }
+        .amount { color: #d86922; font-size: 14pt; font-weight: bold; }
+        .tick { border: 0.6pt solid #000000; height: 14px; text-align: center; width: 14px; }
+        .tick-label { padding-left: 3px; }
+        .signature { border: 0.6pt solid #6a398e; height: 82px; padding: 5px; text-align: center; }
+        .bank-use { border: 0.6pt solid #6a398e; margin-top: 8px; }
+        .bank-use td { border: 0.4pt solid #6a398e; height: 31px; padding: 4px; }
+        .label { font-weight: bold; }
+        .value { border-bottom: 0.4pt solid #6a398e; }
+    </style>
+</head>
+<body size="A4" width="297mm" height="210mm" orientation="landscape" padding="30px">
+    <table class="no-border">
+        <tr>
+            <td class="logo-space" width="35%">
+                <!-- TODO: logo ngân hàng, chưa có file trong File Cabinet -->
+            </td>
+            <td width="65%">
+                <p class="title">ỦY NHIỆM CHI / PAYMENT ORDER</p>
+                <p class="subtitle">Ngày (Date): ${(dataJson.ngayCT!'')?html}</p>
+            </td>
+        </tr>
+    </table>
+    <table class="no-border">
+        <tr>
+            <td width="60%" style="padding-right:6px;">
+                <table class="panel">
+                    <tr><td class="band">Đề nghị ghi nợ tài khoản (Please debit acount)</td></tr>
+                    <tr><td><span class="label">Tên tài khoản (Account name): </span>
+                        ${(dataJson.tenNguoiTra!'')?html}</td></tr>
+                    <tr><td><span class="label">Số tài khoản (Account number): </span>
+                        ${(dataJson.stkNguoiTra!'')?html}</td></tr>
+                    <tr><td><span class="label">Ngân hàng (With bank): </span>
+                        ${(dataJson.nhNguoiTra!'')?html}</td></tr>
+                    <tr><td><span class="label">Tỉnh/TP (Province/City): </span>
+                        ${(dataJson.tinhNguoiTra!'')?html}</td></tr>
+                    <tr><td class="band">Người hưởng (Beneficiary)</td></tr>
+                    <tr><td><span class="label">Tên tài khoản (Account name): </span>
+                        ${(dataJson.tenNguoiHuong!'')?html}</td></tr>
+                    <tr><td><span class="label">Số tài khoản (Account number): </span>
+                        ${(dataJson.stkNguoiHuong!'')?html}</td></tr>
+                    <tr><td><span class="label">Ngân hàng (With bank): </span>
+                        ${(dataJson.nhNguoiHuong!'')?html}</td></tr>
+                    <tr><td><span class="label">Tỉnh/TP (Province/City): </span>
+                        ${(dataJson.tinhNguoiHuong!'')?html}</td></tr>
+                    <tr><td><span class="label">Nội dung (Details): </span>
+                        ${(dataJson.noiDung!'')?html}</td></tr>
+                </table>
+                <table class="no-border" style="margin-top:7px;">
+                    <tr>
+                        <td class="signature" width="50%">Kế toán trưởng</td>
+                        <td class="signature" width="50%">Chủ tài khoản (ký và đóng dấu)</td>
+                    </tr>
+                </table>
+            </td>
+            <td width="40%" style="padding-left:6px;">
+                <table class="right-panel">
+                    <tr><td><span class="label">Số tiền (With amount)</span></td></tr>
+                    <tr><td><span class="label">Loại tiền (Currency)</span></td></tr>
+                    <tr><td>
+                        <table class="no-border">
+                            <tr>
+                                <td class="tick">${(dataJson.tickVND!'')?html}</td>
+                                <td class="tick-label">VND</td>
+                                <td class="tick">${(dataJson.tickUSD!'')?html}</td>
+                                <td class="tick-label">USD</td>
+                                <td class="tick">${(dataJson.tickEUR!'')?html}</td>
+                                <td class="tick-label">EUR</td>
+                                <td class="tick">${(dataJson.tickKhac!'')?html}</td>
+                                <td class="tick-label">Khác</td>
+                            </tr>
+                        </table>
+                    </td></tr>
+                    <tr><td><span class="label">Số tiền bằng số:</span></td></tr>
+                    <tr><td class="amount">${(dataJson.soTien!'')?html}
+                        ${(dataJson.maTienTe!'')?html}</td></tr>
+                    <tr><td><span class="label">Số tiền bằng chữ:</span></td></tr>
+                    <tr><td class="value">${(dataJson.soTienBangChu!'')?html}</td></tr>
+                    <tr><td><span class="label">Phí Ngân hàng (Charges)</span></td></tr>
+                    <tr><td>
+                        <table class="no-border">
+                            <tr>
+                                <td class="tick">${(dataJson.tickPhiNguoiChuyen!'')?html}</td>
+                                <td class="tick-label">Người chuyển chịu (Sender)</td>
+                            </tr>
+                            <tr>
+                                <td class="tick">${(dataJson.tickPhiNguoiHuong!'')?html}</td>
+                                <td class="tick-label">Người hưởng chịu (Beneficiary)</td>
+                            </tr>
+                        </table>
+                    </td></tr>
+                    <tr><td><span class="label">Số tiền phí:</span> &#160;</td></tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+    <table class="bank-use">
+        <tr><td colspan="4"><b>Dành cho Ngân hàng (For bank use only)</b></td></tr>
+        <tr>
+            <td width="25%">Giao dịch viên</td>
+            <td width="25%">Người duyệt</td>
+            <td width="25%">Số bút toán / Nợ TK</td>
+            <td width="25%">Có TK</td>
+        </tr>
+        <tr><td>&#160;</td><td>&#160;</td><td>&#160;</td><td>&#160;</td></tr>
+        <tr><td colspan="3">Có TK</td><td>&#160;</td></tr>
+    </table>
+</body>
+</pdf>
