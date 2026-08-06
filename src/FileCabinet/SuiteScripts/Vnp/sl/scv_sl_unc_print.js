@@ -107,8 +107,10 @@ define(['N/query', 'N/render',
                 -- Chi dung de DINH TUYEN mau in, KHONG in ra chung tu.
                 -- custrecord_scv_acc_bank_name hien rong tren 100% tai khoan, nen
                 -- tam do ten tai khoan. TODO(BA-Q11): TechLead chot lai.
-                COALESCE(acc.custrecord_scv_acc_bank_name,
-                         acc.accountsearchdisplayname) AS nguon_dinh_tuyen,
+                -- KHONG dung COALESCE: da test tren account that, tron custom field
+                -- voi native field trong COALESCE lam ca cau query gay voi loi
+                -- chung chung 'Invalid or unsupported search'. Ghep trong JS.
+                acc.accountsearchdisplayname AS ten_tk_dinh_tuyen,
                 acc.custrecord_scv_acc_bank_branch AS cn_nguoi_tra, -- TODO(BA-Q3)
                 acc.custrecord_scv_acc_province AS tinh_nguoi_tra, -- TODO(BA-Q3)
                 t.custbody_scv_beneficiary_bank AS ten_nguoi_huong, -- TODO(BA-Q4)
@@ -124,7 +126,8 @@ define(['N/query', 'N/render',
             LEFT JOIN transactionaccountingline tal ON tal.transaction = t.id
                 AND tal.transactionline = tl.id
             LEFT JOIN account acc ON acc.id = tal.account
-            LEFT JOIN subsidiary sub ON sub.id = t.subsidiary
+            -- t.subsidiary cung bi NOT_EXPOSED, lay tu dong mainline.
+            LEFT JOIN subsidiary sub ON sub.id = tl.subsidiary
             LEFT JOIN currency cur ON cur.id = t.currency
             WHERE t.id = ?
         `;
@@ -138,6 +141,8 @@ define(['N/query', 'N/render',
     const buildDataJson = (header, maNganHang, config) => {
         const soTien = Number(header.so_tien);
         const maTienTe = getMaTienTe(header.ma_tien_te);
+        const soTienBangChu = libAmount.DocTienBangChu(soTien, maTienTe)
+            .replace(/\.\/\s*$/, ''); // TODO(BA-Q12): mẫu ngân hàng không có đuôi ./
         const tickTienTe = getTickTienTe(maTienTe);
         const tickPhi = getTickPhi(maNganHang);
         const nhNguoiTra = ghepNganHang(
@@ -157,7 +162,7 @@ define(['N/query', 'N/render',
             nhNguoiHuong,
             tinhNguoiHuong: config.coTinhTP ? asText(header.tinh_nguoi_huong) : '',
             soTien: libPdf.formatNumber(soTien),
-            soTienBangChu: libAmount.DocTienBangChu(soTien, maTienTe),
+            soTienBangChu,
             maTienTe,
             noiDung: asText(header.noi_dung),
             tickVND: tickTienTe.tickVND,
@@ -190,7 +195,8 @@ define(['N/query', 'N/render',
             throw new Error('Loại màn hình không hợp lệ: ' + asText(params.rectype));
         }
         const header = getHeader(params.recid);
-        const tenNganHang = asText(header.nguon_dinh_tuyen);
+        const tenNganHang = asText(header.nh_nguoi_tra) ||
+            asText(header.ten_tk_dinh_tuyen);
         const maNganHang = timNganHang(tenNganHang);
         // TODO(BA-Q1): Không có mẫu mặc định cho ngân hàng không khớp.
         if (!maNganHang) {

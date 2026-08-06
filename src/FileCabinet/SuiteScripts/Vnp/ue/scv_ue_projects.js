@@ -2,22 +2,30 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
-define(['N/record', 'N/search', 'N/url', '../lib/scv_lib_function.js'],
+define(['N/url', '../lib/scv_lib_function.js', '../common/scv_common_itg_vietstock.js'],
 
-    (record, search, url, libFunc) => {
+    (url, libFunc, vietStock) => {
 
         const RecordType = {
-            VENDOR_CREDIT: 'vendorcredit'
+            PROJECT: 'customrecord_cseg_inv_portfolio'
         };
 
-        // Account số bắt đầu bằng 111/112 -> tạo Check; bắt đầu bằng 341 -> tạo JRL
-        const AccountPrefix = {
-            CHECK: ['111', '112'],
-            JOURNAL: ['341']
-        };
+        const SCRIPT_ID = 'customscript_scv_sl_itg_vietstock';
+        const DEPLOY_ID = 'customdeploy_scv_sl_itg_vietstock';
 
-        const SCRIPT_ID = 'customscript_scv_sl_vendor_credit';
-        const DEPLOY_ID = 'customdeploy_scv_sl_vendor_credit';
+        // Suitelet màn hình nhập tham số đồng bộ Financial info (scv_sl_itg_vietstock_form.js)
+        const SCRIPT_ID_FORM = 'customscript_scv_sl_itg_vietstock_form';
+        const DEPLOY_ID_FORM = 'customdeploy_scv_sl_itg_vietstock_form';
+
+        /**
+         * Tách Stock Code từ tên Project, lấy phần cuối cùng sau dấu "-".
+         * VD: "ASC-CTCP DP Imexpharm - IMP" -> "IMP"
+         */
+        const getStockCodeFromName = (name) => {
+            if (!name) return '';
+            let parts = name.split('-');
+            return parts[parts.length - 1].trim();
+        }
 
         /**
          * Defines the function definition that is executed before record is loaded.
@@ -33,39 +41,34 @@ define(['N/record', 'N/search', 'N/url', '../lib/scv_lib_function.js'],
                 if (scriptContext.type !== 'view') return;
 
                 let newRecord = scriptContext.newRecord;
-                if (newRecord.type !== RecordType.VENDOR_CREDIT) return;
+                if (newRecord.type !== RecordType.PROJECT) return;
 
-                let accountId = newRecord.getValue({fieldId: 'custbody_scv_account'});
-                if (!accountId) return;
-
-                let accountNumber = search.lookupFields({
-                    type: search.Type.ACCOUNT,
-                    id: accountId,
-                    columns: ['number']
-                }).number || '';
-
-                let isCheckAccount = AccountPrefix.CHECK.some(prefix => accountNumber.startsWith(prefix));
-                let isJournalAccount = AccountPrefix.JOURNAL.some(prefix => accountNumber.startsWith(prefix));
-                if (!isCheckAccount && !isJournalAccount) return;
-
+                let projectName = newRecord.getValue({fieldId: 'name'});
+                let stockCode = newRecord.getValue('custrecord_scv_proj_stockcode') || getStockCodeFromName(projectName);
+                if (!stockCode) return;
                 libFunc.addCssPleaseWait(scriptContext.form);
 
-                let relatedTransaction = newRecord.getValue({fieldId: 'custbody_scv_related_transaction'});
                 let recordId = newRecord.id;
-                let transactionType = isCheckAccount ? record.Type.CHECK : record.Type.JOURNAL_ENTRY;
                 let urlSuitelet = url.resolveScript({
                     scriptId: SCRIPT_ID,
                     deploymentId: DEPLOY_ID,
-                    params: {vendorcreditId: recordId, transactionType: transactionType}
+                    params: {projectId: recordId, stockCode: stockCode, type: vietStock.SyncType.STOCK_TRADING}
                 });
 
-                let form = scriptContext.form;
-                if (relatedTransaction) {
-                    libFunc.addButtonHandel(form, 'custpage_scv_update', isCheckAccount ? 'Update Check' : 'Update JRL', urlSuitelet, recordId);
-                } else {
-                    let labelButton = isCheckAccount ? 'Create Check' : 'Create JRL';
-                    libFunc.addButtonHandel(form, 'custpage_scv_create', labelButton, urlSuitelet, recordId);
-                }
+                libFunc.addButtonHandel(scriptContext.form, 'custpage_scv_sync_stocktrading', 'Sync Stock Trading', urlSuitelet, recordId);
+
+                // Mở màn hình nhập tham số (Project, Từ ngày - Đến ngày, Loại báo cáo, TermType) rồi mới đồng bộ
+                let urlSuiteletForm = url.resolveScript({
+                    scriptId: SCRIPT_ID_FORM,
+                    deploymentId: DEPLOY_ID_FORM,
+                    params: {projectId: recordId, stockCode: stockCode}
+                });
+
+                scriptContext.form.addButton({
+                    id: 'custpage_scv_sync_financialinfo',
+                    label: 'Sync Financial Info',
+                    functionName: `nlExtOpenWindow('${urlSuiteletForm}', 'syncFinancialinfo', screen.width - 100, screen.height - 100, this, true, 'Sync Financial Info');`
+                });
             } catch (e) {
                 log.error('beforeLoad error', e);
             }

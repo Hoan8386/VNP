@@ -9,124 +9,140 @@
         src-bolditalic="${libPdf.font.times_bolditalic?html}"
         bytes="2"/>
     <style type="text/css">
-        * { font-family: Times; font-size: 12pt; }
-        p { margin: 0 0 4px 0; }
-        table { border-collapse: collapse; table-layout: fixed; width: 100%; }
-        td { vertical-align: top; }
-        .no-border, .no-border td { border: none; }
-        .logo-space { height: 42px; width: 115px; }
-        .title { color: #b21f3a; font-size: 16pt; font-weight: bold; text-align: right; }
-        .subtitle { color: #b21f3a; font-size: 10pt; text-align: right; }
-        .panel { border: 0.6pt solid #6a398e; }
-        .panel td { padding: 5px; }
-        .band { background-color: #6a398e; color: #ffffff; font-weight: bold; }
-        .right-panel { border: 0.6pt solid #6a398e; }
-        .right-panel td { padding: 5px; }
-        .amount { color: #d86922; font-size: 14pt; font-weight: bold; }
-        .tick { border: 0.6pt solid #000000; height: 14px; text-align: center; width: 14px; }
-        .tick-label { padding-left: 3px; }
-        .signature { border: 0.6pt solid #6a398e; height: 82px; padding: 5px; text-align: center; }
-        .bank-use { border: 0.6pt solid #6a398e; margin-top: 8px; }
-        .bank-use td { border: 0.4pt solid #6a398e; height: 31px; padding: 4px; }
-        .label { font-weight: bold; }
-        .value { border-bottom: 0.4pt solid #6a398e; }
+        .copy { page-break-inside: avoid; }
+        .en { font-size: 8pt; font-style: italic; font-weight: normal; }
+        .frame { border: 0.5pt solid #000000; }
+        .band { background-color: #CCC1DA; }
     </style>
 </head>
 <body size="A4" width="297mm" height="210mm" orientation="landscape" padding="30px">
-    <table class="no-border">
+    <!-- TODO(BA-Q14): nguồn TPBank chỉ có một biểu mẫu ngang; in hai trang, mỗi trang một liên. -->
+    <#list [1, 2] as copyNo>
+    <table class="copy" width="100%" cellpadding="0" cellspacing="0" style="<#if copyNo_has_next>page-break-after:always;</#if>">
         <tr>
-            <td class="logo-space" width="35%">
-                <!-- TODO: logo ngân hàng, chưa có file trong File Cabinet -->
-            </td>
-            <td width="65%">
-                <p class="title">ỦY NHIỆM CHI / PAYMENT ORDER</p>
-                <p class="subtitle">Ngày (Date): ${(dataJson.ngayCT!'')?html}</p>
-            </td>
-        </tr>
-    </table>
-    <table class="no-border">
-        <tr>
-            <td width="60%" style="padding-right:6px;">
-                <table class="panel">
-                    <tr><td class="band">Đề nghị ghi nợ tài khoản (Please debit acount)</td></tr>
-                    <tr><td><span class="label">Tên tài khoản (Account name): </span>
-                        ${(dataJson.tenNguoiTra!'')?html}</td></tr>
-                    <tr><td><span class="label">Số tài khoản (Account number): </span>
-                        ${(dataJson.stkNguoiTra!'')?html}</td></tr>
-                    <tr><td><span class="label">Ngân hàng (With bank): </span>
-                        ${(dataJson.nhNguoiTra!'')?html}</td></tr>
-                    <tr><td><span class="label">Tỉnh/TP (Province/City): </span>
-                        ${(dataJson.tinhNguoiTra!'')?html}</td></tr>
-                    <tr><td class="band">Người hưởng (Beneficiary)</td></tr>
-                    <tr><td><span class="label">Tên tài khoản (Account name): </span>
-                        ${(dataJson.tenNguoiHuong!'')?html}</td></tr>
-                    <tr><td><span class="label">Số tài khoản (Account number): </span>
-                        ${(dataJson.stkNguoiHuong!'')?html}</td></tr>
-                    <tr><td><span class="label">Ngân hàng (With bank): </span>
-                        ${(dataJson.nhNguoiHuong!'')?html}</td></tr>
-                    <tr><td><span class="label">Tỉnh/TP (Province/City): </span>
-                        ${(dataJson.tinhNguoiHuong!'')?html}</td></tr>
-                    <tr><td><span class="label">Nội dung (Details): </span>
-                        ${(dataJson.noiDung!'')?html}</td></tr>
-                </table>
-                <table class="no-border" style="margin-top:7px;">
+            <td width="100%" style="padding:17pt 17pt 17pt 34.5pt; vertical-align:top;">
+                <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                        <td class="signature" width="50%">Kế toán trưởng</td>
-                        <td class="signature" width="50%">Chủ tài khoản (ký và đóng dấu)</td>
+                        <td width="35%" style="height:46pt; padding:0; vertical-align:top;">
+                            <!-- TODO: logo ngân hàng, chưa có file trong File Cabinet -->
+                            <p style="margin:0; padding:31pt 0 0; font-size:9pt; font-style:italic; text-align:left;">Liên ${copyNo}</p>
+                        </td>
+                        <td width="65%" style="height:46pt; padding:0; text-align:right; vertical-align:top;">
+                            <span style="color:#E46D0A; font-size:13pt; font-weight:bold;">ỦY NHIỆM CHI</span><br/>
+                            <span style="color:#000000; font-size:10pt; font-weight:normal;">PAYMENT ORDER</span>
+                        </td>
+                    </tr>
+                </table>
+                <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td width="42%" class="band frame" style="height:16.5pt; padding:2pt; font-weight:bold; vertical-align:middle;">Đề nghị ghi nợ tài khoản <span class="en">(Please debit acount)</span></td>
+                        <td width="19%" class="band frame" style="height:16.5pt; padding:2pt; font-weight:bold; text-align:center; vertical-align:middle;">Ngày <span class="en">(Date)</span>&#160;${(dataJson.ngayCT!'')?html}</td>
+                        <td width="2%" style="height:16.5pt; padding:0;">&#160;</td>
+                        <td width="37%" class="band frame" style="height:16.5pt; padding:2pt; font-weight:bold; vertical-align:middle;">Số tiền <span class="en">(With amount)</span></td>
+                    </tr>
+                </table>
+                <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td width="61%" style="padding:0; vertical-align:top;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td width="33%" class="frame" style="height:19.5pt; padding:2pt; vertical-align:middle;">Tên tài khoản <span class="en">(Account name):</span></td>
+                                    <td width="67%" class="frame" style="height:19.5pt; padding:2pt; font-weight:bold; vertical-align:middle;">${(dataJson.tenNguoiTra!'')?html}</td>
+                                </tr>
+                                <tr>
+                                    <td width="17%" class="frame" style="height:33pt; padding:2pt; vertical-align:middle;">Số tài khoản:<br/><span class="en">(Account number)</span></td>
+                                    <td width="83%" class="frame" style="height:33pt; padding:2pt; font-weight:bold; text-align:center; vertical-align:middle;">${(dataJson.stkNguoiTra!'')?html}</td>
+                                </tr>
+                                <tr>
+                                    <td width="17%" class="frame" style="height:36.75pt; padding:2pt; vertical-align:middle;">Ngân hàng:<br/><span class="en">(With bank)</span></td>
+                                    <td width="35%" class="frame" style="height:36.75pt; padding:2pt; text-align:center; vertical-align:middle;">${(dataJson.nhNguoiTra!'')?html}</td>
+                                    <td width="17%" class="frame" style="height:36.75pt; padding:2pt; vertical-align:middle;">Tỉnh/TP:<br/><span class="en">(Provinces/City)</span></td>
+                                    <td width="31%" class="frame" style="height:36.75pt; padding:2pt; text-align:center; vertical-align:middle;">${(dataJson.tinhNguoiTra!'')?html}</td>
+                                </tr>
+                                <tr><td width="100%" colspan="4" class="band frame" style="height:16.5pt; padding:2pt; font-weight:bold; vertical-align:middle;">Người hưởng <span class="en">(Beneficiary):</span></td></tr>
+                                <tr>
+                                    <td width="33%" class="frame" style="height:28.5pt; padding:2pt; vertical-align:middle;">Tên tài khoản <span class="en">(Account name):</span></td>
+                                    <td width="67%" colspan="3" class="frame" style="height:28.5pt; padding:2pt; font-weight:bold; vertical-align:middle;">${(dataJson.tenNguoiHuong!'')?html}</td>
+                                </tr>
+                                <tr>
+                                    <td width="17%" class="frame" style="height:36.75pt; padding:2pt; vertical-align:middle;">Số tài khoản:<br/><span class="en">(Account number)</span></td>
+                                    <td width="83%" colspan="3" class="frame" style="height:36.75pt; padding:2pt; vertical-align:middle;">${(dataJson.stkNguoiHuong!'')?html}</td>
+                                </tr>
+                                <tr>
+                                    <td width="17%" class="frame" style="height:39.75pt; padding:2pt; vertical-align:middle;">Ngân hàng:<br/><span class="en">(With bank)</span></td>
+                                    <td width="35%" class="frame" style="height:39.75pt; padding:2pt; vertical-align:middle;">${(dataJson.nhNguoiHuong!'')?html}</td>
+                                    <td width="17%" class="frame" style="height:39.75pt; padding:2pt; vertical-align:middle;">Tỉnh/TP:<br/><span class="en">(Provinces/City)</span></td>
+                                    <td width="31%" class="frame" style="height:39.75pt; padding:2pt; text-align:center; vertical-align:middle;">${(dataJson.tinhNguoiHuong!'')?html}</td>
+                                </tr>
+                                <tr>
+                                    <td width="17%" class="frame" style="height:47.25pt; padding:2pt; vertical-align:top;">Nội dung<br/><span class="en">(Details):</span></td>
+                                    <td width="83%" colspan="3" class="frame" style="height:47.25pt; padding:2pt; vertical-align:top;">${(dataJson.noiDung!'')?html}</td>
+                                </tr>
+                            </table>
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td width="46%" class="frame" style="height:86.25pt; padding:4pt; text-align:center; vertical-align:top;"><span style="font-weight:bold;">Kế toán trưởng</span><br/><span class="en">(Chief accountant)</span></td>
+                                    <td width="54%" class="frame" style="height:86.25pt; padding:4pt; text-align:center; vertical-align:top;"><span style="font-weight:bold;">Chủ tài khoản</span> (ký và đóng dấu)<br/><span class="en">(Holder's signature and stamp)</span></td>
+                                </tr>
+                            </table>
+                        </td>
+                        <td width="2%" style="padding:0;">&#160;</td>
+                        <td width="37%" style="padding:0; vertical-align:top;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td width="100%" class="frame" style="height:52.5pt; padding:4pt; vertical-align:top;">
+                                        Loại tiền <span class="en">(Currency):</span>
+                                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:5pt;">
+                                            <tr>
+                                                <td width="10pt" style="height:10pt; padding:0; border:1pt solid #000000; text-align:center; vertical-align:middle;">${(dataJson.tickVND!'')?html}</td><td width="40%" style="padding:0 0 0 5pt;">VND</td>
+                                                <td width="10pt" style="height:10pt; padding:0; border:1pt solid #000000; text-align:center; vertical-align:middle;">${(dataJson.tickEUR!'')?html}</td><td width="40%" style="padding:0 0 0 5pt;">EUR</td>
+                                            </tr>
+                                            <tr>
+                                                <td width="10pt" style="height:10pt; padding:0; border:1pt solid #000000; text-align:center; vertical-align:middle;">${(dataJson.tickUSD!'')?html}</td><td width="40%" style="padding:0 0 0 5pt;">USD</td>
+                                                <td width="10pt" style="height:10pt; padding:0; border:1pt solid #000000; text-align:center; vertical-align:middle;">${(dataJson.tickKhac!'')?html}</td><td width="40%" style="padding:0 0 0 5pt;">Khác<br/><span class="en">(Other)</span></td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr><td width="100%" class="frame" style="height:36.75pt; padding:4pt; vertical-align:top;">Số tiền bằng số <span class="en">(Amount in figures)</span></td></tr>
+                                <tr><td width="100%" class="frame" style="height:16.5pt; padding:2pt 14pt 2pt 2pt; font-weight:bold; text-align:right; vertical-align:middle;">${(dataJson.soTien!'')?html} ${(dataJson.maTienTe!'')?html}</td></tr>
+                                <tr><td width="100%" class="frame" style="height:105pt; padding:4pt; vertical-align:top;">Số tiền bằng chữ <span class="en">(Amount in word):</span><br/><span style="font-weight:bold;">${(dataJson.soTienBangChu!'')?html}</span></td></tr>
+                                <tr><td width="100%" class="band frame" style="height:14.25pt; padding:2pt; font-weight:bold; vertical-align:middle;">Phí Ngân hàng <span class="en">(Charges)</span></td></tr>
+                                <tr>
+                                    <td width="100%" class="frame" style="height:59.25pt; padding:5pt; vertical-align:top;">
+                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                            <tr><td width="10pt" style="height:10pt; padding:0; border:1pt solid #000000; text-align:center; vertical-align:middle;">${(dataJson.tickPhiNguoiChuyen!'')?html}</td><td width="94%" style="padding:0 0 6pt 5pt;">Người chuyển chịu <span class="en">(Sender)</span></td></tr>
+                                            <tr><td width="10pt" style="height:10pt; padding:0; border:1pt solid #000000; text-align:center; vertical-align:middle;">${(dataJson.tickPhiNguoiHuong!'')?html}</td><td width="94%" style="padding:0 0 0 5pt;">Người hưởng chịu <span class="en">(Beneficiary)</span></td></tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr><td width="100%" class="frame" style="height:60pt; padding:4pt; vertical-align:top;">Số tiền phí <span class="en">(Amount charge)</span></td></tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+                <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr><td width="100%" style="height:15pt; padding:0; background-color:#E46D0A; border:0.5pt solid #000000;">&#160;</td></tr>
+                </table>
+                <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td width="61%" colspan="2" class="band frame" style="height:15pt; padding:2pt; font-weight:bold; vertical-align:middle;">Dành cho Ngân hàng <span class="en">(For bank use only)</span></td>
+                        <td width="2%" class="band" style="height:15pt; padding:0;">&#160;</td>
+                        <td width="37%" class="band frame" style="height:15pt; padding:2pt;">&#160;</td>
+                    </tr>
+                    <tr>
+                        <td width="30.5%" rowspan="2" class="frame" style="height:75pt; padding:4pt; font-weight:bold; text-align:center; vertical-align:top;">Giao dịch viên<br/><span class="en">(Teller)</span></td>
+                        <td width="30.5%" rowspan="2" class="frame" style="height:75pt; padding:4pt; font-weight:bold; text-align:center; vertical-align:top;">Người duyệt<br/><span class="en">(Approver)</span></td>
+                        <td width="2%" rowspan="2" style="height:75pt; padding:0;">&#160;</td>
+                        <td width="37%" class="frame" style="height:30pt; padding:3pt; vertical-align:top;"><span style="font-weight:bold;">Số bút toán:</span><br/>Nợ TK:</td>
+                    </tr>
+                    <tr>
+                        <td width="37%" class="frame" style="height:45pt; padding:3pt; vertical-align:top;">Có TK:&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;Có TK:<br/>Có TK:&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;Có TK:</td>
                     </tr>
                 </table>
             </td>
-            <td width="40%" style="padding-left:6px;">
-                <table class="right-panel">
-                    <tr><td><span class="label">Số tiền (With amount)</span></td></tr>
-                    <tr><td><span class="label">Loại tiền (Currency)</span></td></tr>
-                    <tr><td>
-                        <table class="no-border">
-                            <tr>
-                                <td class="tick">${(dataJson.tickVND!'')?html}</td>
-                                <td class="tick-label">VND</td>
-                                <td class="tick">${(dataJson.tickUSD!'')?html}</td>
-                                <td class="tick-label">USD</td>
-                                <td class="tick">${(dataJson.tickEUR!'')?html}</td>
-                                <td class="tick-label">EUR</td>
-                                <td class="tick">${(dataJson.tickKhac!'')?html}</td>
-                                <td class="tick-label">Khác</td>
-                            </tr>
-                        </table>
-                    </td></tr>
-                    <tr><td><span class="label">Số tiền bằng số:</span></td></tr>
-                    <tr><td class="amount">${(dataJson.soTien!'')?html}
-                        ${(dataJson.maTienTe!'')?html}</td></tr>
-                    <tr><td><span class="label">Số tiền bằng chữ:</span></td></tr>
-                    <tr><td class="value">${(dataJson.soTienBangChu!'')?html}</td></tr>
-                    <tr><td><span class="label">Phí Ngân hàng (Charges)</span></td></tr>
-                    <tr><td>
-                        <table class="no-border">
-                            <tr>
-                                <td class="tick">${(dataJson.tickPhiNguoiChuyen!'')?html}</td>
-                                <td class="tick-label">Người chuyển chịu (Sender)</td>
-                            </tr>
-                            <tr>
-                                <td class="tick">${(dataJson.tickPhiNguoiHuong!'')?html}</td>
-                                <td class="tick-label">Người hưởng chịu (Beneficiary)</td>
-                            </tr>
-                        </table>
-                    </td></tr>
-                    <tr><td><span class="label">Số tiền phí:</span> &#160;</td></tr>
-                </table>
-            </td>
         </tr>
     </table>
-    <table class="bank-use">
-        <tr><td colspan="4"><b>Dành cho Ngân hàng (For bank use only)</b></td></tr>
-        <tr>
-            <td width="25%">Giao dịch viên</td>
-            <td width="25%">Người duyệt</td>
-            <td width="25%">Số bút toán / Nợ TK</td>
-            <td width="25%">Có TK</td>
-        </tr>
-        <tr><td>&#160;</td><td>&#160;</td><td>&#160;</td><td>&#160;</td></tr>
-        <tr><td colspan="3">Có TK</td><td>&#160;</td></tr>
-    </table>
+    </#list>
 </body>
 </pdf>
