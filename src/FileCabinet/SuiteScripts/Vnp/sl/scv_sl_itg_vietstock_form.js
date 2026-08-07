@@ -12,9 +12,7 @@ define(['N/format', 'N/search', 'N/ui/serverWidget', '../common/scv_common_itg_v
 
         const FormField = {
             PROJECT: 'custpage_scv_project',
-            PROJECT_ID: 'custpage_scv_projectid',
             STOCK_CODE: 'custpage_scv_stockcode',
-            STOCK_CODE_HD: 'custpage_scv_stockcode_hd',
             FROM_DATE: 'custpage_scv_fromdate',
             TO_DATE: 'custpage_scv_todate',
             REPORT_TYPE: 'custpage_scv_reporttype',
@@ -154,34 +152,69 @@ define(['N/format', 'N/search', 'N/ui/serverWidget', '../common/scv_common_itg_v
         }
 
         /**
+         * Parse giá trị field DATE post lên (theo định dạng ngày của user, VD: 5/8/2026) sang Date.
+         * @param {string} dateText
+         * @returns {Date|null} null nếu không nhập hoặc không parse được
+         */
+        const parseDateParam = (dateText) => {
+            if (!dateText) return null;
+            try {
+                return format.parse({value: dateText, type: format.Type.DATE});
+            } catch (e) {
+                log.error('parseDateParam error ' + dateText, e);
+                return null;
+            }
+        }
+
+        /**
          * Field DATE post lên theo định dạng ngày của user (VD: 5/8/2026), convert sang yyyy-MM-dd để truyền cho API.
          * @param {string} dateText
          * @returns {string} chuỗi yyyy-MM-dd, rỗng nếu không nhập hoặc không parse được
          */
         const formatDateParam = (dateText) => {
-            if (!dateText) return '';
-            try {
-                let date = format.parse({value: dateText, type: format.Type.DATE});
-                let month = String(date.getMonth() + 1).padStart(2, '0');
-                let day = String(date.getDate()).padStart(2, '0');
-                return `${date.getFullYear()}-${month}-${day}`;
-            } catch (e) {
-                log.error('formatDateParam error ' + dateText, e);
-                return '';
+            let date = parseDateParam(dateText);
+            if (!date) return '';
+
+            let month = String(date.getMonth() + 1).padStart(2, '0');
+            let day = String(date.getDate()).padStart(2, '0');
+            return `${date.getFullYear()}-${month}-${day}`;
+        }
+
+        /**
+         * Ghép TermType gửi cho API thành kỳ báo cáo cụ thể, năm lấy theo Từ ngày (theo FDD_Vietstock.xlsx:
+         * "Type of term (N: Year, Q: Quarter) or detail term (Ex: Q1/2020, N/2020, N/2019)").
+         * - N -> N/{năm của Từ ngày}, VD: N/2020
+         * - Q -> Q{quý của Từ ngày}/{năm của Từ ngày}, VD: Q1/2020
+         * Client script đã chặn Từ ngày - Đến ngày khác năm (N) hoặc khác quý (Q) nên lấy theo Từ ngày là đủ.
+         * @param {string} termType - vietStock.TermType (N hoặc Q)
+         * @param {string} fromDateText - giá trị field Từ ngày post lên
+         * @returns {string} VD: N/2020, Q1/2020 - trả về nguyên termType nếu không parse được Từ ngày
+         */
+        const buildTermTypeParam = (termType, fromDateText) => {
+            let fromDate = parseDateParam(fromDateText);
+            if (!fromDate) return termType;
+            fromDate.setDate(0);
+            let year = fromDate.getFullYear();
+            if (termType === vietStock.TermType.Q) {
+                let quarter = Math.floor(fromDate.getMonth() / 3) + 1;
+                return `Q${quarter}/${year}`;
             }
+            return `${termType}/${year}`;
         }
 
         /**
          * Xử lý submit: gọi đồng bộ theo Loại báo cáo đã chọn rồi trả về màn hình kết quả.
          */
         const handleSubmit = (params) => {
-            let projectId = params[FormField.PROJECT_ID];
-            let stockCode = params[FormField.STOCK_CODE_HD];
+            let projectId = params[FormField.PROJECT];
+            let stockCode = params[FormField.STOCK_CODE];
             let reportType = params[FormField.REPORT_TYPE];
             let options = {
-                termType: params[FormField.TERM_TYPE],
-                fromDate: formatDateParam(params[FormField.FROM_DATE]),
-                toDate: formatDateParam(params[FormField.TO_DATE])
+                TermType: params[FormField.TERM_TYPE],//buildTermTypeParam(params[FormField.TERM_TYPE], params[FormField.FROM_DATE]),
+                FromDate: formatDateParam(params[FormField.FROM_DATE]),
+                ToDate: formatDateParam(params[FormField.TO_DATE]),
+                PageSize: 1000,
+                Page: 1
             };
 
             let message;
@@ -190,7 +223,7 @@ define(['N/format', 'N/search', 'N/ui/serverWidget', '../common/scv_common_itg_v
                 if (!config) throw new Error('Chưa cấu hình Vietstock Config (customrecord_scv_itg_vietstock_config).');
 
                 if (reportType === vietStock.FinanceInfoType.CSTC) {
-                    let {ids, errors, remaining, mrTaskId} = vietStock.syncFinancialInfo(config.baseurl, {}, stockCode, projectId, options);
+                    let {ids, errors, remaining, mrTaskId} = vietStock.syncFinancialInfo(config.baseurl, {'Accept': '*/*'}, stockCode, projectId, options);
                     message = `Đã đồng bộ ${ids.length} dòng Đánh giá khoản đầu tư cho mã ${stockCode}.`;
                     if (remaining > 0) {
                         message += mrTaskId

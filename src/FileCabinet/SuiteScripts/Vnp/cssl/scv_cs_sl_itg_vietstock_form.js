@@ -3,9 +3,9 @@
  * @NScriptType ClientScript
  * @NModuleScope SameAccount
  */
-define([],
+define(['../lib/scv_lib_cs.js'],
 
-    function () {
+    function (libCs) {
 
         // Phải trùng với FormField của scv_sl_itg_vietstock_form.js
         const FormField = {
@@ -73,31 +73,39 @@ define([],
             let termType = currRecord.getValue({fieldId: FormField.TERM_TYPE});
 
             // Chỉ kiểm tra khi nhập đủ cả hai ngày
-            if (!fromDate || !toDate) return true;
+            if (fromDate && toDate) {
+                if (fromDate.getTime() >= toDate.getTime()) {
+                    alert('Từ ngày phải nhỏ hơn Đến ngày.');
+                    return false;
+                }
 
-            if (fromDate.getTime() >= toDate.getTime()) {
-                alert('Từ ngày phải nhỏ hơn Đến ngày.');
-                return false;
+                if (termType === TermType.N && fromDate.getFullYear() !== toDate.getFullYear()) {
+                    alert('Term Type = N: Từ ngày và Đến ngày phải thuộc cùng một năm.');
+                    return false;
+                }
+
+                if (termType === TermType.Q
+                    && (fromDate.getFullYear() !== toDate.getFullYear() || getQuarter(fromDate) !== getQuarter(toDate))) {
+                    alert('Term Type = Q: Từ ngày và Đến ngày phải thuộc cùng một quý.');
+                    return false;
+                }
             }
 
-            if (termType === TermType.N && fromDate.getFullYear() !== toDate.getFullYear()) {
-                alert('Term Type = N: Từ ngày và Đến ngày phải thuộc cùng một năm.');
-                return false;
-            }
-
-            if (termType === TermType.Q
-                && (fromDate.getFullYear() !== toDate.getFullYear() || getQuarter(fromDate) !== getQuarter(toDate))) {
-                alert('Term Type = Q: Từ ngày và Đến ngày phải thuộc cùng một quý.');
-                return false;
-            }
-
+            // Qua hết validate mới submit - đồng bộ chạy lâu nên hiện loading cho người dùng
+            libCs.showPleaseWait();
             return true;
+        }
+
+        const closePopupSuitelet = () => {
+            window.onbeforeunload = null;
+            closePopup(true);
         }
 
         return {
             pageInit: pageInit,
             fieldChanged: fieldChanged,
-            saveRecord: saveRecord
+            saveRecord: saveRecord,
+            closePopupSuitelet: closePopupSuitelet
         };
 
     });

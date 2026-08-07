@@ -21,10 +21,10 @@
  *  15 Apr 2025             Thanh Ngo               - Default field custitem_scv_item_base_unit trên màn hình Item, from BA. Tam (https://app.clickup.com/t/86cwevjmt)
  */
 define(['N/url', 'N/record', 'N/redirect', 'N/runtime', '../lib/scv_lib_function', 'N/search', 'N/query',
-        '../lib/scv_lib_unitstype.js', 'N/ui/message', '../lib/scv_lib_logic_func.js'],
+        '../lib/scv_lib_unitstype.js', 'N/ui/message', '../lib/scv_lib_logic_func.js', '../lib/scv_lib_item'],
 
     function(url, record, redirect, runtime, libFn, search, query,
-     libUnitsType, message, logicFunc) {
+     libUnitsType, message, logicFunc, libItem) {
 
         /**
          * Defines the function definition that is executed before record is loaded.
@@ -196,6 +196,7 @@ define(['N/url', 'N/record', 'N/redirect', 'N/runtime', '../lib/scv_lib_function
         function beforeSubmit(scriptContext) {
             beforeSubmitGenerateItemCode(scriptContext);
             if (['create', 'edit', 'copy'].includes(scriptContext.type)) {
+                libItem.updateItergration(scriptContext.newRecord);
 
                 //thanhdev 15/4/2025
                 beforeSubmitSetDefaultBaseUnit(scriptContext, scriptContext.newRecord);

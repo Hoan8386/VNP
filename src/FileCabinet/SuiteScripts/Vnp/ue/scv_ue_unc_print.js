@@ -6,11 +6,14 @@ define(['N/url', 'N/search',
         '../common/scv_common_ui',
         '../lib/scv_lib_utils.js'], (url, search, comUI, libUtils) => {
     // TODO(BA-Q1): Chọn mẫu theo ngân hàng tài khoản chi tiền và xử lý ngân hàng thứ 4.
+    // coChiNhanhNguoiTra / coChiNhanhNguoiHuong: khong dung trong UE (chi timNganHang
+    // qua tuKhoa la duoc dung o day), nhung giu dong bo field voi dictionary ben
+    // scv_sl_unc_print.js theo dung quy uoc "lap co chu y, sua phai sua ca 2 cho".
     const NganHang = {
         TPBANK: {
             tuKhoa: ['TPBANK', 'TIENPHONGBANK'],
             printfile: 'scv_render_unc_tpbank_pdf',
-            coTinhTP: true, coChiNhanh: false
+            coTinhTP: true, coChiNhanhNguoiTra: false, coChiNhanhNguoiHuong: true
         },
         VIETINBANK: {
             // 'VIETTINBANK' 2 chu T: ke toan dang go sai chinh ta tren 3 tai khoan
@@ -18,12 +21,12 @@ define(['N/url', 'N/search',
             // bao gio ra button.
             tuKhoa: ['VIETINBANK', 'VIETTINBANK', 'CONGTHUONG'],
             printfile: 'scv_render_unc_vietinbank_pdf',
-            coTinhTP: false, coChiNhanh: true
+            coTinhTP: false, coChiNhanhNguoiTra: true, coChiNhanhNguoiHuong: true
         },
         SHB: {
             tuKhoa: ['SHB', 'SAIGONHANOI'],
             printfile: 'scv_render_unc_shb_pdf',
-            coTinhTP: false, coChiNhanh: true
+            coTinhTP: false, coChiNhanhNguoiTra: true, coChiNhanhNguoiHuong: true
         }
     };
 

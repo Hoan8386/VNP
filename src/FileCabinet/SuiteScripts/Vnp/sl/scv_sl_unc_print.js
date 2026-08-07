@@ -7,11 +7,15 @@ define(['N/query', 'N/render',
         '../lib/scv_lib_amount_in_word.js',
         '../lib/scv_lib_utils.js'], (query, render, libPdf, libAmount, libUtils) => {
     // TODO(BA-Q1): Chọn mẫu theo ngân hàng tài khoản chi tiền và xử lý ngân hàng thứ 4.
+    // coChiNhanhNguoiTra / coChiNhanhNguoiHuong tach rieng vi FDD (sheet "UNC TP
+    // Bank") quy dinh TPBank BAT DOI XUNG: ben tra (M11) chi lay bank_name, KHONG
+    // ghep chi nhanh; ben huong (M18) lai ghep "bank_name - bank_branch". VietinBank
+    // va SHB thi ca 2 ben deu ghep chi nhanh (doi xung) theo FDD tuong ung.
     const NganHang = {
         TPBANK: {
             tuKhoa: ['TPBANK', 'TIENPHONGBANK'],
             printfile: 'scv_render_unc_tpbank_pdf',
-            coTinhTP: true, coChiNhanh: false
+            coTinhTP: true, coChiNhanhNguoiTra: false, coChiNhanhNguoiHuong: true
         },
         VIETINBANK: {
             // 'VIETTINBANK' 2 chu T: ke toan dang go sai chinh ta tren 3 tai khoan
@@ -19,12 +23,12 @@ define(['N/query', 'N/render',
             // bao gio ra button.
             tuKhoa: ['VIETINBANK', 'VIETTINBANK', 'CONGTHUONG'],
             printfile: 'scv_render_unc_vietinbank_pdf',
-            coTinhTP: false, coChiNhanh: true
+            coTinhTP: false, coChiNhanhNguoiTra: true, coChiNhanhNguoiHuong: true
         },
         SHB: {
             tuKhoa: ['SHB', 'SAIGONHANOI'],
             printfile: 'scv_render_unc_shb_pdf',
-            coTinhTP: false, coChiNhanh: true
+            coTinhTP: false, coChiNhanhNguoiTra: true, coChiNhanhNguoiHuong: true
         }
     };
 
@@ -146,10 +150,10 @@ define(['N/query', 'N/render',
         const tickTienTe = getTickTienTe(maTienTe);
         const tickPhi = getTickPhi(maNganHang);
         const nhNguoiTra = ghepNganHang(
-            header.nh_nguoi_tra, header.cn_nguoi_tra, config.coChiNhanh
+            header.nh_nguoi_tra, header.cn_nguoi_tra, config.coChiNhanhNguoiTra
         );
         const nhNguoiHuong = ghepNganHang(
-            header.nh_nguoi_huong, header.cn_nguoi_huong, config.coChiNhanh
+            header.nh_nguoi_huong, header.cn_nguoi_huong, config.coChiNhanhNguoiHuong
         );
         return {
             ngayCT: asText(header.ngay_ct),

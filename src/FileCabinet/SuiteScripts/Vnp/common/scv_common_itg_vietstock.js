@@ -1,14 +1,23 @@
 /**
  * @NApiVersion 2.1
  */
-define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_internal.js'],
+define(['N/format', 'N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_internal.js'],
 
-    (http, https, query, search, task, commonInternal) => {
+    (format, http, https, query, search, task, commonInternal) => {
 
         const RecordType = {
             VIETSTOCK_CONFIG: 'customrecord_scv_itg_vietstock_config',
             MARKET_PRICE: 'customrecord_scv_market_price',
-            DGDT: 'customrecord_scv_dgdt'
+            DGDT: 'customrecord_scv_dgdt',
+            INVESTMENT_METRICS: 'customrecord_scv_investment_metrics',
+            DGDT_TYPE: 'customlist_scv_dgdt_type',
+            UNIT: 'customlist_scv_unit'
+        };
+
+        // customrecord_scv_investment_metrics - Chỉ tiêu đánh giá đầu tư
+        const InvestmentMetricField = {
+            GROUP: 'custrecord_scv_im_group',
+            UNIT: 'custrecord_scv_im_unit'
         };
 
         const Field = {
@@ -24,6 +33,11 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
 
         // Số dòng chỉ tiêu được tạo/cập nhật ngay tại script gọi, phần còn lại đẩy sang Map/Reduce
         const DIRECT_SYNC_LIMIT = 20;
+
+        // Số kỳ báo cáo (Head) tối đa API trả về mỗi trang - theo FDD_Vietstock.xlsx: "PageSize hiển thị tối đa
+        // 4 nội dung trong head". Chặn số trang tối đa để không lặp vô hạn khi API trả về sai.
+        const DEFAULT_PAGE_SIZE = 1000;
+        const MAX_FINANCE_INFO_PAGE = 20;
 
         // Loại đồng bộ - dùng chung giữa scv_ue_projects.js (nơi tạo params) và scv_sl_itg_vietstock.js (nơi xử lý)
         const SyncType = {
@@ -117,6 +131,7 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
             LAST_UPDATE: 'custrecord_scv_dgdt_last_update',
             DATE_PUB_DEPARTMENT: 'custrecord_scv_dgdt_date_pub_department',
             METRIC: 'custrecord_scv_dgdt_metric',
+            METRIC_TEXT: 'custrecord_scv_dgdt_metrictext',
             METRIC_GR: 'custrecord_scv_dgdt_metric_gr',
             INDEX: 'custrecord_scv_dgdt_index',
             INDUSTRY_AVR: 'custrecord_scv_dgdt_industry_avr',
@@ -223,7 +238,7 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
          * @returns {Object} data trả về theo mẫu file stocktrading
          */
         const getStockTrading = (baseurl, headers, stockCode) => {
-            let urlGet = `${baseurl}${EndPoint.STOCK_TRADING}?code=${stockCode}`;
+            let urlGet = `${baseurl}${EndPoint.STOCK_TRADING}?Code=${stockCode}`;
             let {resCall} = callApiGet(urlGet, headers);
             return resCall.body ? JSON.parse(resCall.body) : null;
         }
@@ -307,34 +322,121 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
         }
 
         /**
-         * 1.2 Financial info -> Đánh giá khoản đầu tư - GET {baseurl}/financeinfo?Type=CSTC&Code={stockCode}
+         * Gọi một trang của API 1.2 Financial info - GET {baseurl}/financeinfo?Type=CSTC&Code={stockCode}
          * (theo FDD_Vietstock.xlsx mục Request).
          * @param {string} baseurl - custrecord_scv_itg_vtc_baseurl của customrecord_scv_itg_vietstock_config
          * @param {Object} headers
          * @param {string} stockCode - Mã chứng khoán, VD: VNM
-         * @param {Object} [options] - Tham số lọc thêm (không bắt buộc)
-         * @param {string} [options.termType] - Kỳ báo cáo, xem TermType (N: năm, Q: quý)
-         * @param {string} [options.fromDate] - Từ ngày, định dạng yyyy-MM-dd
-         * @param {string} [options.toDate] - Đến ngày, định dạng yyyy-MM-dd
-         * @param {string} [options.lastUpdate] - Chỉ lấy dữ liệu có LastUpdate mới hơn
-         * @returns {Object} data trả về theo mẫu file financialinfo {Audit, Unit, Head, Content}
+         * @param {Object} params - Các param của query string, VD: {TermType, FromDate, ToDate, PageSize, Page}
+         * @returns {Object} data của một trang theo mẫu file financialinfo {Audit, Unit, Head, Content}
          */
-        const getFinancialInfo = (baseurl, headers, stockCode, options = {}) => {
+        const callFinancialInfoPage = (baseurl, headers, stockCode, params) => {
             let urlGet = `${baseurl}${EndPoint.FINANCE_INFO}?Type=${FinanceInfoType.CSTC}&Code=${stockCode}`;
-            let paramByName = {
-                TermType: options.termType,
-                FromDate: options.fromDate,
-                ToDate: options.toDate,
-                LastUpdate: options.lastUpdate
-            };
-            Object.keys(paramByName).forEach(name => {
-                if (paramByName[name]) {
-                    urlGet += `&${name}=${encodeURIComponent(paramByName[name])}`;
+            Object.keys(params).forEach(name => {
+                if (params[name]) {
+                    urlGet += `&${name}=${encodeURIComponent(params[name])}`;
                 }
             });
-
+            log.audit('callFinancialInfoPage', urlGet);
             let {resCall} = callApiGet(urlGet, headers);
             return resCall.body ? JSON.parse(resCall.body) : null;
+        }
+
+        /**
+         * Đối chiếu 2 dòng chỉ tiêu giữa các trang: ưu tiên ReportNormID, không có thì so theo tên chỉ tiêu.
+         */
+        const isSameMetric = (metricA, metricB) => {
+            if (metricA.ReportNormID !== undefined && metricB.ReportNormID !== undefined) {
+                return String(metricA.ReportNormID) === String(metricB.ReportNormID);
+            }
+            return metricA.Name === metricB.Name;
+        }
+
+        /**
+         * Gộp data của một trang vào data tổng.
+         * Mỗi trang đánh số kỳ báo cáo lại từ đầu (Head/ID ứng với Value{ID}) nên khi gộp phải đánh số lại theo
+         * vị trí toàn cục: kỳ thứ i của trang thứ n trở thành Value{headIdOffset + i + 1} ở data tổng.
+         * @param {Object} mergedData - data tổng, đã có sẵn {Head: [], Content: {}}
+         * @param {Object} pageData - data của trang đang gộp
+         * @param {number} headIdOffset - số kỳ báo cáo đã gộp ở các trang trước
+         */
+        const mergeFinancialInfoPage = (mergedData, pageData, headIdOffset) => {
+            let heads = pageData.Head || [];
+            let contents = pageData.Content || {};
+
+            heads.forEach((head, index) => {
+                let pageValueField = `Value${head.ID}`;
+                let mergedId = headIdOffset + index + 1;
+                let mergedValueField = `Value${mergedId}`;
+
+                mergedData.Head.push(Object.assign({}, head, {ID: mergedId}));
+
+                Object.keys(contents).forEach(groupName => {
+                    if (!mergedData.Content[groupName]) {
+                        mergedData.Content[groupName] = [];
+                    }
+                    let mergedItems = mergedData.Content[groupName];
+
+                    (contents[groupName] || []).forEach(item => {
+                        let mergedItem = mergedItems.find(o => isSameMetric(o, item));
+                        if (!mergedItem) {
+                            // Copy thông tin chỉ tiêu nhưng bỏ hết Value của trang để không lẫn thứ tự kỳ báo cáo
+                            mergedItem = Object.assign({}, item);
+                            Object.keys(mergedItem)
+                                .filter(fieldName => /^Value\d+$/.test(fieldName))
+                                .forEach(fieldName => delete mergedItem[fieldName]);
+                            mergedItems.push(mergedItem);
+                        }
+                        mergedItem[mergedValueField] = item[pageValueField];
+                    });
+                });
+            });
+
+            return mergedData;
+        }
+
+        /**
+         * 1.2 Financial info -> Đánh giá khoản đầu tư: gọi API và tự phân trang.
+         * API trả về tối đa PageSize kỳ báo cáo (Head) mỗi lần, nếu số Head trả về đã đầy PageSize thì còn dữ liệu
+         * ở trang sau nên gọi tiếp Page + 1 rồi gộp lại; Head chưa đầy PageSize là trang cuối.
+         * @param {string} baseurl - custrecord_scv_itg_vtc_baseurl của customrecord_scv_itg_vietstock_config
+         * @param {Object} headers
+         * @param {string} stockCode - Mã chứng khoán, VD: VNM
+         * @param {Object} [options] - Tham số lọc thêm, key chính là tên param trên query string (không bắt buộc)
+         * @param {string} [options.TermType] - Kỳ báo cáo cụ thể, VD: N/2020, Q1/2020
+         * @param {string} [options.FromDate] - Từ ngày, định dạng yyyy-MM-dd
+         * @param {string} [options.ToDate] - Đến ngày, định dạng yyyy-MM-dd
+         * @param {string} [options.LastUpdate] - Chỉ lấy dữ liệu có LastUpdate mới hơn
+         * @param {number} [options.PageSize] - Số kỳ báo cáo (Head) tối đa mỗi trang, mặc định DEFAULT_PAGE_SIZE
+         * @returns {Object|null} data đã gộp đủ các trang theo mẫu file financialinfo {Audit, Unit, Head, Content}
+         */
+        const getFinancialInfo = (baseurl, headers, stockCode, options = {}) => {
+            let pageSize = Number(options.PageSize) || DEFAULT_PAGE_SIZE;
+            let mergedData = null;
+            let page = 1;
+
+            for (; page <= MAX_FINANCE_INFO_PAGE; page++) {
+                let pageData = callFinancialInfoPage(baseurl, headers, stockCode,
+                    Object.assign({}, options, {PageSize: pageSize, Page: page}));
+
+                let heads = pageData && pageData.Head ? pageData.Head : [];
+                if (heads.length === 0) break;
+
+                if (!mergedData) {
+                    // Giữ lại các danh mục dùng chung (Audit, Unit) của trang đầu
+                    mergedData = Object.assign({}, pageData, {Head: [], Content: {}});
+                }
+                mergeFinancialInfoPage(mergedData, pageData, (page - 1) * pageSize);
+
+                // Head chưa đầy PageSize -> đã là trang cuối
+                if (heads.length < pageSize) break;
+            }
+
+            if (page > MAX_FINANCE_INFO_PAGE) {
+                log.error('getFinancialInfo', `Mã ${stockCode} đã đạt giới hạn ${MAX_FINANCE_INFO_PAGE} trang, có thể còn dữ liệu chưa lấy hết.`);
+            }
+
+            return mergedData;
         }
 
         /**
@@ -343,7 +445,7 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
          * Lấy giờ 12h trưa để việc quy đổi timezone khi set giá trị không làm lệch sang ngày khác.
          * @param {string|number} yyyymm - VD: 202010
          * @param {boolean} isEndOfMonth - true: lấy ngày cuối tháng (Period end), false: lấy ngày đầu tháng (Period begin)
-         * @returns {number|null} timestamp, null nếu chuỗi không đúng định dạng YYYYMM
+         * @returns {Date|null} null nếu chuỗi không đúng định dạng YYYYMM
          */
         const convertPeriodToTime = (yyyymm, isEndOfMonth) => {
             let strPeriod = String(yyyymm === null || yyyymm === undefined ? '' : yyyymm).trim();
@@ -354,31 +456,80 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
             if (month < 1 || month > 12) return null;
 
             // Ngày đầu tháng: (year, month - 1, 1) | Ngày cuối tháng: (year, month, 0) - ngày 0 của tháng sau
-            let date = isEndOfMonth ? new Date(year, month, 0, 12) : new Date(year, month - 1, 1, 12);
-            return date.getTime();
+            return isEndOfMonth ? new Date(year, month, 0, 12) : new Date(year, month - 1, 1, 12);
+        }
+
+        /**
+         * Format Date sang chuỗi theo định dạng ngày của user để set vào field ngày bằng text.
+         * @param {Date|null} date
+         * @returns {string} rỗng nếu không có ngày
+         */
+        const formatDateText = (date) => {
+            return date ? format.format({type: format.Type.DATE, value: date}) : '';
         }
 
         /**
          * Khoá đối chiếu record customrecord_scv_dgdt: Mã chứng khoán + Chỉ tiêu đánh giá khoản đầu tư + kỳ báo cáo
-         * (Year period + Period begin + Period end) - theo FDD_Vietstock.xlsx mục 1.2.
+         * (Year period + Period begin + Period end + Unit Financial Statement + Audit Status) - theo
+         * FDD_Vietstock.xlsx mục 1.2. Cùng một kỳ báo cáo, API trả về nhiều bản (hợp nhất/công ty mẹ/đơn lẻ,
+         * kiểm toán/chưa kiểm toán) nên phải có thêm 2 field này thì khoá mới là duy nhất.
          * @param {string} stockCode
-         * @param {string} metricName
-         * @param {Object} period - {yearPeriod, periodBegin, periodEnd} của kỳ báo cáo (Head)
+         * @param {string} metricText - custrecord_scv_dgdt_metrictext, trim để không lệch vì khoảng trắng thừa
+         * @param {Object} period - {yearPeriod, periodBegin, periodEnd, unitFinState, auditStatus} của kỳ báo cáo (Head)
          */
-        const makeDgdtKey = (stockCode, metricName, period) => {
-            return `${stockCode}|${metricName}|${period.yearPeriod}|${period.periodBegin}|${period.periodEnd}`;
+        const makeDgdtKey = (stockCode, metricText, period) => {
+            return `${stockCode}|${trimValue(metricText)}|${period.yearPeriod}|${period.periodBegin}|${period.periodEnd}|${period.unitFinState}|${period.auditStatus}`;
         }
 
         /**
          * Lấy phần kỳ báo cáo của khoá đối chiếu từ fields của một requestBody.
-         * @returns {Object} {yearPeriod, periodBegin, periodEnd}
+         * @returns {Object} {yearPeriod, periodBegin, periodEnd, unitFinState, auditStatus}
          */
         const getPeriodOfFields = (fields) => {
             return {
                 yearPeriod: fields[DgdtField.YEAR_PERIOD],
                 periodBegin: fields[DgdtField.PERIOD_BEGIN],
-                periodEnd: fields[DgdtField.PERIOD_END]
+                periodEnd: fields[DgdtField.PERIOD_END],
+                unitFinState: fields[DgdtField.UNIT_FIN_STATE],
+                auditStatus: fields[DgdtField.AUDIT_STATUS]
             };
+        }
+
+        /**
+         * Query toàn bộ Chỉ tiêu đánh giá đầu tư đang active. Trả về mảng thay vì map theo name để nơi gọi tự chọn
+         * field đối chiếu (name, groupname, unitname...) tuỳ nghiệp vụ - xem findInvestmentMetric.
+         * Các field text đã được trim vì data API trả về hay có khoảng trắng thừa.
+         * @returns {Array<Object>} [{id, name, group, groupname, unit, unitname}]
+         */
+        const getInvestmentMetrics = () => {
+            let sql = `select im.id, im.name, im.${InvestmentMetricField.GROUP} "group", 
+                              im.${InvestmentMetricField.UNIT} "unit"
+                       from ${RecordType.INVESTMENT_METRICS} im                       
+                       where im.isinactive = 'F'`;
+
+            return query.runSuiteQL({query: sql}).asMappedResults().map(row => ({
+                id: row.id,
+                name: trimValue(row.name),
+                group: row.group,
+                unit: row.unit
+            }));
+        }
+
+        /**
+         * Tìm một Chỉ tiêu đánh giá đầu tư trong danh sách đã query theo field bất kỳ.
+         * @param {Array<Object>} metrics - kết quả của getInvestmentMetrics
+         * @param {string} value - giá trị cần đối chiếu, VD: Content/Name của API
+         * @param {string} [fieldName] - field dùng để đối chiếu, mặc định 'name'; có thể là 'groupname', 'unitname'...
+         * @returns {Object|null}
+         */
+        const findInvestmentMetric = (metrics, value, fieldName = 'name') => {
+            let compareValue = trimValue(value);
+            if (!compareValue) return null;
+            return metrics.find(metric => metric[fieldName] === compareValue) || null;
+        }
+
+        const trimValue = (value) => {
+            return String(value === null || value === undefined ? '' : value).trim();
         }
 
         /**
@@ -400,23 +551,29 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
             let requestBodies = [];
             let heads = financialInfoData.Head || [];
             let contents = financialInfoData.Content || {};
-            let syncTime = new Date().getTime();
+            let syncTime = new Date();
+
+            // Chỉ tiêu đánh giá đầu tư: query 1 lần rồi đối chiếu theo tên để set thẳng internalid thay vì set bằng text
+            let metrics = getInvestmentMetrics();
 
             heads.forEach((head) => {
                 let valueField = `Value${head.ID}`;
                 // Period begin/end (GL) quy đổi từ Period begin/end (YYYYMM) - tính theo từng kỳ báo cáo (Head)
-                let periodBeginTime = convertPeriodToTime(head.PeriodBegin, false);
-                let periodEndTime = convertPeriodToTime(head.PeriodEnd, true);
+                let periodBeginGl = formatDateText(convertPeriodToTime(head.PeriodBegin, false));
+                let periodEndGl = formatDateText(convertPeriodToTime(head.PeriodEnd, true));
 
                 Object.keys(contents).forEach(groupName => {
                     (contents[groupName] || []).forEach(item => {
                         // Chỉ tiêu không có số liệu ở kỳ này (dòng tiêu đề nhóm) thì bỏ qua
                         if (item[valueField] === null || item[valueField] === undefined) return;
 
+                        let metric = findInvestmentMetric(metrics, item.Name);
+                        let metricId = metric?.id;
+
                         let fields = {
                             [DgdtField.PROJECT]: projectId,
                             [DgdtField.STOCK_CODE]: stockCode,
-                            [DgdtField.DATE]: syncTime,
+                            [DgdtField.DATE]: {text: format.format({type: format.Type.DATETIME, value: syncTime})},
                             [DgdtField.YEAR_PERIOD]: head.YearPeriod === null || head.YearPeriod === undefined ? '' : String(head.YearPeriod),
                             [DgdtField.TERM_CODE]: head.TermCode,
                             [DgdtField.TERM_NAME]: head.TermName,
@@ -428,14 +585,15 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
                             [DgdtField.CREATED_DATE]: head.CreatedDate,
                             [DgdtField.LAST_UPDATE]: head.LastUpdate,
                             [DgdtField.DATE_PUB_DEPARTMENT]: head.DatePubDepartment,
-                            [DgdtField.METRIC]: {text: item.Name},
+                            [DgdtField.METRIC]: metricId,
+                            [DgdtField.METRIC_TEXT]: item.Name,
                             [DgdtField.INDEX]: item[valueField]
                         };
-                        if (periodBeginTime) {
-                            fields[DgdtField.PERIOD_BEGIN_GL] = periodBeginTime;
+                        if (periodBeginGl) {
+                            fields[DgdtField.PERIOD_BEGIN_GL] = {text: periodBeginGl};
                         }
-                        if (periodEndTime) {
-                            fields[DgdtField.PERIOD_END_GL] = periodEndTime;
+                        if (periodEndGl) {
+                            fields[DgdtField.PERIOD_END_GL] = {text: periodEndGl};
                         }
                         if (item.Unit) {
                             fields[DgdtField.UNIT] = {text: item.Unit};
@@ -453,21 +611,33 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
          * Lấy record customrecord_scv_dgdt hiện có của một mã CK, trả về map {khoá đối chiếu: internalid}
          * để không phải search lại cho từng dòng chỉ tiêu.
          * @param {string} stockCode
-         * @param {Object} [period] - {yearPeriod, periodBegin, periodEnd} lọc thêm theo kỳ báo cáo để thu hẹp kết quả
-         * @returns {Object} {`stockCode|metricName|yearPeriod|periodBegin|periodEnd`: internalid}
+         * @param {Object} [period] - {yearPeriod, periodBegin, periodEnd, unitFinState, auditStatus} lọc thêm theo
+         *     kỳ báo cáo để thu hẹp kết quả
+         * @returns {Object} {`stockCode|metricText|yearPeriod|periodBegin|periodEnd|unitFinState|auditStatus`: internalid}
          */
         const findDgdtIdMap = (stockCode, period) => {
             let mapId = {};
             let filters = [[DgdtField.STOCK_CODE, search.Operator.IS, stockCode]];
             if (period) {
-                let filterByField = {
+                let textFilterByField = {
                     [DgdtField.YEAR_PERIOD]: period.yearPeriod,
                     [DgdtField.PERIOD_BEGIN]: period.periodBegin,
                     [DgdtField.PERIOD_END]: period.periodEnd
                 };
-                Object.keys(filterByField).forEach(fieldId => {
-                    if (filterByField[fieldId]) {
-                        filters.push('and', [fieldId, search.Operator.IS, filterByField[fieldId]]);
+                Object.keys(textFilterByField).forEach(fieldId => {
+                    if (textFilterByField[fieldId]) {
+                        filters.push('and', [fieldId, search.Operator.IS, textFilterByField[fieldId]]);
+                    }
+                });
+
+                // Unit Financial Statement, Audit Status là field SELECT nên phải lọc bằng ANYOF
+                let listFilterByField = {
+                    [DgdtField.UNIT_FIN_STATE]: period.unitFinState,
+                    [DgdtField.AUDIT_STATUS]: period.auditStatus
+                };
+                Object.keys(listFilterByField).forEach(fieldId => {
+                    if (listFilterByField[fieldId]) {
+                        filters.push('and', [fieldId, search.Operator.ANYOF, [listFilterByField[fieldId]]]);
                     }
                 });
             }
@@ -475,18 +645,21 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
             let searchDgdt = search.create({
                 type: RecordType.DGDT,
                 filters: filters,
-                columns: ['internalid', DgdtField.METRIC, DgdtField.YEAR_PERIOD, DgdtField.PERIOD_BEGIN, DgdtField.PERIOD_END]
+                columns: ['internalid', DgdtField.METRIC_TEXT, DgdtField.YEAR_PERIOD, DgdtField.PERIOD_BEGIN,
+                    DgdtField.PERIOD_END, DgdtField.UNIT_FIN_STATE, DgdtField.AUDIT_STATUS]
             });
             let pagedData = searchDgdt.runPaged({pageSize: 1000});
             pagedData.pageRanges.forEach(pageRange => {
                 pagedData.fetch({index: pageRange.index}).data.forEach(result => {
-                    let metricName = result.getText({name: DgdtField.METRIC});
+                    let metricText = result.getValue({name: DgdtField.METRIC_TEXT});
                     let periodOfRow = {
                         yearPeriod: result.getValue({name: DgdtField.YEAR_PERIOD}),
                         periodBegin: result.getValue({name: DgdtField.PERIOD_BEGIN}),
-                        periodEnd: result.getValue({name: DgdtField.PERIOD_END})
+                        periodEnd: result.getValue({name: DgdtField.PERIOD_END}),
+                        unitFinState: result.getValue({name: DgdtField.UNIT_FIN_STATE}),
+                        auditStatus: result.getValue({name: DgdtField.AUDIT_STATUS})
                     };
-                    mapId[makeDgdtKey(stockCode, metricName, periodOfRow)] = result.id;
+                    mapId[makeDgdtKey(stockCode, metricText, periodOfRow)] = result.id;
                 });
             });
             return mapId;
@@ -495,13 +668,13 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
         /**
          * Tìm internalid customrecord_scv_dgdt theo khoá đối chiếu của một dòng chỉ tiêu.
          * @param {string} stockCode
-         * @param {string} metricName
-         * @param {Object} period - {yearPeriod, periodBegin, periodEnd}
+         * @param {string} metricText - custrecord_scv_dgdt_metrictext
+         * @param {Object} period - {yearPeriod, periodBegin, periodEnd, unitFinState, auditStatus}
          * @returns {string|null}
          */
-        const findDgdtId = (stockCode, metricName, period) => {
+        const findDgdtId = (stockCode, metricText, period) => {
             let mapId = findDgdtIdMap(stockCode, period);
-            return mapId[makeDgdtKey(stockCode, metricName, period)] || null;
+            return mapId[makeDgdtKey(stockCode, metricText, period)] || null;
         }
 
         /**
@@ -516,11 +689,11 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
             let ids = [], errors = [];
 
             requestBodies.forEach(requestBody => {
-                let metricName = requestBody.fields[DgdtField.METRIC].text;
+                let metricText = requestBody.fields[DgdtField.METRIC_TEXT];
                 let period = getPeriodOfFields(requestBody.fields);
-                let key = makeDgdtKey(stockCode, metricName, period);
+                let key = makeDgdtKey(stockCode, metricText, period);
                 try {
-                    let existingId = mapId ? mapId[key] : findDgdtId(stockCode, metricName, period);
+                    let existingId = mapId ? mapId[key] : findDgdtId(stockCode, metricText, period);
                     if (existingId) {
                         requestBody.action = 'update';
                         requestBody.internalid = existingId;
@@ -559,15 +732,16 @@ define(['N/http', 'N/https', 'N/query', 'N/search', 'N/task', './scv_common_inte
 
         /**
          * Đồng bộ Financial info (chỉ số tài chính) theo mã CK: gọi API lấy data, đối chiếu
-         * (Mã chứng khoán + Chỉ tiêu đánh giá khoản đầu tư + Year period + Period begin + Period end) -
-         * nếu chưa có record thì tạo mới, nếu đã có thì cập nhật (theo FDD_Vietstock.xlsx mục 1.2).
+         * (Mã chứng khoán + Chỉ tiêu đánh giá khoản đầu tư + Year period + Period begin + Period end +
+         * Unit Financial Statement + Audit Status) - nếu chưa có record thì tạo mới, nếu đã có thì cập nhật
+         * (theo FDD_Vietstock.xlsx mục 1.2).
          * Chỉ DIRECT_SYNC_LIMIT dòng đầu tiên được tạo/cập nhật ngay để không vượt governance của script gọi,
          * phần còn lại đẩy sang Map/Reduce scv_mr_itg_vietstock chạy nền.
          * @param {string} baseurl
          * @param {Object} headers
          * @param {string} stockCode
          * @param {number|string} projectId - internal id của Project tương ứng với Stock Code
-         * @param {Object} [options] - Tham số lọc thêm, xem getFinancialInfo {termType, fromDate, toDate, lastUpdate}
+         * @param {Object} [options] - Tham số lọc thêm, xem getFinancialInfo {TermType, FromDate, ToDate}
          * @returns {Object} {ids, errors, remaining, mrTaskId} - remaining là số dòng đã đẩy sang Map/Reduce
          */
         const syncFinancialInfo = (baseurl, headers, stockCode, projectId, options = {}) => {

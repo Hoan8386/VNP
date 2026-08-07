@@ -40,6 +40,7 @@ define(['N/runtime', '../common/scv_common_itg_vietstock.js'],
          * @since 2015.2
          */
         const map = (mapContext) => {
+            log.error('mapContext.value', mapContext.value);
             try {
                 let requestBody = JSON.parse(mapContext.value);
                 let stockCode = requestBody.fields.custrecord_scv_dgdt_stockcode;
