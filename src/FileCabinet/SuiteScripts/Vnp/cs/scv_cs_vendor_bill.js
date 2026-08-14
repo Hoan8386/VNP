@@ -1,11 +1,3 @@
- /**
- * Nội dung:
- *
- * =======================================================================================
- * Date                Author                  Description
- * 5 Aug 2026          Thanh Hoan              Init, create file from ms.Tam (https://app.clickup.com/t/3773072/86d3xy2uc)
- */
-
 /**
  * @NApiVersion 2.1
  * @NScriptType ClientScript

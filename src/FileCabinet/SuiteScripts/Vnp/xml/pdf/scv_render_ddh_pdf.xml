@@ -1,0 +1,193 @@
+<?xml version="1.0"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+    <head>
+        <link name="Times" type="font" subtype="opentype"
+              src="${libPdf.font.times?html}"
+              src-bold="${libPdf.font.times_bold?html}"
+              src-italic="${libPdf.font.times_italic?html}"
+              src-bolditalic="${libPdf.font.times_bolditalic?html}"
+              bytes="2"/>
+        <style type="text/css">
+            * {
+            font-family: Times;
+            font-size: 10pt;
+            }
+            table {
+            font-family: Times;
+            font-size: 10pt;
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            }
+            td {
+            font-family: Times;
+            font-size: 10pt;
+            text-align: center;
+            vertical-align: middle;
+            }
+            .h1 {
+            font-size: 18pt;
+            }
+            .table-cus {
+            width: 100%;
+            border-spacing: 0;
+            }
+            .cell {
+            border-left: 0.5pt solid black;
+            border-bottom: 0.5pt solid black;
+            padding: 6pt 6pt;
+            text-align: center;
+            vertical-align: middle;
+            }
+            .cell-last {
+            border-left: 0.5pt solid black;
+            border-right: 0.5pt solid black;
+            border-bottom: 0.5pt solid black;
+            padding: 6pt 6pt;
+            text-align: center;
+            vertical-align: middle;
+            }
+            .cell-top {
+            border-top: 0.5pt solid black;
+            }
+            .cell-head {
+            font-size: 10pt;
+            text-align: center;
+            padding: 5pt 3pt;
+            white-space: nowrap;
+            vertical-align: middle;
+            }
+            .cell-head-line {
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            }
+            .bold {
+            font-weight: bold;
+            }
+            .m-0{
+            margin: 0;
+            padding: 0;
+            }
+        </style>
+    </head>
+    <body size="A4" orientation="portrait" padding="30px">
+        <!-- Subsidiary information -->
+        <table width="100%" style="margin-top: 0;">
+            <tr margin-bottom="20px">
+                <td style="text-align: left;" width="100%">
+                    <p class="bold" margin="0" padding="0">${dataJson.legalname}</p>
+                    <p margin="0" padding="0">${dataJson.mainaddress_text}</p>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Title and document number -->
+        <table width="100%" style="margin-top: 30px;">
+            <tr>
+                <td align="center">
+                    <b class="h1">ĐƠN ĐẶT HÀNG</b>
+                </td>
+            </tr>
+            <tr style="margin-top: 8px;">
+                <td align="center">
+                    Số chứng từ: ${dataJson.tranid}
+                </td>
+            </tr>
+        </table>
+
+        <!-- Vendor information -->
+        <table width="100%" style="margin-top: 24px;">
+            <tr>
+                <td style="text-align: left; padding: 3pt 0;" align="left" width="100%" class="bold">
+                    Nhà Cung Cấp: ${dataJson.vendorName}
+                </td>
+            </tr>
+            <tr>
+                <td style="text-align: left; padding: 3pt 0;" align="left" width="100%">
+                    Địa chỉ: ${dataJson.vendorAddress}
+                </td>
+            </tr>
+            <tr>
+                <td style="text-align: left; padding: 3pt 0;" align="left" width="100%">
+                    Điện thoại: ${dataJson.vendorPhone}
+                </td>
+            </tr>
+        </table>
+
+        <!-- Item lines and totals -->
+        <table width="100%" class="table-cus" align="center" style="margin-top: 18px;">
+            <thead>
+                <tr height="56px">
+                    <td class="cell cell-top cell-head bold" width="6%" align="center">STT</td>
+                    <td class="cell cell-top cell-head bold" width="13%" align="center">MÃ HH</td>
+                    <td class="cell cell-top cell-head bold" width="25%" align="center">TÊN HÀNG HÓA</td>
+                    <td class="cell cell-top cell-head bold" width="8%" align="center">ĐVT</td>
+                    <td class="cell cell-top cell-head bold" width="13%" align="center"><p class="cell-head-line" align="center">SỐ</p><p class="cell-head-line" align="center">LƯỢNG</p></td>
+                    <td class="cell cell-top cell-head bold" width="17%" align="center"><p class="cell-head-line" align="center">GIÁ ĐƠN VỊ</p><p class="cell-head-line" align="center">${dataJson.currency}</p></td>
+                    <td class="cell-last cell-top cell-head bold" width="18%" align="center">THÀNH TIỀN</td>
+                </tr>
+            </thead>
+            <tbody>
+                <#list dataJson.lines as line>
+                <#if line_has_next>
+                    <#assign lineBorder = "0.5pt dotted black">
+                <#else>
+                    <#assign lineBorder = "0.5pt solid black">
+                </#if>
+                <tr height="30px">
+                    <td class="cell" style="border-bottom: ${lineBorder};" align="center">${line_index + 1}</td>
+                    <td class="cell" style="border-bottom: ${lineBorder};" align="center">${line.maHH}</td>
+                    <td class="cell" style="border-bottom: ${lineBorder}; text-align: left;"><p align="left" margin="0" padding="0">${line.tenHang}</p></td>
+                    <td class="cell" style="border-bottom: ${lineBorder};" align="center">${line.dvt}</td>
+                    <td class="cell" style="border-bottom: ${lineBorder};" align="center">${line.soLuong}</td>
+                    <td class="cell" style="border-bottom: ${lineBorder}; text-align: right;" align="right">${line.donGia}</td>
+                    <td class="cell-last" style="border-bottom: ${lineBorder}; text-align: right;" align="right">${line.thanhTien}</td>
+                </tr>
+                </#list>
+                <#if dataJson.lines?size == 0>
+                <tr height="30px">
+                    <td class="cell" style="border-bottom: 0.5pt solid black;" align="center">&#160;</td>
+                    <td class="cell" style="border-bottom: 0.5pt solid black;" align="center">&#160;</td>
+                    <td class="cell" style="border-bottom: 0.5pt solid black; text-align: left;" align="left">&#160;</td>
+                    <td class="cell" style="border-bottom: 0.5pt solid black;" align="center">&#160;</td>
+                    <td class="cell" style="border-bottom: 0.5pt solid black;" align="center">&#160;</td>
+                    <td class="cell" style="border-bottom: 0.5pt solid black; text-align: right;" align="right">&#160;</td>
+                    <td class="cell-last" style="border-bottom: 0.5pt solid black; text-align: right;" align="right">&#160;</td>
+                </tr>
+                </#if>
+                <tr>
+                    <td class="cell bold" colspan="6" style="text-align: right;" align="right">CỘNG</td>
+                    <td class="cell-last bold" style="text-align: right;" align="right">${dataJson.cong}</td>
+                </tr>
+                <tr>
+                    <td class="cell bold" colspan="6" style="text-align: right;" align="right">VAT</td>
+                    <td class="cell-last bold" style="text-align: right;" align="right">${dataJson.vat}</td>
+                </tr>
+                <tr>
+                    <td class="cell bold" colspan="6" style="text-align: right;" align="right">TỔNG</td>
+                    <td class="cell-last bold" style="text-align: right;" align="right">${dataJson.tong}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Signatures -->
+        <table width="100%" style="margin-top: 60px;">
+            <tr>
+                <td style="text-align: left; padding-bottom: 70px;" align="left" width="50%"></td>
+                <td style="text-align: right; padding-bottom: 70px;" align="right" width="50%">
+                    <table width="70%" style="width: 70%;" align="right">
+                        <tr>
+                            <td style="text-align: center;" align="center">
+                                <!-- TODO(BA-Q5): bubble 17 không có Field ID cho người ký -> để trống, KHÔNG tự bịa field. -->
+                                <p align="center" class="bold" margin="0" padding="0">Người đặt hàng</p>
+                                <p align="center" margin="0" padding="0"><i>(Ký, họ tên)</i></p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+</pdf>

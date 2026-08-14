@@ -31,7 +31,7 @@ define(['N/record', 'N/ui/serverWidget', '../common/scv_common_sftp.js'],
                         uploadedFile.name = fileNameFull;
                         uploadedFile.folder = objFileInfo.file_cabinet_folder;
                         let fileId = uploadedFile.save();
-                        createFileInfo(parameters, fileNameFull, '', objFileInfo.fieldid, fileId);
+                        createFileInfo(parameters, fileNameFull, '', objFileInfo, fileId);
                     } else if (fileStoreType === commonSftp.FileStoreType.SFTP) {
                         let fieldOfFtpinfo = commonSftp.lookupSftpInfo(commonSftp.FtpInfoDefault.ID);
                         let sftpConnection = commonSftp.createConnectionSftpFromLk(fieldOfFtpinfo, '');
@@ -41,7 +41,7 @@ define(['N/record', 'N/ui/serverWidget', '../common/scv_common_sftp.js'],
                         commonSftp.uploadSftp(sftpConnection, uploadedFile, fileNameFull, directorysub, 300, true);
                         let filePath = fieldOfFtpinfo.custrecord_scv_ftp_directory + directorysub + '/' + fileNameFull;
                         //log.error('filePath', filePath);
-                        createFileInfo(parameters, fileName, filePath, objFileInfo.fieldid);
+                        createFileInfo(parameters, fileName, filePath, objFileInfo);
                     }
                     scriptContext.response.writePage(createForm(scriptContext, {message: 'File uploaded successfully: ' + fileName}, objFileInfo));
                 } else {
@@ -97,7 +97,7 @@ define(['N/record', 'N/ui/serverWidget', '../common/scv_common_sftp.js'],
             return randomNumber;
         }
 
-        const createFileInfo = (parameters, fileName, filePath, fieldid, fileid) => {
+        const createFileInfo = (parameters, fileName, filePath, objFileInfo, fileid) => {
             let trid = parameters.custpage_trid;
             let trtype = parameters.custpage_trtype;
 
@@ -108,8 +108,11 @@ define(['N/record', 'N/ui/serverWidget', '../common/scv_common_sftp.js'],
             recFif.setValue('custrecord_scv_ftp_fif_filename', fileName);
             recFif.setValue('custrecord_scv_ftp_fif_filepath', filePath);
             recFif.setValue('custrecord_scv_ftp_fif_document', fileid);
-            if (fieldid) {
-                recFif.setValue(fieldid, trid);
+            if (objFileInfo && objFileInfo.fieldid) {
+                recFif.setValue(objFileInfo.fieldid, trid);
+            }
+            if(objFileInfo.fieldidinfileinfo_lv2) {
+                recFif.setValue(objFileInfo.fieldidinfileinfo_lv2, objFileInfo.fieldidinfileinfo_lv2_value);
             }
             return recFif.save();
         }

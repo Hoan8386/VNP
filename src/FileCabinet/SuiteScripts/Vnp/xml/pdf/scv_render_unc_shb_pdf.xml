@@ -9,85 +9,94 @@
         src-bolditalic="${libPdf.font.times_bolditalic?html}"
         bytes="2"/>
 </head>
-<body size="A4" padding="0.14in 0.20in 0.10in 0.20in" font-family="Times" font-size="8.4pt">
+<body size="A4" padding="0.14in 0.20in 0.10in 0.20in" font-family="Times" font-size="10pt">
     <#list [1, 2] as copyNo>
     <table width="100%" cellpadding="0" cellspacing="0" style="page-break-inside:avoid;">
         <tr>
-            <td width="100%" style="height:399pt; padding:0; vertical-align:top;">
+            <td width="100%" style="height:399pt; line-height:8.5pt; vertical-align:top;">
                 <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5pt solid #000000;">
                     <tr>
-                        <td width="25%" rowspan="2" style="height:28pt; padding:0; vertical-align:top;">
-                            <!-- TODO: logo ngân hàng, chưa có file trong File Cabinet -->
+                        <td width="141.42pt" rowspan="2" style="width:141.42pt; height:28pt; vertical-align:top;">
+                            <#if (dataJson.logoUrl)?has_content>
+                            <p margin="1pt 0 0 1pt" padding="0"><img src="${(dataJson.logoUrl!'')?html}" style="width:70pt; height:26pt;"/></p>
+                            </#if>
                         </td>
-                        <td width="50%" style="height:14pt; padding:0;">&#160;</td>
-                        <td width="25%" style="height:14pt; padding:1pt 0 0; font-size:7pt; font-weight:normal; text-align:right; vertical-align:top;">Mẫu số 01/TTKDTM-SHB</td>
+                        <td width="282.85pt" style="width:282.85pt; height:14pt;">&#160;</td>
+                        <td width="141.43pt" style="width:141.43pt; height:14pt; font-size:9pt; font-weight:normal; vertical-align:top;"><p align="right" margin="0" padding="0">Mẫu số 01/TTKDTM-SHB</p></td>
                     </tr>
                     <tr>
-                        <td width="50%" style="height:14pt; padding:0; color:#000000; font-size:11pt; font-weight:bold; text-align:center; vertical-align:middle;">UỶ NHIỆM CHI/<span style="font-size:8.5pt; font-weight:normal;">PAYMENT ORDER</span></td>
-                        <td width="25%" style="height:14pt; padding:0; font-size:10pt; font-style:italic; text-align:right; vertical-align:middle;">Liên: <#if copyNo == 1>01<#else>02</#if></td>
+                        <td width="282.85pt" style="width:282.85pt; height:14pt; color:#000000; font-size:11pt; font-weight:bold; vertical-align:middle;"><p align="center" margin="0" padding="0">UỶ NHIỆM CHI/<span style="font-size:10pt; font-weight:normal;">PAYMENT ORDER</span></p></td>
+                        <td width="141.43pt" style="width:141.43pt; height:14pt; font-size:10pt; font-style:italic; vertical-align:middle;"><p align="right" margin="0" padding="0">Liên: <#if copyNo == 1>01<#else>02</#if></p></td>
                     </tr>
                 </table>
                 <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                        <td width="50%" style="height:15pt; padding:2pt 0; font-style:italic; text-align:right; vertical-align:middle;">Ngày (Date): ${(dataJson.ngayCT!'')?html}</td>
-                        <td width="50%" style="height:15pt; padding:2pt 0; font-style:italic; text-align:center; vertical-align:middle;">Số <span style="font-size:7pt; font-style:italic; font-weight:normal;">(Ref No)</span>:........................</td>
+                        <td width="50%" style="height:15pt; font-style:italic; vertical-align:middle;"><p align="right" margin="0" padding="0">Ngày (Date): ${(dataJson.ngayCT!'')?html}</p></td>
+                        <td width="50%" style="height:15pt; font-style:italic; vertical-align:middle;"><p align="center" margin="0" padding="0">Số <span style="font-size:8pt; font-style:italic; font-weight:normal;">(Ref No)</span>:........................</p></td>
                     </tr>
                 </table>
                 <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5pt solid #000000;">
                     <tr>
-                        <td width="55%" style="height:105pt; padding:0; border-right:0.5pt solid #000000; vertical-align:top;">
+                        <td width="55%" style="height:105pt; border-right:0.5pt solid #000000; line-height:8.5pt; vertical-align:top;">
                             <table width="100%" cellpadding="0" cellspacing="0">
-                                <tr><td width="100%" style="height:14pt; padding:1pt; font-size:10.3pt; font-weight:bold; text-align:center; vertical-align:middle;">ĐƠN VỊ CHUYỂN TIỀN <span style="font-size:7pt; font-style:italic; font-weight:normal;">(Applicant):</span></td></tr>
-                                <tr><td width="28%" style="height:26pt; padding:1pt 2pt; vertical-align:top;">Tên đơn vị trả tiền:<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Account Name</span></td><td width="72%" style="height:26pt; padding:1pt 2pt; font-weight:bold; vertical-align:middle;">${(dataJson.tenNguoiTra!'')?html}</td></tr>
-                                <tr><td width="28%" style="height:23pt; padding:1pt 2pt; vertical-align:top;">Số tài khoản:<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Account No.</span></td><td width="72%" style="height:23pt; padding:1pt 2pt; vertical-align:middle;">${(dataJson.stkNguoiTra!'')?html}</td></tr>
-                                <tr><td width="28%" style="height:21pt; padding:1pt 2pt; vertical-align:top;">Địa chỉ:<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Address</span></td><td width="72%" style="height:21pt; padding:1pt 2pt; vertical-align:middle;"><!-- TODO(BA-Q5): Địa chỉ người trả tiền, giữ trống. -->&#160;</td></tr>
-                                <tr><td width="28%" style="height:21pt; padding:1pt 2pt; vertical-align:top;">Tại ngân hàng:<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">With bank</span></td><td width="72%" style="height:21pt; padding:1pt 2pt; vertical-align:middle;">${(dataJson.nhNguoiTra!'')?html}</td></tr>
+                                <tr><td width="100%" colspan="2" style="height:14pt; font-size:10.3pt; font-weight:bold; vertical-align:middle;"><p align="center" margin="0 1pt" padding="0">ĐƠN VỊ CHUYỂN TIỀN <span style="font-size:8pt; font-style:italic; font-weight:normal;">(Applicant):</span></p></td></tr>
+                    <tr><td width="28%" style="height:26pt; vertical-align:top;"><p align="left" margin="1pt 2pt" padding="0">Tên đơn vị trả tiền:<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">Account Name</span></p></td><td width="72%" style="height:26pt; font-weight:bold; vertical-align:middle;"><p align="left" margin="1pt 2pt" padding="0">${(dataJson.tenNguoiTra!'')?html}</p></td></tr>
+                    <tr><td width="28%" style="height:23pt; vertical-align:top;"><p align="left" margin="1pt 2pt" padding="0">Số tài khoản:<br/><span style="font-size:9pt; font-style:italic; font-weight:normal;">Account No.</span></p></td><td width="72%" style="height:23pt; vertical-align:middle;"><p align="left" margin="1pt 2pt" padding="0">${(dataJson.stkNguoiTra!'')?html}</p></td></tr>
+                    <tr><td width="28%" style="height:21pt; vertical-align:top;"><p align="left" margin="1pt 2pt" padding="0">Địa chỉ:<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">Address</span></p></td><td width="72%" style="height:21pt; vertical-align:middle;"><p align="left" margin="1pt 2pt" padding="0"><!-- TODO(BA-Q5): Địa chỉ người trả tiền, giữ trống. -->&#160;</p></td></tr>
+                    <tr><td width="28%" style="height:21pt; vertical-align:top;"><p align="left" margin="1pt 2pt" padding="0">Tại ngân hàng:<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">With bank</span></p></td><td width="72%" style="height:21pt; vertical-align:middle;"><p align="left" margin="1pt 2pt" padding="0">${(dataJson.nhNguoiTra!'')?html}</p></td></tr>
                             </table>
                         </td>
-                        <td width="45%" rowspan="2" style="height:227pt; padding:0; vertical-align:top;">
+                        <td width="45%" rowspan="2" style="height:227pt; vertical-align:top;">
                             <table width="100%" cellpadding="0" cellspacing="0">
-                                <tr><td width="100%" style="height:14pt; padding:1pt; font-size:10pt; font-weight:bold; text-align:center; vertical-align:middle;">SỐ TIỀN <span style="font-size:7pt; font-style:italic; font-weight:normal;">(Amount)</span></td></tr>
+                                <tr><td width="100%" colspan="3" style="height:14pt; font-size:10pt; font-weight:bold; vertical-align:middle;"><p align="center" margin="0 1pt" padding="0">SỐ TIỀN <span style="font-size:8pt; font-style:italic; font-weight:normal;">(Amount)</span></p></td></tr>
                                 <tr>
-                                    <td width="35%" style="height:26pt; padding:1pt; vertical-align:top;">Bằng số<span style="font-size:7pt; font-style:italic; font-weight:normal;">(In figures)</span>:</td>
-                                    <td width="45%" style="height:26pt; padding:1pt; font-weight:bold; text-align:center; vertical-align:middle;">${(dataJson.soTien!'')?html}</td>
-                                    <td width="20%" style="height:26pt; padding:1pt; font-weight:bold; vertical-align:middle;">${(dataJson.maTienTe!'')?html}</td>
+                    <td width="35.191%" style="height:26pt; vertical-align:top;"><p align="left" margin="1pt" padding="0">Bằng số<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">(In figures)</span>:</p></td>
+                                    <td width="38.119%" style="height:26pt; font-weight:bold; vertical-align:middle;"><p align="center" margin="1pt" padding="0">${(dataJson.soTien!'')?html}</p></td>
+                    <td width="26.690%" style="height:26pt; font-weight:bold; vertical-align:middle;"><p align="left" margin="1pt" padding="0">${(dataJson.maTienTe!'')?html}</p></td>
                                 </tr>
                                 <tr>
-                                    <td width="35%" style="height:43pt; padding:1pt; vertical-align:top;">Bằng chữ <span style="font-size:7pt; font-style:italic; font-weight:normal;">(In words)</span>:</td>
-                                    <td width="65%" colspan="2" style="height:43pt; padding:1pt; vertical-align:top;">${(dataJson.soTienBangChu!'')?html}</td>
+                    <td width="35.191%" style="height:43pt; vertical-align:top;"><p align="left" margin="1pt" padding="0">Bằng chữ<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">(In words)</span>:</p></td>
+                    <td width="64.809%" colspan="2" style="height:43pt; vertical-align:top;"><p align="left" margin="1pt" padding="0">${(dataJson.soTienBangChu!'')?html}</p></td>
                                 </tr>
                                 <tr>
-                                    <td width="26%" style="height:23pt; padding:1pt; vertical-align:top;">Phí NH:<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Bank charges</span></td>
-                                    <td width="37%" style="height:23pt; padding:1pt; vertical-align:middle;"><table width="100%" cellpadding="0" cellspacing="0"><tr><td width="9pt" style="height:9pt; padding:0; border:1pt solid #000000; text-align:center; vertical-align:middle;">${(dataJson.tickPhiTrong!'')?html}</td><td width="90%" style="padding:0 0 0 4pt;">Phí trong<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Including</span></td></tr></table></td>
-                                    <td width="37%" style="height:23pt; padding:1pt; vertical-align:middle;"><table width="100%" cellpadding="0" cellspacing="0"><tr><td width="9pt" style="height:9pt; padding:0; border:1pt solid #000000; text-align:center; vertical-align:middle;">${(dataJson.tickPhiNgoai!'')?html}</td><td width="90%" style="padding:0 0 0 4pt;">Phí ngoài<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Excluding</span></td></tr></table></td>
+                    <td width="35%" style="height:23pt; vertical-align:top;"><p align="left" margin="1pt" padding="0">Phí NH:<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">Bank charges</span></p></td>
+                                    <td width="38%" style="height:23pt; vertical-align:middle;"><table width="100%" cellpadding="0" cellspacing="0"><tr><td width="12pt" style="vertical-align:middle;"><table cellpadding="0" cellspacing="0"><tr><td width="9pt" style="height:9pt; border:1pt solid #000000; vertical-align:middle;"><p align="center" margin="0" padding="0">${(dataJson.tickPhiTrong!'')?html}</p></td></tr></table></td><td width="90%" style="vertical-align:middle;"><p margin="0 0 0 4pt" padding="0">Phí trong<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">Including</span></p></td></tr></table></td>
+                                    <td width="27%" style="height:23pt; vertical-align:middle;"><table width="100%" cellpadding="0" cellspacing="0"><tr><td width="12pt" style="vertical-align:middle;"><table cellpadding="0" cellspacing="0"><tr><td width="9pt" style="height:9pt; border:1pt solid #000000; vertical-align:middle;"><p align="center" margin="0" padding="0">${(dataJson.tickPhiNgoai!'')?html}</p></td></tr></table></td><td width="90%" style="vertical-align:middle;"><p margin="0 0 0 4pt" padding="0">Phí ngoài<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">Excluding</span></p></td></tr></table></td>
                                 </tr>
-                                <tr><td width="100%" colspan="3" style="height:121pt; padding:1pt; vertical-align:top;"><span style="font-weight:bold;">Nội dung</span> <span style="font-size:7pt; font-style:italic; font-weight:normal;">(Details of payment)</span>: ${(dataJson.noiDung!'')?html}</td></tr>
+                    <tr><td width="100%" colspan="3" style="height:80pt; vertical-align:top;"><p align="left" margin="1pt" padding="0"><span style="font-weight:bold;">Nội dung</span> <span style="font-size:8pt; font-style:italic; font-weight:normal;">(Details of payment)</span>: ${(dataJson.noiDung!'')?html}</p></td></tr>
                             </table>
                         </td>
                     </tr>
                     <tr>
-                        <td width="55%" style="height:122pt; padding:0; border-right:0.5pt solid #000000; border-top:0.5pt solid #000000; vertical-align:top;">
+                        <td width="55%" style="height:136.4pt; border-right:0.5pt solid #000000; border-top:0.5pt solid #000000; line-height:8.5pt; vertical-align:top;">
                             <table width="100%" cellpadding="0" cellspacing="0">
-                                <tr><td width="100%" style="height:12pt; padding:1pt; font-size:10.3pt; font-weight:bold; text-align:center; vertical-align:middle;">ĐƠN VỊ NHẬN TIỀN <span style="font-size:7pt; font-style:italic; font-weight:normal;">(Beneficiary):</span></td></tr>
-                                <tr><td width="28%" style="height:32pt; padding:1pt 2pt; vertical-align:top;">Tên đơn vị nhận tiền:<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Beneficiary</span></td><td width="72%" style="height:32pt; padding:1pt 2pt; font-weight:bold; vertical-align:middle;">${(dataJson.tenNguoiHuong!'')?html}</td></tr>
-                                <tr><td width="28%" style="height:21pt; padding:1pt 2pt; vertical-align:top;">Số TK/CMND/CCCD:<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;"><#if copyNo == 1>Acc No./ID Card<#else>Acc No./ID Card/PP No</#if></span></td><td width="72%" style="height:21pt; padding:1pt 2pt; vertical-align:middle;">${(dataJson.stkNguoiHuong!'')?html}</td></tr>
-                                <tr><td width="44%" style="height:19pt; padding:1pt 2pt; vertical-align:top;">Ngày cấp:…………………<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Date of issue</span></td><td width="56%" style="height:19pt; padding:1pt 2pt; vertical-align:top;">Nơi cấp:……………………<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Place of issue</span></td></tr>
-                                <tr><td width="28%" style="height:19pt; padding:1pt 2pt; vertical-align:top;">Địa chỉ:<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Address</span></td><td width="72%" style="height:19pt; padding:1pt 2pt; vertical-align:middle;"><!-- TODO(BA-Q5): Địa chỉ người hưởng, giữ trống. -->&#160;</td></tr>
-                                <tr><td width="28%" style="height:19pt; padding:1pt 2pt; vertical-align:top;">Tại Ngân hàng:<br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">With bank</span></td><td width="72%" style="height:19pt; padding:1pt 2pt; font-weight:bold; vertical-align:middle;">${(dataJson.nhNguoiHuong!'')?html}</td></tr>
+                                <tr><td width="100%" colspan="2" style="height:12pt; font-size:10.3pt; font-weight:bold; vertical-align:middle;"><p align="center" margin="0 1pt" padding="0">ĐƠN VỊ NHẬN TIỀN <span style="font-size:8pt; font-style:italic; font-weight:normal;">(Beneficiary):</span></p></td></tr>
+                    <tr><td width="28%" style="height:23pt; vertical-align:top;"><p align="left" margin="1pt 2pt" padding="0">Tên đơn vị nhận tiền:<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">Beneficiary</span></p></td><td width="72%" style="height:23pt; font-weight:bold; vertical-align:middle;"><p align="left" margin="1pt 2pt" padding="0">${(dataJson.tenNguoiHuong!'')?html}</p></td></tr>
+                                <tr><td width="28%" style="height:21pt; vertical-align:top;"><p align="left" margin="1pt 2pt" padding="0">Số TK/CMND/CCCD:<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;"><#if copyNo == 1>Acc No./ID Card<#else>Acc No./ID Card/PP No</#if></span></p></td><td width="72%" style="height:21pt; vertical-align:middle;"><p margin="1pt 2pt" padding="0">${(dataJson.stkNguoiHuong!'')?html}</p></td></tr>
+                    <tr><td width="100%" colspan="2" style="height:19pt; vertical-align:top;"><table width="100%" cellpadding="0" cellspacing="0"><tr><td width="44%" style="height:19pt; vertical-align:top;"><p align="left" margin="1pt 2pt" padding="0">Ngày cấp:…………………<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">Date of issue</span></p></td><td width="56%" style="height:19pt; vertical-align:top;"><p align="left" margin="1pt 2pt" padding="0">Nơi cấp:……………………<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">Place of issue</span></p></td></tr></table></td></tr>
+                    <tr><td width="28%" style="height:19pt; vertical-align:top;"><p align="left" margin="1pt 2pt" padding="0">Địa chỉ:<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">Address</span></p></td><td width="72%" style="height:19pt; vertical-align:middle;"><p align="left" margin="1pt 2pt" padding="0">${(dataJson.diaChiNguoiHuong!'')?html}</p></td></tr>
+                    <tr><td width="28%" style="height:19pt; vertical-align:top;"><p align="left" margin="1pt 2pt" padding="0">Tại Ngân hàng:<br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">With bank</span></p></td><td width="72%" style="height:19pt; font-weight:bold; vertical-align:middle;"><p align="left" margin="1pt 2pt" padding="0">${(dataJson.nhNguoiHuong!'')?html}</p></td></tr>
                             </table>
                         </td>
                     </tr>
                 </table>
                 <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5pt solid #000000;">
                     <tr>
-                        <td width="55%" colspan="2" style="height:15pt; padding:1pt; border-right:0.5pt solid #000000; font-size:10.5pt; font-weight:bold; text-align:center; vertical-align:middle;">ĐƠN VỊ TRẢ TIỀN <span style="font-size:7pt; font-style:italic; font-weight:normal;">(Applicant)</span></td>
-                        <td width="45%" colspan="2" style="height:15pt; padding:1pt; font-size:10.5pt; font-weight:bold; text-align:center; vertical-align:middle;">NGÂN HÀNG <span style="font-size:7pt; font-style:italic; font-weight:normal;">(Bank of Applicant)</span></td>
+                        <td width="55%" colspan="2" style="height:15pt; border-right:0.5pt solid #000000; font-size:10.5pt; font-weight:bold; vertical-align:middle;"><p align="center" margin="0 1pt" padding="0">ĐƠN VỊ TRẢ TIỀN <span style="font-size:8pt; font-style:italic; font-weight:normal;">(Applicant)</span></p></td>
+                        <td width="45%" colspan="2" style="height:15pt; font-size:10.5pt; font-weight:bold; vertical-align:middle;"><p align="center" margin="0 1pt" padding="0">NGÂN HÀNG <span style="font-size:8pt; font-style:italic; font-weight:normal;">(Bank of Applicant)</span></p></td>
                     </tr>
                     <tr>
-                        <td width="22%" style="height:105pt; padding:5pt 1pt 0; text-align:center; vertical-align:top;">Kế toán trưởng/<span style="font-size:7pt; font-style:italic; font-weight:normal;">Chief Accountant</span><br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">(Ký, ghi họ tên/ Sign, fill full name)</span></td>
-                        <td width="33%" style="height:105pt; padding:5pt 1pt 0; border-right:0.5pt solid #000000; text-align:center; vertical-align:top;">Chủ tài khoản/<span style="font-size:7pt; font-style:italic; font-weight:normal;">A/C Holder</span><br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Ký, ghi họ tên, dấu (nếu có)/<br/>Sign, fill full name, seal (if any)</span></td>
-                        <td width="22.5%" style="height:105pt; padding:5pt 1pt 0; text-align:center; vertical-align:top;">Ghi sổ ngày <span style="font-size:7pt; font-style:italic; font-weight:normal;">(Dated)</span>…../…../…..<br/>Giao dịch viên/<span style="font-size:7pt; font-style:italic; font-weight:normal;">Teller</span><br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Ký, ghi họ tên/Sign, fill full name</span></td>
-                        <td width="22.5%" style="height:105pt; padding:20pt 1pt 0; text-align:center; vertical-align:top;">Kiểm soát/<span style="font-size:7pt; font-style:italic; font-weight:normal;">Supervisor</span><br/><span style="font-size:7pt; font-style:italic; font-weight:normal;">Ký, ghi họ tên/Sign, fill full name</span></td>
+                        <td width="124.45pt" style="width:124.45pt; height:57.6pt; vertical-align:top;"><p align="center" margin="5pt 1pt 0 1pt" padding="0">Kế toán trưởng/<span style="font-size:8pt; font-style:italic; font-weight:normal;">Chief Accountant</span><br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">(Ký, ghi họ tên/ Sign, fill full name)</span></p></td>
+                        <td width="186.68pt" style="width:186.68pt; height:57.6pt; border-right:0.5pt solid #000000; vertical-align:top;"><p align="center" margin="5pt 1pt 0 1pt" padding="0">Chủ tài khoản/<span style="font-size:8pt; font-style:italic; font-weight:normal;">A/C Holder</span><br/><span style="font-size:9pt; font-style:italic; font-weight:normal;">Ký, ghi họ tên, dấu (nếu có)/<br/>Sign, fill full name, seal (if any)</span></p></td>
+                        <td width="254.57pt" colspan="2" style="width:254.57pt; height:57.6pt; vertical-align:top;">
+                            <table width="254.57pt" cellpadding="0" cellspacing="0" style="width:254.57pt;">
+                                <tr><td width="254.57pt" colspan="2" style="width:254.57pt; vertical-align:top;"><p align="center" margin="5pt 1pt 0 1pt" padding="0">Ghi sổ ngày <span style="font-size:8pt; font-style:italic; font-weight:normal;">(Dated)</span>...../...../.....</p></td></tr>
+                                <tr>
+                                    <td width="127.28pt" style="width:127.28pt; vertical-align:top;"><p align="center" margin="0 1pt" padding="0">Giao dịch viên/<span style="font-size:8pt; font-style:italic; font-weight:normal;">Teller</span></p><p align="center" margin="0 1pt" padding="0"><span style="font-size:8pt; font-style:italic; font-weight:normal;">Ký, ghi họ tên/Sign, fill full name</span></p></td>
+                                    <td width="127.29pt" style="width:127.29pt; vertical-align:top;"><p align="center" margin="0 1pt" padding="0">Kiểm soát/<span style="font-size:8pt; font-style:italic; font-weight:normal;">Supervisor</span><br/><span style="font-size:8pt; font-style:italic; font-weight:normal;">Ký, ghi họ tên/Sign, fill full name</span></p></td>
+                                </tr>
+                            </table>
+                        </td>
                     </tr>
                 </table>
             </td>
@@ -95,8 +104,8 @@
     </table>
     <#if copyNo_has_next>
     <table width="100%" cellpadding="0" cellspacing="0">
-        <tr><td width="100%" style="height:5pt; padding:0; border-bottom:1pt dashed #808080;"></td></tr>
-        <tr><td width="100%" style="height:5pt; padding:0;"></td></tr>
+        <tr><td width="100%" style="height:5pt; border-bottom:1pt dashed #808080;"></td></tr>
+        <tr><td width="100%" style="height:5pt;"></td></tr>
     </table>
     </#if>
     </#list>

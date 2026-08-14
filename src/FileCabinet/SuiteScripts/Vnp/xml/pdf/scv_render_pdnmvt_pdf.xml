@@ -1,0 +1,210 @@
+<?xml version="1.0"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<!-- PDF layout for the purchase requisition form. -->
+<pdf>
+    <head>
+        <link name="Times" type="font" subtype="opentype"
+              src="${libPdf.font.times?html}"
+              src-bold="${libPdf.font.times_bold?html}"
+              src-italic="${libPdf.font.times_italic?html}"
+              src-bolditalic="${libPdf.font.times_bolditalic?html}"
+              bytes="2"/>
+        <style type="text/css">
+            * {
+            font-family: Times;
+            font-size: 10pt;
+            }
+            table {
+            font-family: Times;
+            font-size: 10pt;
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            }
+            td {
+            font-family: Times;
+            font-size: 10pt;
+            text-align: center;
+<!--            vertical-align: middle;-->
+            }
+            .h1 {
+            font-size: 18pt;
+            }
+            .table-cus {
+            width: 100%;
+            border-spacing: 0;
+            }
+            .cell {
+            border-left: 0.5pt solid black;
+            border-bottom: 0.5pt solid black;
+            padding: 6pt 4pt;
+            text-align: center;
+            }
+            .cell-last {
+            border-left: 0.5pt solid black;
+            border-right: 0.5pt solid black;
+            border-bottom: 0.5pt solid black;
+            padding: 6pt 4pt;
+            text-align: center;
+            }
+            .cell-top {
+            border-top: 0.5pt solid black;
+            }
+            .cell-left {
+            text-align: left;
+            }
+            .bold {
+            font-weight: bold;
+            }
+            .m-0{
+            margin: 0;
+            padding: 0;
+            }
+        </style>
+    </head>
+    <body size="A4" orientation="portrait" padding="30px">
+        <table width="100%">
+            <tr>
+                <td colspan="2" padding="0">
+                    <p align="right" margin="6pt 0 13pt 0" padding="0"><span class="bold">BM.01.QT.TCKT</span></p>
+                </td>
+            </tr>
+            <tr>
+                <td valign="top" width="36%" padding="0">
+                    <p align="center" class="bold" margin="0" padding="0">${dataJson.tenCongTyDong1?html}</p>
+                    <#if dataJson.tenCongTyDong2?has_content>
+                        <p align="center" class="bold" margin="0" padding="0"><span style="text-decoration: underline;">${dataJson.tenCongTyDong2?html}</span></p>
+                    </#if>
+                </td>
+                <td valign="top" width="64%" padding="0">
+                    <p align="center" class="bold" margin="0" padding="0">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                    <p align="center" class="bold" margin="0" padding="0"><span style="text-decoration: underline;">Độc lập - Tự do - Hạnh phúc</span></p>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" height="16pt" padding="0">&#160;</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>
+                    <!-- TODO(BA-Q6): Hà Nội là text tĩnh theo mockup; xác nhận với BA. -->
+                    <p align="center" style="font-style: italic;" margin="0" padding="0">
+                        Hà Nội, ngày ${dataJson.ngay?html}
+                        tháng ${dataJson.thang?html}
+                        năm ${dataJson.nam?html}
+                    </p>
+                </td>
+            </tr>
+        </table>
+
+        <p align="center" class="h1 bold" margin="48pt 0 4pt 0" padding="0">
+            PHIẾU ĐỀ NGHỊ MUA VẬT TƯ, HÀNG HÓA, THIẾT BỊ
+        </p>
+        <p align="center" margin="0 0 24pt 0" padding="0">
+            Số: ${dataJson.soPhieu?html}
+        </p>
+
+        <!-- TODO(BA-Q3): FDD không có Field ID cho Kính gửi, Mục đích, Quy cách và Ghi chú. -->
+        <table width="100%" style="border-collapse: collapse;" margin="0" padding="0">
+            <tr>
+                <td width="60pt" padding="0">&#160;</td>
+                <td width="55pt" align="left" nowrap="true" padding="0">Kính gửi:</td>
+                <td height="16pt" padding="0"
+                    style="border-bottom: 0.5pt dotted black;">&#160;</td>
+            </tr>
+            <tr>
+                <td colspan="3" height="12pt" padding="0">&#160;</td>
+            </tr>
+        </table>
+        <table width="100%" style="border-collapse: collapse;" margin="0" padding="0">
+            <tr>
+                <td width="18pt" padding="0">&#160;</td>
+                <td width="120pt" align="left" nowrap="true" padding="0">
+                    1. Mục đích nhu cầu:
+                </td>
+                <td height="16pt" padding="0"
+                    style="border-bottom: 0.5pt dotted black;">&#160;</td>
+            </tr>
+        </table>
+        <table width="100%" style="border-collapse: collapse;" margin="0" padding="0">
+            <tr>
+                <td height="16pt" padding="0"
+                    style="border-bottom: 0.5pt dotted black;">&#160;</td>
+            </tr>
+            <tr>
+                <td height="16pt" padding="0"
+                    style="border-bottom: 0.5pt dotted black;">&#160;</td>
+            </tr>
+            <tr>
+                <td height="16pt" padding="0"
+                    style="border-bottom: 0.5pt dotted black;">&#160;</td>
+            </tr>
+            <tr>
+                <td height="16pt" padding="0"
+                    style="border-bottom: 0.5pt dotted black;">&#160;</td>
+            </tr>
+        </table>
+
+        <p margin="0 0 6pt 18pt" padding="0">2. Nội dung đề nghị:</p>
+        <table class="table-cus">
+            <thead>
+                <tr>
+                    <td valign="middle" class="cell cell-top bold" style="width: 7%;"><p align="center" margin="0" padding="0">TT</p></td>
+                    <td valign="middle" class="cell cell-top bold" style="width: 24%;"><p align="center" margin="0" padding="0">Tên hàng hóa,<br/>trang thiết bị</p></td>
+                    <td valign="middle" class="cell cell-top bold" style="width: 20%;"><p align="center" margin="0" padding="0">Quy cách, yêu<br/>cầu kỹ thuật</p></td>
+                    <td valign="middle" class="cell cell-top bold" style="width: 8%;"><p align="center" margin="0" padding="0">ĐVT</p></td>
+                    <td valign="middle" class="cell cell-top bold" style="width: 12%;"><p align="center" margin="0" padding="0">Số<br/>lượng</p></td>
+                    <td valign="middle" class="cell cell-top bold" style="width: 13%;"><p align="center" margin="0" padding="0">Thời gian<br/>cần</p></td>
+                    <td valign="middle" class="cell-last cell-top bold" style="width: 16%;"><p align="center" margin="0" padding="0">Ghi chú/Nhà<br/>cung cấp</p></td>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- TODO(BA-Q4): thời gian cần là body field, lặp lại trên từng dòng. -->
+                <#list dataJson.lines as line>
+                    <tr>
+                        <td class="cell"><p align="center" margin="0" padding="0">${(line?index + 1)?string?html}</p></td>
+                        <td class="cell cell-left"><p align="left" margin="0" padding="0">${line.tenHang?html}</p></td>
+                        <td class="cell cell-left"><p align="left" margin="0" padding="0">${line.quyCach?html}</p></td>
+                        <td class="cell"><p align="center" margin="0" padding="0">${line.dvt?html}</p></td>
+                        <td class="cell"><p align="center" margin="0" padding="0">${line.soLuong?html}</p></td>
+                        <td class="cell"><p align="center" margin="0" padding="0">${dataJson.thoiGianCan?html}</p></td>
+                        <td class="cell-last cell-left"><p align="left" margin="0" padding="0">${line.ghiChu?html}</p></td>
+                    </tr>
+                </#list>
+                <tr>
+                    <td class="cell bold" colspan="2"><p align="left" margin="0" padding="0">Tổng cộng</p></td>
+                    <td class="cell"></td>
+                    <td class="cell"></td>
+                    <td class="cell bold"><p align="center" margin="0" padding="0">${dataJson.tongSoLuong?html}</p></td>
+                    <td class="cell"></td>
+                    <td class="cell-last"></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- TODO(BA-Q7): chỉ in dòng dữ liệu thật, không thêm dòng trống để đủ mẫu giấy. -->
+        <!-- TODO(BA-Q5): 4 ô ký tay giữ trống theo mockup. -->
+        <table style="margin-top: 26pt;">
+            <tr>
+                <td align="center" style="width: 25%;">
+                    <p align="center" class="bold" margin="0" padding="0">NGƯỜI LẬP</p>
+                    <br/><br/><br/><br/>
+                </td>
+                <td align="center" style="width: 25%;">
+                    <p align="center" class="bold" margin="0" padding="0">TRƯỞNG PHÒNG</p>
+                    <br/><br/><br/><br/>
+                </td>
+                <td align="center" style="width: 25%;">
+                    <p align="center" class="bold" margin="0" padding="0">
+                        BỘ PHẬN/PHÒNG<br/>MUA HÀNG
+                    </p>
+                    <br/><br/><br/>
+                </td>
+                <td align="center" style="width: 25%;">
+                    <p align="center" class="bold" margin="0" padding="0">PHÊ DUYỆT</p>
+                    <br/><br/><br/><br/>
+                </td>
+            </tr>
+        </table>
+    </body>
+</pdf>

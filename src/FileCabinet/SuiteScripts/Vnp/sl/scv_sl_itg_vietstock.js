@@ -19,18 +19,24 @@ define(['../common/scv_common_itg_vietstock.js'],
             let projectId = parameters.projectId;
             let stockCode = parameters.stockCode;
             let marketPriceId = null;
+            let updatedProjectId = null;
 
             try {
                 if (type === vietStock.SyncType.STOCK_TRADING) {
                     let config = vietStock.getVietstockConfigByQuery();
                     marketPriceId = vietStock.syncStockTrading(config.baseurl, {}, stockCode, projectId);
+                } else if(type === vietStock.SyncType.COMPANY_INFO) {
+                    // Company Information -> Project: cập nhật thông tin pháp nhân của Project theo mã CK
+                    // (theo VST_companyinfo.xlsx)
+                    let config = vietStock.getVietstockConfigByQuery();
+                    updatedProjectId = vietStock.syncCompanyInfo(config.baseurl, {}, stockCode, projectId);
                 }
             } catch (e) {
                 log.error('onRequest error', e);
             }
 
             scriptContext.response.setHeader({name: 'Content-Type', value: 'application/json'});
-            scriptContext.response.write(JSON.stringify({marketPriceId}));
+            scriptContext.response.write(JSON.stringify({marketPriceId, projectId: updatedProjectId}));
         }
 
         return {onRequest}

@@ -1,0 +1,146 @@
+/**
+ * Nội dung: 
+ * Version: 1.251002.4
+ * =======================================================================================
+ *  Date                Author                  Description
+ *  17 Mar 2025         Huy Pham                Init & create file
+ */
+.dx-header-row {
+    background-color: #E5E5E5 !important;
+    vertical-align: bottom;
+    color: #484848 !important;
+    font-size: 12px;
+    text-align: center!important;
+}
+
+td[role=columnheader] {
+    text-align: center!important
+}
+
+.dx-datagrid-headers.dx-datagrid-nowrap {
+    position: sticky;
+    top: 0px;
+    background-color: white;
+    z-index: 1000;
+}
+
+.dx-datagrid-headers .dx-datagrid-table .dx-row > td{
+    border-bottom-width: 1px !important;
+    border-bottom-style: solid !important;
+    border-bottom-color: black !important;
+
+    border-left-width: 1px !important;
+    border-left-style: solid !important;
+    border-left-color: black !important;
+
+    border-right-width: 1px !important;
+    border-right-style: solid !important;
+    border-right-color: black !important;
+
+    border-top-width: 1px !important;
+    border-top-style: solid !important;
+    border-top-color: black !important;
+
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-color: black !important;
+}
+
+.dx-data-row{
+    font-size: 13px
+}
+
+.dx-datagrid-headers {
+    position: sticky;
+    top: 0px;
+    background-color: white;
+    z-index: 1000;
+}
+
+.dx-treelist-headers.dx-treelist-nowrap {
+    position: sticky;
+    top: 0px;
+    background-color: white;
+    z-index: 1000;
+}
+
+.dx-treelist-headers .dx-treelist-table .dx-row > td{
+    border-bottom-width: 1px !important;
+    border-bottom-style: solid !important;
+    border-bottom-color: black !important;
+
+    border-left-width: 1px !important;
+    border-left-style: solid !important;
+    border-left-color: black !important;
+
+    border-right-width: 1px !important;
+    border-right-style: solid !important;
+    border-right-color: black !important;
+
+    border-top-width: 1px !important;
+    border-top-style: solid !important;
+    border-top-color: black !important;
+
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-color: black !important;
+}
+
+.dx-treelist-headers {
+    position: sticky;
+    top: 0px;
+    background-color: white;
+    z-index: 1000;
+}
+
+.dx-splitter {
+    border: 1px solid var(--dx-color-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.dx-splitter .pane-content {
+    padding: 12px;
+}
+
+.dx-pivotgrid-horizontal-headers tr {
+    background-color: #E5E5E5 !important;
+    font-size: 12px;
+}
+
+.dx-pivotgrid-horizontal-headers tr td span {
+    color: #484848 !important;
+}
+
+.dx-pivotgrid-horizontal-headers tr > td{
+    border-bottom-width: 1px !important;
+    border-bottom-style: solid !important;
+    border-bottom-color: black !important;
+
+    border-left-width: 1px !important;
+    border-left-style: solid !important;
+    border-left-color: black !important;
+
+    border-right-width: 1px !important;
+    border-right-style: solid !important;
+    border-right-color: black !important;
+
+    border-top-width: 1px !important;
+    border-top-style: solid !important;
+    border-top-color: black !important;
+
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-color: black !important;
+}
+
+.dx-treeview-node-container{
+    padding-left: 0 !important;
+}
+
+.scv-icon-style{
+    transition: color 0.3s ease;
+}
+.scv-icon-style:hover{
+    color: #007bff;
+}

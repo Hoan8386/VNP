@@ -31,22 +31,64 @@ function (query, lbf, record) {
             record.delete({type: 'customrecord_scv_specificaiton_unit', id: obj.id});
         })
     }
+    const resolveItemIdForUnitsType = (recId) => {
+        let objSpecUnit = getObjTableQuery('customrecord_scv_specificaiton_unit', ['custrecord_scv_item_specification'],
+            `custrecord_scv_item_unit_unitstype = ${recId} and custrecord_scv_item_specification is not null`)[0];
+        if(objSpecUnit && objSpecUnit.custrecord_scv_item_specification) return objSpecUnit.custrecord_scv_item_specification;
+        let objItem = getObjTableQuery('item', ['id', 'displayname'], `unitstype = ${recId}`)[0];
+        return objItem ? objItem.id : '';
+    }
+
+    const activateItemIfInactive = (itemId) => {
+        if (!itemId) return false;
+        try {
+            let recordType = lbf.getItemRecordType(itemId);
+            if (!recordType) return false;
+            let lkItem = lbf.lookFields(recordType, itemId, ['isinactive']);
+            let isInactive = lkItem?.isinactive === true || lkItem?.isinactive === 'T';
+            if (!isInactive) return false;
+            record.submitFields({
+                type: recordType,
+                id: itemId,
+                values: {isinactive: false},
+                options: {enableSourcing: false, ignoreMandatoryFields: true}
+            });
+            return true;
+        } catch (e) {
+            log.error('Error activateItemIfInactive: ', e);
+            return false;
+        }
+    }
+
+    const deactivateItem = (itemId) => {
+        if (!itemId) return;
+        try {
+            let recordType = lbf.getItemRecordType(itemId);
+            if (!recordType) return;
+            record.submitFields({
+                type: recordType,
+                id: itemId,
+                values: {isinactive: true},
+                options: {enableSourcing: false, ignoreMandatoryFields: true}
+            });
+        } catch (e) {
+            log.error('Error deactivateItem: ', e);
+        }
+    }
+
     const onCrtSpecUnit = (params) => {
         let objData = params.objData;
         let recId = params.recId;
         let specUnitRec = record.create({type: 'customrecord_scv_specificaiton_unit', isDynamic: true});
         lbf.setValueData(specUnitRec, [
-            'name', 'custrecord_scv_item_unit', 'custrecord_scv_item_unit_unitstype', 
+            'name', 'custrecord_scv_item_unit', 'custrecord_scv_item_unit_unitstype',
             'custrecord_scv_item_unit_convert_qty', 'custrecord_scv_item_unit_base', 'custrecord_scv_item_unit_originalid'
         ], [
-            objData.unitname, objData.unitId, recId, 
+            objData.unitname, objData.unitId, recId,
             objData.conversionrate, objData.baseunit, recId + objData.unitId || ''
         ]);
         if(params.itemId){
             specUnitRec.setValue('custrecord_scv_item_specification', params.itemId);
-        }else{
-            let objItem = getObjTableQuery('item', ['id', 'displayname'], `unitstype = ${recId}`)[0];
-            if(objItem) specUnitRec.setValue('custrecord_scv_item_specification', objItem.id)
         }
         let specUnitRec_id = specUnitRec.save(); log.error('specUnitRec_id', specUnitRec_id);
         return;
@@ -55,13 +97,26 @@ function (query, lbf, record) {
     const afterSubmit_crtSpecUnit = (recId) => {
         let unitRec = record.load({type: 'unitstype', id: recId});
         let arrSL = getDataSL(unitRec);
-        if(arrSL.length > 0) arrSL.forEach(obj => onCrtSpecUnit({objData: obj, recId}));
+        if(arrSL.length === 0) return;
+        let itemId = resolveItemIdForUnitsType(recId);
+        if(itemId) activateItemIfInactive(itemId);
+        try {
+            arrSL.forEach(obj => onCrtSpecUnit({objData: obj, recId, itemId}));
+        } finally {
+            if(itemId) deactivateItem(itemId);
+        }
     }
 
     const afterSubmit_editItem_crtSpecUnit = (recId, itemId) => {
         let unitRec = record.load({type: 'unitstype', id: recId});
         let arrSL = getDataSL(unitRec);
-        if(arrSL.length > 0) arrSL.forEach(obj => onCrtSpecUnit({objData: obj, recId, itemId}));
+        if(arrSL.length === 0) return;
+        let wasActivated = itemId ? activateItemIfInactive(itemId) : false;
+        try {
+            arrSL.forEach(obj => onCrtSpecUnit({objData: obj, recId, itemId}));
+        } finally {
+            if(wasActivated) deactivateItem(itemId);
+        }
     }
 
     const getDataSL = (rec) => {
@@ -100,21 +155,20 @@ function (query, lbf, record) {
     const afterSubmit_CRUD = (scriptContext) => {
         let newRec = scriptContext.newRecord;
         let unitRec = record.load({type: 'unitstype', id: newRec.id});
-        let arrSLNew = getDataSL(unitRec); 
-        let arrSLCur = getDataSL(newRec);
+        let arrSLNew = getDataSL(unitRec);
         let arrSLOld = getDataSL(scriptContext.oldRecord);
         let arrCrt = [];
         let arrDel = [];
         let arrUpd = [];
         arrSLNew.forEach(obj => {
-            let unitId = arrSLCur.find(e => e.unitId == obj.unitId)?.unitId;
+            let unitId = arrSLOld.find(e => e.unitId == obj.unitId)?.unitId;
             if(!unitId) arrCrt.push(obj);
         })
         arrSLOld.forEach(obj => {
-            let unitId = arrSLCur.find(e => e.unitId == obj.unitId)?.unitId;
+            let unitId = arrSLNew.find(e => e.unitId == obj.unitId)?.unitId;
             if(!unitId) arrDel.push(obj);
         })
-        arrSLCur.forEach(objCur => {
+        arrSLNew.forEach(objCur => {
             if(!objCur.unitId) return;
             let objOld = arrSLOld.find(e => e.unitId == objCur.unitId);
             if(objOld && objOld.unitId){
@@ -128,7 +182,15 @@ function (query, lbf, record) {
                 }
             }
         })
-        if(arrCrt.length > 0) arrCrt.forEach(obj => onCrtSpecUnit({objData: obj, recId: newRec.id}));
+        if(arrCrt.length > 0) {
+            let itemId = resolveItemIdForUnitsType(newRec.id);
+            let wasActivated = itemId ? activateItemIfInactive(itemId) : false;
+            try {
+                arrCrt.forEach(obj => onCrtSpecUnit({objData: obj, recId: newRec.id, itemId}));
+            } finally {
+                if(wasActivated) deactivateItem(itemId);
+            }
+        }
         if(arrDel.length > 0) onDelSpecUnit(arrDel, newRec.id)
         if(arrUpd.length > 0) onUpdSpecUnit(arrUpd,  newRec.id)
     }

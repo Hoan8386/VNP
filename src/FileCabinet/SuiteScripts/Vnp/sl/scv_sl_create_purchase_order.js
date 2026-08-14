@@ -69,12 +69,25 @@ define(['N/format', 'N/runtime', 'N/search', 'N/ui/message', 'N/ui/serverWidget'
                 orderType: raw[FIELD.ORDER_TYPE] || raw.orderType || '',
                 purchaseContract: raw[FIELD.PURCHASE_CONTRACT] || raw.purchaseContract || '',
                 purchaseRequisition: raw[FIELD.PURCHASE_REQUISITION] || raw.purchaseRequisition || '',
-                date: raw[FIELD.DATE] || raw.date || format.format({value: new Date(), type: format.Type.DATE}),
+                date: raw[FIELD.DATE] || raw.date || getTodayDate(),
                 location: raw[FIELD.LOCATION] || raw.location || '',
                 vendor: raw[FIELD.VENDOR] || raw.vendor || '',
                 memo: raw[FIELD.MEMO] || raw.memo || '',
                 isSearch: raw[FIELD.IS_SEARCH] || raw.isSearch || ''
             };
+        }
+
+        function getTodayDate() {
+            const now = new Date();
+            const vietnamOffsetMinutes = 7 * 60;
+            const vietnamNow = new Date(now.getTime() + vietnamOffsetMinutes * 60 * 1000);
+            const year = vietnamNow.getUTCFullYear();
+            const month = vietnamNow.getUTCMonth();
+            const date = vietnamNow.getUTCDate();
+            return format.format({
+                value: new Date(Date.UTC(year, month, date, 12, 0, 0)),
+                type: format.Type.DATE
+            });
         }
 
         function getCurrentUserSubsidiary() {
@@ -167,7 +180,7 @@ define(['N/format', 'N/runtime', 'N/search', 'N/ui/message', 'N/ui/serverWidget'
                 id: FIELD.PURCHASE_CONTRACT,
                 label: 'Purchase Contract',
                 container: groupId,
-                options: getTransactionSelectOptions(libCreatePo.RECORD_TYPE.PC, params.subsidiary),
+                options: getTransactionSelectOptions(libCreatePo.CREATED_FROM.PC, params.subsidiary),
                 defaultValue: params.purchaseContract
             });
 
@@ -175,7 +188,7 @@ define(['N/format', 'N/runtime', 'N/search', 'N/ui/message', 'N/ui/serverWidget'
                 id: FIELD.PURCHASE_REQUISITION,
                 label: 'Purchase Requisition',
                 container: groupId,
-                options: getTransactionSelectOptions(libCreatePo.RECORD_TYPE.PR, params.subsidiary),
+                options: getTransactionSelectOptions(libCreatePo.CREATED_FROM.PR, params.subsidiary),
                 defaultValue: params.purchaseRequisition
             });
 
@@ -272,9 +285,37 @@ define(['N/format', 'N/runtime', 'N/search', 'N/ui/message', 'N/ui/serverWidget'
             }
         }
 
-        function getTransactionSelectOptions(recordType, subsidiary) {
+        function getTransactionSelectOptions(createdFrom, subsidiary) {
             if (!subsidiary) return [];
             try {
+                const rows = libCreatePo.getSearchResults({
+                    createdFrom,
+                    subsidiary,
+                    purchaseContract: '',
+                    purchaseRequisition: ''
+                });
+                const optionById = {};
+                rows.forEach((row) => {
+                    if (!row.sourceRecordId || optionById[row.sourceRecordId]) return;
+                    optionById[row.sourceRecordId] = {
+                        value: row.sourceRecordId,
+                        text: row.documentNumber || row.sourceRecordId
+                    };
+                });
+                return Object.keys(optionById)
+                    .map((id) => optionById[id])
+                    .sort((a, b) => a.text.localeCompare(b.text));
+            } catch (e) {
+                log.error('Create PO Get Transaction Select Options From Result Error', {createdFrom, subsidiary, error: e});
+                return getTransactionSelectOptionsFallback(createdFrom, subsidiary);
+            }
+        }
+
+        function getTransactionSelectOptionsFallback(createdFrom, subsidiary) {
+            try {
+                const recordType = createdFrom === libCreatePo.CREATED_FROM.PC
+                    ? libCreatePo.RECORD_TYPE.PC
+                    : libCreatePo.RECORD_TYPE.PR;
                 const filters = [
                     ['subsidiary', search.Operator.ANYOF, subsidiary],
                     'AND',
@@ -284,7 +325,7 @@ define(['N/format', 'N/runtime', 'N/search', 'N/ui/message', 'N/ui/serverWidget'
                     .run().getRange({start: 0, end: 1000});
                 return results.map((r) => ({value: r.id, text: r.getValue({name: 'tranid'}) || r.id}));
             } catch (e) {
-                log.error('Create PO Get Transaction Select Options Error', {recordType, subsidiary, error: e});
+                log.error('Create PO Get Transaction Select Options Error', {createdFrom, subsidiary, error: e});
                 return [];
             }
         }

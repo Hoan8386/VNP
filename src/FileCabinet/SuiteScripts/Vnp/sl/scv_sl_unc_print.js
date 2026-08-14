@@ -2,10 +2,10 @@
  * @NApiVersion 2.1
  * @NScriptType Suitelet
  */
-define(['N/query', 'N/render',
+define(['N/query', 'N/render', 'N/search',
         '../lib/scv_lib_pdf.js',
         '../lib/scv_lib_amount_in_word.js',
-        '../lib/scv_lib_utils.js'], (query, render, libPdf, libAmount, libUtils) => {
+        '../lib/scv_lib_utils.js'], (query, render, search, libPdf, libAmount, libUtils) => {
     // TODO(BA-Q1): Chọn mẫu theo ngân hàng tài khoản chi tiền và xử lý ngân hàng thứ 4.
     // coChiNhanhNguoiTra / coChiNhanhNguoiHuong tach rieng vi FDD (sheet "UNC TP
     // Bank") quy dinh TPBank BAT DOI XUNG: ben tra (M11) chi lay bank_name, KHONG
@@ -15,6 +15,8 @@ define(['N/query', 'N/render',
         TPBANK: {
             tuKhoa: ['TPBANK', 'TIENPHONGBANK'],
             printfile: 'scv_render_unc_tpbank_pdf',
+            logoFile: 'Logo-TPBank.png',
+            bannerFile: 'Banner-TPBank.png',
             coTinhTP: true, coChiNhanhNguoiTra: false, coChiNhanhNguoiHuong: true
         },
         VIETINBANK: {
@@ -23,14 +25,25 @@ define(['N/query', 'N/render',
             // bao gio ra button.
             tuKhoa: ['VIETINBANK', 'VIETTINBANK', 'CONGTHUONG'],
             printfile: 'scv_render_unc_vietinbank_pdf',
+            logoFile: 'Logo-VietinBank.png',
             coTinhTP: false, coChiNhanhNguoiTra: true, coChiNhanhNguoiHuong: true
         },
         SHB: {
             tuKhoa: ['SHB', 'SAIGONHANOI'],
             printfile: 'scv_render_unc_shb_pdf',
+            logoFile: 'Logo-SHB-EN.png',
             coTinhTP: false, coChiNhanhNguoiTra: true, coChiNhanhNguoiHuong: true
         }
     };
+
+    // Logo ngan hang nam trong File Cabinet: Images / Unc.
+    // CO Y khong hardcode internal id (1600/1601/1602) va cung khong hardcode URL:
+    //  - id doi moi khi ai do xoa roi upload lai file -> tra theo TEN file thi khong gay.
+    //  - URL cua File Cabinet co tham so &c=&h= sinh theo account, hardcode la khong
+    //    mang sang account khac duoc.
+    // Rang buoc CA folder lan folder cha de sau nay them Images/<task khac> thi file
+    // trung ten o folder khac khong bi lay nham.
+    const ThuMucLogo = {ten: 'Unc', cha: 'Images'};
 
     // BA-Q9 da chot bang SuiteQL tren account that: bang transaction CHI co cot
     // 'total'. 't.usertotal' va 't.payment' deu nem loi, du FDD ghi 2 ten do cho
@@ -52,11 +65,37 @@ define(['N/query', 'N/render',
 
     const asText = (value) => (value == null ? '' : String(value));
 
+    const layFieldAnToan = (type, id, fieldId) => {
+        if (!id || !fieldId) return '';
+        try {
+            const fields = search.lookupFields({type, id, columns: [fieldId]}) || {};
+            const value = fields[fieldId];
+            if (Array.isArray(value)) {
+                return asText(value[0]?.value ?? value[0]?.text);
+            }
+            if (value && typeof value === 'object') {
+                return asText(value.value ?? value.text);
+            }
+            return asText(value);
+        } catch (e) {
+            log.error({
+                title: 'UNC lookup field fallback: ' + fieldId,
+                details: e
+            });
+            return '';
+        }
+    };
+
     const getMaTienTe = (symbol) => {
         const giaTri = asText(symbol);
         const maTienTe = MaTienTeTheoSymbol[giaTri];
         if (!maTienTe) {
-            throw new Error('Chưa map mã tiền tệ cho symbol: ' + giaTri);
+            log.audit({
+                title: 'UNC fallback mã tiền tệ',
+                details: 'Chưa map mã tiền tệ cho symbol: ' + giaTri
+                    + '; dùng chính symbol làm mã tiền tệ.'
+            });
+            return giaTri;
         }
         return maTienTe;
     };
@@ -90,6 +129,34 @@ define(['N/query', 'N/render',
         return tickTheoNganHang[maNganHang];
     };
 
+    // Tra URL logo theo TEN file trong dung folder Images/Unc.
+    // libPdf co ham getFontUrl() lam y het viec nay nhung KHONG duoc export ra
+    // ngoai, va lib/ thi cam sua -> viet lai o day theo cung pattern.
+    // Khong tim thay logo thi tra '' de template tu bo qua the <img>: thieu logo
+    // van in duoc chung tu, con nem loi thi ca ban in chet.
+    const getLogoUrl = (tenFile) => {
+        if (!tenFile) return '';
+        try {
+            const sql = `
+                SELECT f.url
+                FROM file f
+                JOIN mediaitemfolder mf ON mf.id = f.folder
+                LEFT JOIN mediaitemfolder mfp ON mfp.id = mf.parent
+                WHERE UPPER(f.name) = UPPER(?)
+                  AND UPPER(mf.name) = UPPER(?)
+                  AND UPPER(mfp.name) = UPPER(?)
+            `;
+            const rows = query.runSuiteQL({
+                query: sql,
+                params: [tenFile, ThuMucLogo.ten, ThuMucLogo.cha]
+            }).asMappedResults();
+            return asText(rows[0]?.url);
+        } catch (e) {
+            log.error({title: 'getLogoUrl: khong tra duoc logo ' + tenFile, details: e});
+            return '';
+        }
+    };
+
     const ghepNganHang = (ten, chiNhanh, coChiNhanh) => {
         const tenNganHang = asText(ten);
         const tenChiNhanh = asText(chiNhanh);
@@ -121,7 +188,8 @@ define(['N/query', 'N/render',
                 t.custbody_scv_bank_account AS stk_nguoi_huong,
                 t.custbody_scv_bank_name AS nh_nguoi_huong,
                 t.custbody_scv_bank_branch AS cn_nguoi_huong,
-                t.custbody_scv_province AS tinh_nguoi_huong
+                t.custbody_scv_province AS tinh_nguoi_huong,
+                t.custbody_scv_beneficiary AS id_nguoi_huong
             FROM transaction t
             LEFT JOIN transactionline tl ON tl.transaction = t.id
                 AND tl.mainline = 'T' -- TODO(BA-Q8)
@@ -155,7 +223,14 @@ define(['N/query', 'N/render',
         const nhNguoiHuong = ghepNganHang(
             header.nh_nguoi_huong, header.cn_nguoi_huong, config.coChiNhanhNguoiHuong
         );
+        const diaChiNguoiHuong = layFieldAnToan(
+            'customrecord_scv_beneficiary',
+            header.id_nguoi_huong,
+            'custrecord_scv_beb_bank_address'
+        );
         return {
+            logoUrl: getLogoUrl(config.logoFile),
+            bannerUrl: config.bannerFile ? getLogoUrl(config.bannerFile) : '',
             ngayCT: asText(header.ngay_ct),
             tenNguoiTra: asText(header.ten_nguoi_tra),
             stkNguoiTra: asText(header.stk_nguoi_tra),
@@ -165,6 +240,7 @@ define(['N/query', 'N/render',
             stkNguoiHuong: asText(header.stk_nguoi_huong),
             nhNguoiHuong,
             tinhNguoiHuong: config.coTinhTP ? asText(header.tinh_nguoi_huong) : '',
+            diaChiNguoiHuong,
             soTien: libPdf.formatNumber(soTien),
             soTienBangChu,
             maTienTe,

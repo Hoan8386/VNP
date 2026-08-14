@@ -6,13 +6,15 @@ define(['N/url', 'N/search',
         '../common/scv_common_ui',
         '../lib/scv_lib_utils.js'], (url, search, comUI, libUtils) => {
     // TODO(BA-Q1): Chọn mẫu theo ngân hàng tài khoản chi tiền và xử lý ngân hàng thứ 4.
-    // coChiNhanhNguoiTra / coChiNhanhNguoiHuong: khong dung trong UE (chi timNganHang
-    // qua tuKhoa la duoc dung o day), nhung giu dong bo field voi dictionary ben
-    // scv_sl_unc_print.js theo dung quy uoc "lap co chu y, sua phai sua ca 2 cho".
+    // printfile / logoFile / coChiNhanh* / coTinhTP: khong dung trong UE (o day chi
+    // can timNganHang qua tuKhoa de quyet dinh HIEN hay AN button), nhung giu dong bo
+    // field voi dictionary ben scv_sl_unc_print.js theo dung quy uoc "lap co chu y,
+    // sua phai sua ca 2 cho".
     const NganHang = {
         TPBANK: {
             tuKhoa: ['TPBANK', 'TIENPHONGBANK'],
             printfile: 'scv_render_unc_tpbank_pdf',
+            logoFile: 'Logo-TPBank.png',
             coTinhTP: true, coChiNhanhNguoiTra: false, coChiNhanhNguoiHuong: true
         },
         VIETINBANK: {
@@ -21,11 +23,13 @@ define(['N/url', 'N/search',
             // bao gio ra button.
             tuKhoa: ['VIETINBANK', 'VIETTINBANK', 'CONGTHUONG'],
             printfile: 'scv_render_unc_vietinbank_pdf',
+            logoFile: 'Logo-VietinBank.png',
             coTinhTP: false, coChiNhanhNguoiTra: true, coChiNhanhNguoiHuong: true
         },
         SHB: {
             tuKhoa: ['SHB', 'SAIGONHANOI'],
             printfile: 'scv_render_unc_shb_pdf',
+            logoFile: 'Logo-SHB-EN.png',
             coTinhTP: false, coChiNhanhNguoiTra: true, coChiNhanhNguoiHuong: true
         }
     };

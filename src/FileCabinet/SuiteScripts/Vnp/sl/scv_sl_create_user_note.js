@@ -209,7 +209,7 @@ define(['N/record', 'N/search', 'N/ui/serverWidget', 'N/query', 'N/redirect', 'N
                 ],
                 columns:
                 [
-                    "entityid", "type", "altname"
+                    "entityid", "type"
                 ]
             });
             var myColumns = entitySearchObj.columns;
@@ -218,7 +218,7 @@ define(['N/record', 'N/search', 'N/ui/serverWidget', 'N/query', 'N/redirect', 'N
                 var currentPage = entitySearchObj.fetch({index : i}).data;
                 for(var idx = 0; idx < currentPage.length; idx++){
                     var obj = {
-                        text: currentPage[idx].getValue(myColumns[0]) + " " + currentPage[idx].getValue(myColumns[2]),
+                        text: currentPage[idx].getValue(myColumns[0]),
                         value: currentPage[idx].id,
                         isSelected: false
                     };

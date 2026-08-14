@@ -173,7 +173,7 @@ define(['N/search', '../lib/scv_lib_unitstype.js'],
                 libUnitsType.afterSubmit_CRUD(scriptContext)
             }
         }
-        
+
         return {
             beforeLoad: beforeLoad,
             // beforeSubmit: beforeSubmit,

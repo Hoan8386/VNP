@@ -2,7 +2,7 @@
  * @NApiVersion 2.1
  */
 define(['N/config', 'N/format', 'N/query', 'N/record', 'N/search',
-        '../lib/scv_lib_utils.js'],
+        '../lib/scv_lib_function.js', '../lib/scv_lib_utils.js'],
 
     (config, format, query, record, search, libFunc, libUtils) => {
 

@@ -1,6 +1,6 @@
 /**
  * Nội dung: 
- * Version: 1.250603.5
+ * Version: 1.251120.10
  * =======================================================================================
  *  Date                Author                  Description
  *  08 Apr 2024         Huy Pham                Init & create file
@@ -45,6 +45,22 @@ function(search) {
 			resultSearch = search.load(options);
 		}catch(err){
 			if(!!_records){
+				let filters = _records.filters ?? [];
+                filters.forEach(objFilter => {
+                    if(!!objFilter.summarytype && !objFilter.summary){
+                        objFilter.summary = objFilter.summarytype;
+                    }
+                });
+
+                let columns = _records.columns ?? [];
+                columns.forEach(objColumn => {
+                    if(!!objColumn.summarytype && !objColumn.summary){
+                        objColumn.summary = objColumn.summarytype;
+                    }
+                    if(!!objColumn.sortdir && !objColumn.sort){
+                        objColumn.sort = objColumn.sortdir;
+                    }
+                });
 				search.create(_records).save();
 
 				resultSearch = search.load(options);
@@ -293,7 +309,7 @@ function(search) {
 	 * console.log(slugify("Hệ_thống!!!vận_hành"));     // "he_thong_van_hanh"
 	 */
 	const formatStringToKeyID_V2 = (_strInput) => {
-		return _strInput.normalize("NFD") // tách dấu ra khỏi ký tự
+		return removeAccents(_strInput).normalize("NFD") // tách dấu ra khỏi ký tự
 			.replace(/[\u0300-\u036f]/g, "") // loại bỏ dấu tiếng Việt
 			.replace(/[^a-zA-Z0-9\s_]+/g, "_") // thay cụm ký tự đặc biệt liên tục bằng 1 dấu _
 			.replace(/\s+/g, "_") // thay khoảng trắng liên tục thành _
@@ -371,8 +387,8 @@ function(search) {
 	}
 
 
-	const getDataSource = (_options, _filters, _keys = []) =>{
-		let resultSearch = loadSearchWithFilter(_options, _filters);
+	const getDataSource = (_options, _filters, _keys = [], _record = {}) =>{
+		let resultSearch = loadSearchWithFilter(_options, _filters, _record);
 
 		let arrKeys = _keys || [];
 		if(arrKeys.length == 0){
@@ -398,8 +414,8 @@ function(search) {
 
 	const getDataSourceFetchPage = (_options, _filters, _params = {
 		rangePageFetch: 1, page: 0,
-	}, _keys = []) =>{
-		let resultSearch = loadSearchWithFilter(_options, _filters);
+	}, _keys = [], _record = {}) =>{
+		let resultSearch = loadSearchWithFilter(_options, _filters, _record);
 		
 		let arrKeys = _keys || [];
 		if(arrKeys.length == 0){
@@ -490,10 +506,88 @@ function(search) {
 
 		return arrResult;
 	}
+
+	const getDataSourceFetchPage_Mixed = (_options, _filters, _params = {
+		rangePageFetch: 1, page: 0,
+	}, _keys = [], _record = {}, _funcObjectMappingColumn) =>{
+		let resultSearch = loadSearchWithFilter(_options, _filters, _record);
+		
+		let arrKeys = _keys || [];
+		if(arrKeys.length == 0){
+			arrKeys = getDataKeyByColumnSearch_V2(resultSearch.columns);
+		}
+
+		let resultSearchPaged = resultSearch.runPaged({pageSize: 1000});
+		
+		let ttlPage = resultSearchPaged.pageRanges.length;
+		let idxPageFetched = _params.page || 0;
+
+		let objResDataSource = {
+			arrResult: [], 
+			info: {
+				page: idxPageFetched, 
+				ttlPage: ttlPage, 
+				rangePageFetch: _params.rangePageFetch,
+			}
+		};
+
+		if(idxPageFetched == 0 && ttlPage < 5){
+			objResDataSource.info.ttlPage = 1;
+			objResDataSource.arrResult = fetchResultSearchRunEach(resultSearch, function(_objSearch, _column){
+				let objResLine = {};
+
+				if(typeof(_funcObjectMappingColumn) == "function"){
+					objResLine = _funcObjectMappingColumn(_objSearch, _column);
+				}
+				else{
+					objResLine = getObjResultFromSearchByKey(_objSearch, _column, arrKeys);
+				}
+				
+				replaceValueNoneByKey(objResLine);
+
+				if(!!_objSearch?.id && !objResLine?.id){
+					objResLine.id = _objSearch.id;
+				}
+
+				return objResLine;
+			});
+		}
+		else{
+			let indexStart = idxPageFetched * 1000;
+			let indexEnd = indexStart + 1000;
+
+			let columns = resultSearch.columns;
+			let resultSearchRange = resultSearch.run().getRange(indexStart, indexEnd);
+
+			for(var i = 0; i < resultSearchRange.length; i++){
+				let objSearch = resultSearchRange[i];
+
+				let objResLine = {};
+
+				if(typeof(_funcObjectMappingColumn) == "function"){
+					objResLine = _funcObjectMappingColumn(objSearch, columns);
+				}
+				else{
+					objResLine = getObjResultFromSearchByKey(objSearch, columns, arrKeys);
+				}
+
+				replaceValueNoneByKey(objResLine);
+
+				if(!!objSearch?.id && !objResLine?.id){
+					objResLine.id = objSearch.id;
+				}
+
+				objResDataSource.arrResult.push(objResLine);
+			}
+		}
+
+		return objResDataSource;
+	}
+
     return {
-		ID: ID,
+		ID,
 		TYPE: "",
-		RECORDS: RECORDS,
+		RECORDS,
 		createSearchWithFilter,
 		loadSearchWithFilter,
 		fetchResultSearchPage,
@@ -512,7 +606,8 @@ function(search) {
 		formatStringToKeyID_V2,
 		getDataSource,
 		getDataSourceFetchPage,
-		getDataSource_Mixed
+		getDataSource_Mixed,
+		getDataSourceFetchPage_Mixed
     };
     
 });

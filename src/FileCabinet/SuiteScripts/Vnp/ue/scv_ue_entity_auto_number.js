@@ -2,6 +2,11 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
+/**
+ * DEPRECATED: Thay thế bởi scv_ue_auto_number_entity.js theo VNP_FDD_Chức năng sinh mã tự động cho Entity và Item.xlsx
+ * Script object customscript_scv_ue_entity_auto_no đã được set isinactive = T, không còn chạy.
+ * Giữ lại file này chỉ để SDF không báo lỗi thiếu file tham chiếu (scriptfile) khi deploy trạng thái inactive.
+ */
 define(['N/record', 'N/search'], (record, search) => {
     const CONFIG = {
         vendor: {

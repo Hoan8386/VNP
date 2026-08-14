@@ -57,6 +57,15 @@ define(['N/url', '../lib/scv_lib_function.js', '../common/scv_common_itg_vietsto
 
                 libFunc.addButtonHandel(scriptContext.form, 'custpage_scv_sync_stocktrading', 'Sync Stock Trading', urlSuitelet, recordId);
 
+                // Đồng bộ thông tin pháp nhân từ Vietstock về chính Project đang xem (VST_companyinfo.xlsx)
+                let urlSuiteletCompany = url.resolveScript({
+                    scriptId: SCRIPT_ID,
+                    deploymentId: DEPLOY_ID,
+                    params: {projectId: recordId, stockCode: stockCode, type: vietStock.SyncType.COMPANY_INFO}
+                });
+
+                libFunc.addButtonHandel(scriptContext.form, 'custpage_scv_sync_companyinfo', 'Sync Company Info', urlSuiteletCompany, recordId);
+
                 // Mở màn hình nhập tham số (Project, Từ ngày - Đến ngày, Loại báo cáo, TermType) rồi mới đồng bộ
                 let urlSuiteletForm = url.resolveScript({
                     scriptId: SCRIPT_ID_FORM,

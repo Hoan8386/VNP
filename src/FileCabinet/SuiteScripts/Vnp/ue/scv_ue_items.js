@@ -23,8 +23,8 @@
 define(['N/url', 'N/record', 'N/redirect', 'N/runtime', '../lib/scv_lib_function', 'N/search', 'N/query',
         '../lib/scv_lib_unitstype.js', 'N/ui/message', '../lib/scv_lib_logic_func.js', '../lib/scv_lib_item'],
 
-    function(url, record, redirect, runtime, libFn, search, query,
-     libUnitsType, message, logicFunc, libItem) {
+    (url, record, redirect, runtime, libFn, search, query,
+     libUnitsType, message, logicFunc, libItem) => {
 
         /**
          * Defines the function definition that is executed before record is loaded.
@@ -35,7 +35,7 @@ define(['N/url', 'N/record', 'N/redirect', 'N/runtime', '../lib/scv_lib_function
          * @param {ServletRequest} scriptContext.request - HTTP request information sent from the browser for a client action only.
          * @since 2015.2
          */
-        function beforeLoad(scriptContext) {
+        const beforeLoad = (scriptContext) => {
             try {
                 beforeLoadMakeCopyItem(scriptContext);
                 pageInitAlertPTCDiffSTC(scriptContext);
@@ -356,13 +356,11 @@ define(['N/url', 'N/record', 'N/redirect', 'N/runtime', '../lib/scv_lib_function
          * @param {string} scriptContext.type - Trigger type; use values from the context.UserEventType enum
          * @since 2015.2
          */
-        function afterSubmit(scriptContext) {
+        const afterSubmit = (scriptContext) => {
             try {
                 afterSubmitMakeCopyItem(scriptContext);
                 let newRecord = scriptContext.newRecord;
-                log.error('Run afterSubmitCreateRecordUnitType');
                 if ([record.Type.LOT_NUMBERED_INVENTORY_ITEM, record.Type.INVENTORY_ITEM].includes(newRecord.type)) {
-                    log.error('Run afterSubmitCreateRecordUnitType');
                     afterSubmitCreateRecordUnitType(scriptContext);
                 }
                 afterSubmit_crtSpecUnit(scriptContext);
@@ -474,24 +472,66 @@ define(['N/url', 'N/record', 'N/redirect', 'N/runtime', '../lib/scv_lib_function
             return recUnitTypeCP.save();
         }
 
+        const activateItemIfInactive = (itemId) => {
+            if (!itemId) return false;
+            try {
+                const recordType = libFn.getItemRecordType(itemId);
+                if (!recordType) return false;
+                const lkItem = libFn.lookFields(recordType, itemId, ['isinactive']);
+                const isInactive = lkItem?.isinactive === true || lkItem?.isinactive === 'T';
+                if (!isInactive) return false;
+                record.submitFields({
+                    type: recordType,
+                    id: itemId,
+                    values: {isinactive: false},
+                    options: {enableSourcing: false, ignoreMandatoryFields: true}
+                });
+                return true;
+            } catch (e) {
+                log.error('Error activateItemIfInactive: ', e);
+                return false;
+            }
+        };
+
+        const deactivateItem = (itemId) => {
+            if (!itemId) return;
+            try {
+                const recordType = libFn.getItemRecordType(itemId);
+                if (!recordType) return;
+                record.submitFields({
+                    type: recordType,
+                    id: itemId,
+                    values: {isinactive: true},
+                    options: {enableSourcing: false, ignoreMandatoryFields: true}
+                });
+            } catch (e) {
+                log.error('Error deactivateItem: ', e);
+            }
+        };
+
         const makeCopyQuyCachDVTItemOld = (options) => {
             const resultDVTQuyCachItemOld = getDataDVTItemOld(options.unitsTypeIdOld, options.itemIdOld);
             const arrDataDVTQuyCach = resultDVTQuyCachItemOld.isSuccess ? resultDVTQuyCachItemOld.response : [];
             const objMapUnitIdLine = getObjDataMapUnitIdLine(options.unitsTypeIdOld, options.unitsTypeIdNew);
-            arrDataDVTQuyCach.forEach(obj => {
-                const id = obj.id;
-                let curQCDVT = record.copy({type: 'customrecord_scv_specificaiton_unit', id: id, isDynamic: true});
-                const unitIdLineOLD = curQCDVT.getValue('custrecord_scv_item_unit');
-                const unitIdLineNEW = objMapUnitIdLine[unitIdLineOLD];
-                const originalId = options.unitsTypeIdNew + unitIdLineNEW;
-                const nameUnitLine = curQCDVT.getText('custrecord_scv_item_unit');
-                curQCDVT.setValue('name', nameUnitLine);
-                curQCDVT.setValue('custrecord_scv_item_unit', unitIdLineNEW);
-                curQCDVT.setValue('custrecord_scv_item_unit_unitstype', options.unitsTypeIdNew);
-                curQCDVT.setValue('custrecord_scv_item_specification', options.itemIdNew);
-                curQCDVT.setValue('custrecord_scv_item_unit_originalid', originalId);
-                curQCDVT.save({enableSourcing: false, ignoreMandatoryFields: true});
-            });
+            activateItemIfInactive(options.itemIdNew);
+            try {
+                arrDataDVTQuyCach.forEach(obj => {
+                    const id = obj.id;
+                    let curQCDVT = record.copy({type: 'customrecord_scv_specificaiton_unit', id: id, isDynamic: true});
+                    const unitIdLineOLD = curQCDVT.getValue('custrecord_scv_item_unit');
+                    const unitIdLineNEW = objMapUnitIdLine[unitIdLineOLD];
+                    const originalId = options.unitsTypeIdNew + unitIdLineNEW;
+                    const nameUnitLine = curQCDVT.getText('custrecord_scv_item_unit');
+                    curQCDVT.setValue('name', nameUnitLine);
+                    curQCDVT.setValue('custrecord_scv_item_unit', unitIdLineNEW);
+                    curQCDVT.setValue('custrecord_scv_item_unit_unitstype', options.unitsTypeIdNew);
+                    curQCDVT.setValue('custrecord_scv_item_specification', options.itemIdNew);
+                    curQCDVT.setValue('custrecord_scv_item_unit_originalid', originalId);
+                    curQCDVT.save({enableSourcing: false, ignoreMandatoryFields: true});
+                });
+            } finally {
+                deactivateItem(options.itemIdNew);
+            }
         }
 
         const getObjDataMapUnitIdLine = (unitsTypeIdOld, unitsTypeIdNew) => {
@@ -704,6 +744,7 @@ define(['N/url', 'N/record', 'N/redirect', 'N/runtime', '../lib/scv_lib_function
                 const resultsUnitType = createRecordUnitType(upccode);
                 const idUnitType = resultsUnitType.idUnitType;
                 updateAndCreateQTDVT(idUnitType, rectype, recid);
+                log.error('runOnUI', runOnUI)
                 if (runOnUI) {
                     redirect.toRecord({
                         type: rectype,
@@ -767,9 +808,9 @@ define(['N/url', 'N/record', 'N/redirect', 'N/runtime', '../lib/scv_lib_function
         const checkMark = (val) => val === 'T' || val === true
 
         return {
-            beforeLoad: beforeLoad,
-            beforeSubmit: beforeSubmit,
-            afterSubmit: afterSubmit
+            beforeLoad,
+            beforeSubmit,
+            afterSubmit
         }
 
     });

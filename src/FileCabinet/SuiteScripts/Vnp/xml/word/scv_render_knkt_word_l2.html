@@ -1,0 +1,175 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+        <style type="text/css">
+            * {
+            font-family: "Times New Roman", serif;
+            font-size: 10pt;
+            }
+            html, body {
+            margin: 0;
+            padding: 0;
+            }
+            body {
+            color: black;
+            line-height: 1.15;
+            }
+            p {
+            margin: 0;
+            padding: 0;
+            }
+            table {
+            font-family: "Times New Roman", serif;
+            font-size: 10pt;
+            width: 100%;
+            border-collapse: collapse;
+            border-spacing: 0;
+            table-layout: fixed;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+            mso-table-layout-alt: fixed;
+            }
+            td {
+            font-family: "Times New Roman", serif;
+            font-size: 10pt;
+            text-align: center;
+            vertical-align: middle;
+            line-height: 1.15;
+            }
+            .h1 {
+            font-size: 18pt;
+            line-height: 21pt;
+            }
+            .report-header {
+            margin: 0 0 14pt;
+            text-align: center;
+            page-break-after: avoid;
+            }
+            .report-title {
+            margin-bottom: 5pt;
+            }
+            .report-subtitle {
+            margin-bottom: 4pt;
+            line-height: 13pt;
+            }
+            .report-company {
+            margin-bottom: 10pt;
+            line-height: 13pt;
+            }
+            .report-updated {
+            line-height: 13pt;
+            }
+            .finding-title {
+            margin: 12pt 0 0;
+            line-height: 14pt;
+            page-break-after: avoid;
+            }
+            .instruction {
+            margin: 8pt 0 6pt;
+            line-height: 14pt;
+            page-break-after: avoid;
+            }
+            .table-cus {
+            width: 100%;
+            border-spacing: 0;
+            margin: 0 0 12pt;
+            border: 0.5pt solid black;
+            mso-border-alt: solid black 0.5pt;
+            }
+            .table-cus thead {
+            display: table-header-group;
+            }
+            .table-cus tr {
+            page-break-inside: avoid;
+            }
+            .cell,
+            .cell-last {
+            border: 0.5pt solid black;
+            mso-border-alt: solid black 0.5pt;
+            padding: 4pt;
+            }
+            .cell-top {
+            border-top: 0.5pt solid black;
+            }
+            .cell-left {
+            text-align: left;
+            }
+            .bold {
+            font-weight: bold;
+            }
+            .m-0{
+            margin: 0;
+            padding: 0;
+            }
+            .signature-block {
+            width: 60%;
+            margin: 20pt 0 0 40%;
+            text-align: center;
+            page-break-inside: avoid;
+            }
+            .signature-block .signature-company {
+            margin-top: 18pt;
+            }
+            @page {
+            size: A4 portrait;
+            margin: 2cm;
+            }
+            @page WordSection1 {
+            size: 595.3pt 841.9pt;
+            margin: 56.7pt;
+            mso-page-orientation: portrait;
+            }
+            div.WordSection1 {
+            page: WordSection1;
+            width: 17cm;
+            margin: 0 auto;
+            }
+        </style>
+    </head>
+    <!-- // TODO(BA-Q3): Confirm that this report should remain A4 portrait. -->
+    <body>
+        <div class="WordSection1">
+        <div class="report-header">
+            <p class="bold h1 report-title">BÁO CÁO KẾT QUẢ THỰC HIỆN CÁC KHUYẾN NGHỊ</p>
+            <p class="bold report-subtitle">TẠI BÁO CÁO KIỂM TOÁN NỘI BỘ SỐ ${dataJson.soBaoCao?html} BAN HÀNH NGÀY ${dataJson.ngayPhatHanh?html}</p>
+            <p class="bold report-company">CÔNG TY ${dataJson.congTy?html} – ${dataJson.donVi?html}</p>
+            <p class="report-updated"><i>Cập nhật đến <#if dataJson.ngayCapNhat?has_content>${dataJson.ngayCapNhat?html}<#else>…</#if></i></p>
+        </div>
+
+        <#list dataJson.phatHienList as ph>
+            <p class="bold finding-title" style="text-align: left;">Phát hiện ${ph.stt?html}. ${ph.chiTietPhatHien?html}</p>
+            <p class="instruction" style="text-align: left;">Tổng Giám đốc, Giám đốc Chi nhánh chỉ đạo các phòng, bộ phận có liên quan thực hiện các nội dung sau:</p>
+            <table width="100%" class="table-cus" cellspacing="0" cellpadding="0">
+                <!-- TODO(BA-Q18): Mockup FDD gạch chân nhãn header, mẫu lần 1 không gạch — chọn cái nào? -->
+                <thead>
+                    <tr>
+                        <td class="cell cell-top bold" width="6%" align="center">TT</td>
+                        <td class="cell cell-top bold" width="22%" align="center">Khuyến nghị</td>
+                        <td class="cell cell-top bold" width="14%" align="center">Thời hạn<br/>phản hồi</td>
+                        <td class="cell cell-top bold" width="29%" align="center">Tình hình và kết quả thực hiện<br/>đến ngày <#if ph.ngayThucHienTruoc?has_content>${ph.ngayThucHienTruoc?html}<#else>…</#if></td>
+                        <td class="cell-last cell-top bold" width="29%" align="center">Tình hình và kết quả thực hiện<br/>đến ngày <#if ph.ngayThucHien?has_content>${ph.ngayThucHien?html}<#else>…</#if></td>
+                    </tr>
+                </thead>
+                <tbody>
+                    <#list ph.khuyenNghiList as kn>
+                        <tr>
+                            <td class="cell" align="center">${kn.stt?html}</td>
+                            <td class="cell cell-left" align="left">${kn.khuyenNghi?html}</td>
+                            <td class="cell" align="center">${kn.thoiHanPhanHoi?html}</td>
+                            <td class="cell cell-left" align="left">${kn.tinhHinhThucHienTruoc?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}</td>
+                            <td class="cell-last cell-left" align="left">${kn.tinhHinhThucHien?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}</td>
+                        </tr>
+                    </#list>
+                </tbody>
+            </table>
+        </#list>
+
+        <div class="signature-block">
+            <p class="bold">Ngày ${dataJson.ngayKy?html} tháng ${dataJson.thangKy?html} năm ${dataJson.namKy?html}</p>
+            <p class="bold signature-company">CÔNG TY ${dataJson.congTy?html} - ${dataJson.donVi?html}</p>
+        </div>
+        </div>
+    </body>
+</html>

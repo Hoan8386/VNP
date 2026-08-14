@@ -9,16 +9,16 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
-define(['N/record', 'N/search', 
-    '../lib/scv_lib_function.js',
-    '../lib/scv_lib_unitstype.js',
-    '../cons/scv_cons_list_unittype.js'
-],
-    
+define(['N/record', 'N/search',
+        '../lib/scv_lib_function.js',
+        '../lib/scv_lib_unitstype.js',
+        '../cons/scv_cons_list_unittype.js'
+    ],
+
     (record, search,
-        lbf,
-        libUnitsType, 
-        constListUnitType) => {
+     lbf,
+     libUnitsType,
+     constListUnitType) => {
         /**
          * Defines the function definition that is executed before record is loaded.
          * @param {Object} scriptContext
@@ -58,7 +58,7 @@ define(['N/record', 'N/search',
          */
         const afterSubmit = (scriptContext) => {
             updItem(scriptContext);
-            
+
         }
 
         const updItem = (scriptContext) => {
@@ -106,11 +106,11 @@ define(['N/record', 'N/search',
                     }
                 })
             }
-            
+
         }
         return {
             // beforeLoad, 
-            beforeSubmit, 
+            beforeSubmit,
             afterSubmit
         }
 

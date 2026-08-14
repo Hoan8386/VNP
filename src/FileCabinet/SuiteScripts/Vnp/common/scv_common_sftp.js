@@ -1,6 +1,6 @@
-define(['N/sftp', 'N/query', 'N/search'],
+define(['N/sftp', 'N/query', 'N/search', 'N/record'],
 
-    (sftp, query, search) => {
+    (sftp, query, search, record) => {
 
         const FileStoreType = {
             SFTP: '1',
@@ -67,6 +67,7 @@ define(['N/sftp', 'N/query', 'N/search'],
 
         const LIST_TYPE_ENTITY = ['employee', 'partner', 'custjob', 'vendor'];
         const findMappingFieldInfo = (parameters) => {
+            let trid = parameters.trid || parameters.custpage_trid
             let trtype = parameters.trtype || parameters.custpage_trtype;
             let typeroot = parameters.typeroot || parameters.custpage_typeroot;
             let dbstrantype = parameters.dbstrantype || parameters.custpage_dbstrantype;
@@ -91,7 +92,8 @@ define(['N/sftp', 'N/query', 'N/search'],
             let objMappingFieldInfo;
             let sql = `select f.custrecord_scv_mfi_sourcerecordtype sourcerecordtype, f.custrecord_scv_mfi_fieldidinfileinfo fieldid, 
                 f.custrecord_scv_mfi_sourcefolder sourcefolder, f.custrecord_scv_mfi_idtoname idtoname, f.custrecord_scv_mfi_prefix prefix,
-                f.custrecord_scv_mfi_filestoretype filestoretype, f.custrecord_scv_mfi_file_cabinnet_folder file_cabinet_folder
+                f.custrecord_scv_mfi_filestoretype filestoretype, f.custrecord_scv_mfi_file_cabinnet_folder file_cabinet_folder,
+                f.custrecord_scv_mfi_sourcefromfield sourcefromfield, f.custrecord_scv_mfi_fieldidinfileinfo_lv2 fieldidinfileinfo_lv2
                 from customrecord_scv_mapping_file_info f where f.isinactive = 'F' and f.custrecord_scv_mfi_sourcerecordtype in(${listMark.join(',')})
             `;
             let resultSet = query.runSuiteQL({
@@ -100,12 +102,32 @@ define(['N/sftp', 'N/query', 'N/search'],
                 customScriptId: null
             });
             let listRes = resultSet.asMappedResults();
-            let objTemp = listRes.find(o => o.sourcerecordtype === trtype);
-            if (!objTemp && subtrtype) {
-                objTemp = listRes.find(o => o.sourcerecordtype === subtrtype);
+            let listTemp = listRes.filter(o => o.sourcerecordtype === trtype);
+            if (!listTemp.length && subtrtype) {
+                listTemp = listRes.filter(o => o.sourcerecordtype === subtrtype);
             }
-            objMappingFieldInfo = objTemp || {};
-            return objMappingFieldInfo;
+
+            let rec = null;
+            if (listTemp.some(o => o.sourcefromfield && o.fieldidinfileinfo_lv2)) {
+                rec = record.load({type: trtype, id: trid, isDynamic: false});
+            }
+
+            for (let objTemp of listTemp) {
+                if (!objTemp.sourcefromfield || !objTemp.fieldidinfileinfo_lv2) {
+                    objMappingFieldInfo = objTemp;
+                    break;
+                }
+                let fieldidinfileinfo_lv2_value = rec?.getValue({fieldId: objTemp.sourcefromfield});
+                if (util.isArray(fieldidinfileinfo_lv2_value)) {
+                    fieldidinfileinfo_lv2_value = fieldidinfileinfo_lv2_value[0]?.value || fieldidinfileinfo_lv2_value[0];
+                }
+                if (fieldidinfileinfo_lv2_value) {
+                    objTemp.fieldidinfileinfo_lv2_value = fieldidinfileinfo_lv2_value;
+                    objMappingFieldInfo = objTemp;
+                    break;
+                }
+            }
+            return objMappingFieldInfo || {};
         }
 
         const lookupFields = (type, id, columns) => {

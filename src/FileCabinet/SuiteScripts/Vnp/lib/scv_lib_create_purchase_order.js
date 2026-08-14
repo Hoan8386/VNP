@@ -136,8 +136,6 @@ define(['N/format', 'N/record', 'N/runtime', 'N/search', 'N/url'],
             addFilter(filters, 'custbody_scv_order_type', search.Operator.ANYOF, params.orderType);
             if (createdFrom === CREATED_FROM.PR) {
                 addFilter(filters, 'internalid', search.Operator.ANYOF, params.purchaseRequisition);
-            } else {
-                addFilter(filters, 'custbody_scv_purchase_contract', search.Operator.ANYOF, params.purchaseContract);
             }
             searchObj.filters = filters;
         }
@@ -169,6 +167,12 @@ define(['N/format', 'N/record', 'N/runtime', 'N/search', 'N/url'],
                         return;
                     }
                     const line = toResultLine(result, columns, createdFrom);
+                    if (params.purchaseContract && String(line.sourceRecordId) !== String(params.purchaseContract)) {
+                        return;
+                    }
+                    if (params.purchaseRequisition && String(line.sourceRecordId) !== String(params.purchaseRequisition)) {
+                        return;
+                    }
                     if (checkDocNumber && !isExpectedDocumentNumber(createdFrom, line.documentNumber)) {
                         return;
                     }
@@ -410,7 +414,7 @@ define(['N/format', 'N/record', 'N/runtime', 'N/search', 'N/url'],
 
         function getGroupKey(params, line) {
             const parts = [
-                params.orderType || line.orderType || '',
+                line.orderType || params.orderType || '',
                 line.responsibleDepartment || ''
             ];
             if (params.createdFrom === CREATED_FROM.PC) {
@@ -451,7 +455,7 @@ define(['N/format', 'N/record', 'N/runtime', 'N/search', 'N/url'],
                 const firstLine = lines[0];
                 const po = record.create({type: record.Type.PURCHASE_ORDER, isDynamic: true});
                 po.setValue({fieldId: 'entity', value: params.vendor});
-                setOptionalValue(po, FIELD.PO_ORDER_TYPE, params.orderType || firstLine.orderType);
+                setOptionalValue(po, FIELD.PO_ORDER_TYPE, firstLine.orderType || params.orderType);
                 po.setValue({fieldId: 'trandate', value: parseDate(params.date)});
                 po.setValue({fieldId: 'location', value: params.location});
                 po.setValue({fieldId: 'subsidiary', value: params.subsidiary});

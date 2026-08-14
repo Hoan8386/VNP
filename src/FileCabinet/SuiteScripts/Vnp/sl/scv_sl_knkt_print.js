@@ -5,8 +5,17 @@
 /*
  * Print KNKT - Báo cáo kết quả thực hiện các khuyến nghị.
  */
-define(['N/query', 'N/render', '../lib/scv_lib_pdf.js'], (query, render, libPdf) => {
+define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pdf.js'],
+    (query, render, file, encode, log, libPdf) => {
         const PRINT_FILE = 'scv_render_knkt_pdf';
+        // Whitelist: printfile đến từ URL param, không được phép load file XML tuỳ ý.
+        const PRINT_FILE_LAN_2 = 'scv_render_knkt_pdf_l2';
+        const PRINT_FILES = [PRINT_FILE, PRINT_FILE_LAN_2];
+        const WORD_PRINT_FILE = 'scv_render_knkt_word';
+        const WORD_PRINT_FILE_LAN_2 = 'scv_render_knkt_word_l2';
+        const WORD_PRINT_FILES = [WORD_PRINT_FILE, WORD_PRINT_FILE_LAN_2];
+        // Relative path resolved from this Suitelet's folder, giống cách scv_lib_pdf nạp XML.
+        const WORD_TEMPLATE_FOLDER = '../xml/word/';
         // Việt Nam dùng UTC+7 cố định và không có DST, không phụ thuộc giờ Pacific.
         const VIET_NAM_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
         const DATA_QUERY = `
@@ -77,14 +86,51 @@ define(['N/query', 'N/render', '../lib/scv_lib_pdf.js'], (query, render, libPdf)
                 throw "Chưa có mã bản ghi để in!";
             }
 
-            const pdfFile = renderRecordToPdf(params.recid);
-            scriptContext.response.writeFile(pdfFile, true);
+            const format = params.format || 'word';
+            if (format === 'pdf') {
+                const pdfFile = renderRecordToPdf(params.recid, params.printfile);
+                scriptContext.response.writeFile(pdfFile, true);
+                return;
+            }
+
+            if (format !== 'word') {
+                throw "Định dạng file không hợp lệ!";
+            }
+
+            try {
+                const wordFile = renderRecordToWord(params.recid, params.printfile);
+                scriptContext.response.writeFile({
+                    file: wordFile,
+                    isInline: false
+                });
+            } catch (error) {
+                log.error({
+                    title: 'KNKT_WORD_PRINT_ERROR',
+                    details: JSON.stringify({
+                        recid: params.recid,
+                        printfile: params.printfile,
+                        name: error && error.name,
+                        message: error && error.message,
+                        stack: error && error.stack
+                    })
+                });
+                throw error;
+            }
         }
 
-        // Renders one KNKT record with the fixed XML template and returns its PDF file.
-        const renderRecordToPdf = (recid) => {
-            // KPBL is reusable across templates; KNKT intentionally has one fixed template.
-            const renderer = libPdf.renderTemplateWithXml(PRINT_FILE);
+        // Returns a safe template name; anything outside the whitelist falls back to lần 1.
+        const getPrintFile = (printfile) => {
+            return PRINT_FILES.indexOf(printfile) === -1 ? PRINT_FILE : printfile;
+        }
+
+        // Returns a safe Word template name; anything outside the whitelist falls back to lần 1.
+        const getWordPrintFile = (printfile) => {
+            return WORD_PRINT_FILES.indexOf(printfile) === -1 ? WORD_PRINT_FILE : printfile;
+        }
+
+        // Renders one KNKT record with the requested XML template and returns its PDF file.
+        const renderRecordToPdf = (recid, printfile) => {
+            const renderer = libPdf.renderTemplateWithXml(getPrintFile(printfile));
             renderer.addCustomDataSource({
                 format: render.DataSource.OBJECT,
                 alias: "dataJson",
@@ -92,6 +138,36 @@ define(['N/query', 'N/render', '../lib/scv_lib_pdf.js'], (query, render, libPdf)
             });
 
             return renderer.renderAsPdf();
+        }
+
+        // Renders one KNKT record as HTML that Microsoft Word can open and edit.
+        const renderRecordToWord = (recid, printfile) => {
+            const templateFile = file.load({
+                id: WORD_TEMPLATE_FOLDER + getWordPrintFile(printfile) + '.html'
+            });
+            const renderer = render.create();
+            renderer.templateContent = templateFile.getContents();
+            const dataJson = getDataKNKT(recid);
+            renderer.addCustomDataSource({
+                format: render.DataSource.OBJECT,
+                alias: "dataJson",
+                data: dataJson
+            });
+
+            const wordContent = renderer.renderAsString();
+            const wordFileName = 'BaoCaoKNKT_' +
+                dataJson.soBaoCao.replace(/[\\/:*?"<>|\u0000-\u001F\u007F]/g, '_') +
+                '.doc';
+
+            return file.create({
+                name: wordFileName,
+                fileType: file.Type.WORD,
+                contents: encode.convert({
+                    string: wordContent,
+                    inputEncoding: encode.Encoding.UTF_8,
+                    outputEncoding: encode.Encoding.BASE_64
+                })
+            });
         }
 
         // Returns one header object and the nested phát hiện/khuyến nghị tree for the template.
@@ -134,13 +210,8 @@ define(['N/query', 'N/render', '../lib/scv_lib_pdf.js'], (query, render, libPdf)
             };
         }
 
-        // Updates a tracker with the newest execution date from one result row; returns nothing.
-        const keepLatestNgayThucHien = (tracker, row) => {
-            if (row.kq_id === null || row.kq_id === undefined) {
-                return;
-            }
-
-            const ngayThucHienSort = toText(row.ngay_thuc_hien_sort);
+        // Updates a tracker with one execution date if it is newer; returns nothing.
+        const keepLatestValue = (tracker, ngayThucHien, ngayThucHienSort) => {
             if (ngayThucHienSort === '') {
                 return;
             }
@@ -149,8 +220,21 @@ define(['N/query', 'N/render', '../lib/scv_lib_pdf.js'], (query, render, libPdf)
                 return;
             }
 
-            tracker.ngayThucHien = toText(row.ngay_thuc_hien);
+            tracker.ngayThucHien = ngayThucHien;
             tracker.ngayThucHienSort = ngayThucHienSort;
+        }
+
+        // Updates a tracker with the newest execution date from one result row; returns nothing.
+        const keepLatestNgayThucHien = (tracker, row) => {
+            if (row.kq_id === null || row.kq_id === undefined) {
+                return;
+            }
+
+            keepLatestValue(
+                tracker,
+                toText(row.ngay_thuc_hien),
+                toText(row.ngay_thuc_hien_sort)
+            );
         }
 
         // Returns the newest execution date across all flat SuiteQL rows.
@@ -190,16 +274,31 @@ define(['N/query', 'N/render', '../lib/scv_lib_pdf.js'], (query, render, libPdf)
                 return left.kqId - right.kqId;
             });
 
-            khuyenNghiEntry.khuyenNghi.ketQuaList =
-                khuyenNghiEntry.ketQuaRows.map((row) => ({
-                    ngayThucHien: row.ngayThucHien,
-                    tinhHinhThucHien: row.tinhHinhThucHien
-                }));
-            const ketQuaList = khuyenNghiEntry.khuyenNghi.ketQuaList;
-            const ketQuaMoiNhat = ketQuaList[ketQuaList.length - 1];
+            // TODO(BA-Q16): Kết quả có ngày thực hiện rỗng đang bị coi là cũ nhất
+            // nên rơi vào cột trái; xác nhận với BA.
+            const ketQuaRows = khuyenNghiEntry.ketQuaRows;
+            khuyenNghiEntry.khuyenNghi.ketQuaList = ketQuaRows.map((row) => ({
+                ngayThucHien: row.ngayThucHien,
+                tinhHinhThucHien: row.tinhHinhThucHien
+            }));
+
+            const ketQuaMoiNhat = ketQuaRows[ketQuaRows.length - 1];
             if (ketQuaMoiNhat) {
                 khuyenNghiEntry.khuyenNghi.tinhHinhThucHien =
                     ketQuaMoiNhat.tinhHinhThucHien;
+            }
+
+            // TODO(BA-Q15): Khuyến nghị chỉ có 1 kết quả đang để trống cột trái;
+            // xác nhận với BA có cần in dấu "…" không.
+            const ketQuaTruoc = ketQuaRows[ketQuaRows.length - 2];
+            if (ketQuaTruoc) {
+                khuyenNghiEntry.khuyenNghi.tinhHinhThucHienTruoc =
+                    ketQuaTruoc.tinhHinhThucHien;
+                keepLatestValue(
+                    khuyenNghiEntry.phatHienEntry.truoc,
+                    ketQuaTruoc.ngayThucHien,
+                    ketQuaTruoc.ngayThucHienSort
+                );
             }
         }
 
@@ -215,12 +314,15 @@ define(['N/query', 'N/render', '../lib/scv_lib_pdf.js'], (query, render, libPdf)
                     stt: phatHienEntry.phatHien.khuyenNghiList.length + 1,
                     khuyenNghi: toText(row.khuyen_nghi),
                     thoiHanPhanHoi: toText(row.thoi_han_phan_hoi),
-                    // Không phải code chết: nguồn tinhHinhThucHien, dữ liệu FDD 2 kết quả tuần sau.
+                    // Nguồn của tinhHinhThucHien/tinhHinhThucHienTruoc; template lần 1
+                    // bỏ qua danh sách này, lần 2 chỉ dùng 2 phần tử cuối.
                     ketQuaList: [],
-                    tinhHinhThucHien: ''
+                    tinhHinhThucHien: '',
+                    tinhHinhThucHienTruoc: ''
                 };
                 khuyenNghiEntry = {
                     khuyenNghi: khuyenNghi,
+                    phatHienEntry: phatHienEntry,
                     ketQuaRows: []
                 };
                 phatHienEntry.khuyenNghiById.set(row.kn_id, khuyenNghiEntry);
@@ -239,13 +341,18 @@ define(['N/query', 'N/render', '../lib/scv_lib_pdf.js'], (query, render, libPdf)
                     stt: phatHienList.length + 1,
                     chiTietPhatHien: toText(row.chi_tiet_phat_hien),
                     ngayThucHien: '',
+                    ngayThucHienTruoc: '',
                     khuyenNghiList: []
                 };
                 phatHienEntry = {
                     phatHien: phatHien,
                     khuyenNghiById: new Map(),
                     ngayThucHien: '',
-                    ngayThucHienSort: ''
+                    ngayThucHienSort: '',
+                    // TODO(BA-Q17): Header cột trái đang lấy ngày lớn nhất trong tập
+                    // giá trị được xếp vào cột trái, không phải ngày lớn thứ nhì của
+                    // cả phát hiện; xác nhận với BA.
+                    truoc: {ngayThucHien: '', ngayThucHienSort: ''}
                 };
                 phatHienById.set(row.ph_id, phatHienEntry);
                 phatHienList.push(phatHien);
@@ -292,6 +399,11 @@ define(['N/query', 'N/render', '../lib/scv_lib_pdf.js'], (query, render, libPdf)
 
             khuyenNghiEntries.forEach((khuyenNghiEntry) => {
                 finalizeKetQuaList(khuyenNghiEntry);
+            });
+
+            phatHienById.forEach((phatHienEntry) => {
+                phatHienEntry.phatHien.ngayThucHienTruoc =
+                    phatHienEntry.truoc.ngayThucHien;
             });
 
             return phatHienList;

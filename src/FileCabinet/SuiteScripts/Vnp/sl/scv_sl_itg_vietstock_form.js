@@ -223,7 +223,12 @@ define(['N/format', 'N/search', 'N/ui/serverWidget', '../common/scv_common_itg_v
                 if (!config) throw new Error('Chưa cấu hình Vietstock Config (customrecord_scv_itg_vietstock_config).');
 
                 if (reportType === vietStock.FinanceInfoType.CSTC) {
-                    let {ids, errors, remaining, mrTaskId} = vietStock.syncFinancialInfo(config.baseurl, {'Accept': '*/*'}, stockCode, projectId, options);
+                    let {
+                        ids,
+                        errors,
+                        remaining,
+                        mrTaskId
+                    } = vietStock.syncFinancialInfo(config.baseurl, {'Accept': '*/*'}, stockCode, projectId, options);
                     message = `Đã đồng bộ ${ids.length} dòng Đánh giá khoản đầu tư cho mã ${stockCode}.`;
                     if (remaining > 0) {
                         message += mrTaskId
@@ -234,9 +239,30 @@ define(['N/format', 'N/search', 'N/ui/serverWidget', '../common/scv_common_itg_v
                         message += ` Có ${errors.length} dòng lỗi, xem chi tiết ở Script Execution Log.`;
                     }
                 } else {
-                    // Các loại báo cáo còn lại thuộc mục 1.3 (Statistical Journal) - chưa triển khai
+                    // FDD mục 1.3 - Financial info -> Statistical Journal
+                    options.Type = reportType;
+                    let {
+                        ids,
+                        errors,
+                        remaining,
+                        mrTaskId
+                    } = vietStock.syncStatisticalJournal(config.baseurl, {'Accept': '*/*'}, stockCode, projectId, options);
+                    message = `Đã đồng bộ ${ids.length} record Statistical Journal cho mã ${stockCode}.`;
+                    if (ids.length === 0 && errors.length === 0 && remaining === 0) {
+                        message += ' Không có dòng nào khớp tài khoản thống kê (Account/Section) trên NetSuite.';
+                    }
+                    if (remaining > 0) {
+                        message += mrTaskId
+                            ? ` Còn ${remaining} record đang được xử lý nền bằng Map/Reduce (task ${mrTaskId}).`
+                            : ` Còn ${remaining} record chưa xử lý được do không submit được Map/Reduce.`;
+                    }
+                    if (errors.length > 0) {
+                        message += ` Có ${errors.length} record lỗi, xem chi tiết ở Script Execution Log.`;
+                    }
+                } /*else {
+                    // Các loại báo cáo còn lại của mục 1.3 (KQKD, LCTT, BCTT, CDKT) - chưa triển khai
                     message = `Loại báo cáo ${reportType} chưa được triển khai đồng bộ.`;
-                }
+                }*/
             } catch (e) {
                 log.error('handleSubmit error', e);
                 message = `Đồng bộ thất bại: ${e.message || e}`;

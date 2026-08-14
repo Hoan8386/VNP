@@ -11,8 +11,23 @@ define(['N/runtime', '../common/scv_common_itg_vietstock.js'],
         }
 
         /**
-         * Nhận danh sách requestBody customrecord_scv_dgdt do syncFinancialInfo đẩy sang qua script parameter
-         * (phần vượt quá DIRECT_SYNC_LIMIT dòng chạy trực tiếp).
+         * Điều hướng requestBody về đúng hàm xử lý theo record type: Đánh giá khoản đầu tư (mục 1.2) hay
+         * Statistical Journal (mục 1.3).
+         * @param {Object} requestBody
+         * @returns {Object} {ids, errors}
+         */
+        const processRequestBody = (requestBody) => {
+            if (requestBody.type === vietStock.RecordType.STATISTICAL_JOURNAL) {
+                return vietStock.processSjeRequestBodies([requestBody]);
+            }
+
+            let stockCode = requestBody.fields[vietStock.DgdtField.STOCK_CODE];
+            return vietStock.processDgdtRequestBodies([requestBody], stockCode);
+        }
+
+        /**
+         * Nhận danh sách requestBody do syncFinancialInfo/syncStatisticalJournal đẩy sang qua script parameter
+         * (phần vượt quá DIRECT_SYNC_LIMIT record chạy trực tiếp).
          * @param {Object} inputContext
          * @returns {Array} danh sách requestBody, mỗi phần tử là một key-value cho map stage
          * @since 2015.2
@@ -33,18 +48,16 @@ define(['N/runtime', '../common/scv_common_itg_vietstock.js'],
 
         /**
          * Mỗi key-value là một requestBody: chưa có record thì tạo mới, đã có thì cập nhật - cùng logic với
-         * phần chạy trực tiếp ở syncFinancialInfo.
+         * phần chạy trực tiếp ở syncFinancialInfo (Đánh giá khoản đầu tư) và syncStatisticalJournal (BCTC).
          * @param {Object} mapContext
          * @param {string} mapContext.key
          * @param {string} mapContext.value
          * @since 2015.2
          */
         const map = (mapContext) => {
-            log.error('mapContext.value', mapContext.value);
             try {
                 let requestBody = JSON.parse(mapContext.value);
-                let stockCode = requestBody.fields.custrecord_scv_dgdt_stockcode;
-                let {ids, errors} = vietStock.processDgdtRequestBodies([requestBody], stockCode);
+                let {ids, errors} = processRequestBody(requestBody);
                 if (errors.length > 0) {
                     mapContext.write({key: 'error', value: JSON.stringify(errors[0])});
                 } else {
