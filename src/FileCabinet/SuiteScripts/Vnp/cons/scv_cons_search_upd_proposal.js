@@ -36,7 +36,7 @@ define(["N/search",
             filters.push(
                 search.createFilter({
                     name: "internalid",
-                    operator: "is",
+                    operator: "anyof",
                     values: params.custrecord_propsourceid,
                 }),
             );
@@ -46,7 +46,7 @@ define(["N/search",
             filters.push(
                 search.createFilter({
                     name: "line",
-                    operator: "is",
+                    operator: "equalto",
                     values: params.custrecord_propsourceline
                     ,
                 }),

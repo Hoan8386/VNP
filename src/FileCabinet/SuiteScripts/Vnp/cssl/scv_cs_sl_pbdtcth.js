@@ -18,8 +18,16 @@ define(['N/search', "N/ui/message",
 
     }
     const searchResult = async () => {
-        clearMessages();
         let params = _scvForm.getParameter(); 
+        if (!params.custpage_subsidiary ) {
+            alert('Vui lòng nhập Subsidiary');
+            return;
+        }
+
+        if ( !params.custpage_date) {
+            alert('Vui lòng nhập Date');
+            return;
+        }
         _scvForm.showLoadingDialog(true);
         let requestData = {
             action: 'getDataPbdtcth',
@@ -34,34 +42,36 @@ define(['N/search', "N/ui/message",
         });
     };
 
+    const onSubmit = () =>{
+        let params = _scvForm.getParameter(); 
+        if (!params.custpage_subsidiary ) {
+            alert('Vui lòng nhập Subsidiary');
+            return;
+        }
 
+        if ( !params.custpage_date) {
+            alert('Vui lòng nhập Date');
+            return;
+        }
+        _scvForm.showLoadingDialog(true);
+        let requestData = {
+            action: 'getDataPbdtcth',
+            ...params
+        };  
 
-    
-    
-    let currentMessages = [];
-    const showResult = (type, notes, time = -1) => {
-        let msg = message.create({
-            title: '',
-            message: notes,
-            type: type || message.Type.INFORMATION
+         _scvForm.ajax.postAsync(_scvForm.serviceScript.url,requestData, (response) => {
+            let objData = response.data || {};
+            commonPbdtcth.crateNewJournals(params , objData.arrResult)        
         });
 
-        msg.show({ duration: time });
+        _scvForm.showLoadingDialog(false);
 
-        currentMessages.push(msg);
-    };
 
-    const clearMessages = () => {
-        currentMessages.forEach(msg => {
-            try {
-                msg.hide();
-            } catch (e) {}
-        });
-        currentMessages = [];
-    };
+    }
 
     return {
         pageInit:pageInit,
         searchResult,
+        onSubmit
     };
 });
