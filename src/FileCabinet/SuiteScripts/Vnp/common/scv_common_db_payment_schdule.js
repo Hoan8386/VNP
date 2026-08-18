@@ -113,11 +113,32 @@ define(['N/format', 'N/record', '../lib/scv_lib_report.js'],
 
             // trộn 2 nguồn gốc vay / lãi vay -> sắp xếp lại theo ngày,
             // cùng ngày thì Interest đứng trước Principal
-            return listData.sort((a, b) => {
+            listData.sort((a, b) => {
                 if (a.date_ms !== b.date_ms) return a.date_ms - b.date_ms;
                 if (a.col_type === b.col_type) return 0;
                 return a.col_type === LoanType.INTEREST ? -1 : 1;
             });
+
+            // đánh số Name trùng: phải chạy SAU sort để dòng có ngày sớm hơn giữ tên gốc
+            return numberDuplicateName(listData);
+        }
+
+        /**
+         * Name sinh theo MMYYYY nên 1 tháng có thể ra nhiều dòng cùng tên khi trả gốc giữa kỳ
+         * (VD kỳ 26/12 -> 25/01 bị cắt tại ngày trả gốc 10/01 => 2 dòng đều là ..._Interest_012026).
+         * Dòng đầu của mỗi nhóm giữ tên gốc, các dòng sau thêm hậu tố _2, _3, ...
+         * Bắt buộc phải unique vì saveScheduleSheet chống trùng theo Name.
+         */
+        const numberDuplicateName = (listData) => {
+            let mapCount = {};
+            for (let objData of listData) {
+                let baseName = objData.col_name;
+                mapCount[baseName] = (mapCount[baseName] || 0) + 1;
+                if (mapCount[baseName] > 1) {
+                    objData.col_name = `${baseName}_${mapCount[baseName]}`;
+                }
+            }
+            return listData;
         }
 
         /**
@@ -162,7 +183,9 @@ define(['N/format', 'N/record', '../lib/scv_lib_report.js'],
 
             let listRow = [], subFrom = dateFrom;
             for (let subTo of listEnd) {
-                listRow.push(buildInterestRow(objLoan, principalDetails, interestDetails, subTo, subFrom));
+                // buildInterestRow trả null khi dư nợ gốc đã hết -> cắt dòng đó đi
+                let objRow = buildInterestRow(objLoan, principalDetails, interestDetails, subTo, subFrom);
+                if (objRow) listRow.push(objRow);
                 subFrom = addDays(subTo, 1);
             }
             return listRow;
@@ -171,11 +194,14 @@ define(['N/format', 'N/record', '../lib/scv_lib_report.js'],
         /**
          * Amount lãi vay = Dư nợ gốc * Số ngày tính lãi * Lãi suất / Số ngày tính lãi theo năm
          * Dư nợ gốc lấy tại dateTo nên khoản trả gốc đúng ngày dateTo chưa được trừ.
+         * Trả null nếu dư nợ gốc tại dateTo đã về 0 / âm / không có giá trị -> hết nợ thì không còn lãi.
          */
         const buildInterestRow = (objLoan, principalDetails, interestDetails, dateTo, dateFrom) => {
+            let outstanding = getOutstandingPrincipal(objLoan.amount, principalDetails, dateTo);
+            if (!isFinite(outstanding) || outstanding <= 0) return null;
+
             let rate = getRateFromInterestDetail(interestDetails, dateTo);
             let days = diffDays(dateTo, dateFrom) + 1;
-            let outstanding = getOutstandingPrincipal(objLoan.amount, principalDetails, dateTo);
             let amount = outstanding * days * (rate / 100) / objLoan.daysOfYear;
 
             return buildRow(objLoan, dateTo, LoanType.INTEREST, rate,
@@ -511,6 +537,7 @@ define(['N/format', 'N/record', '../lib/scv_lib_report.js'],
             buildInterestDates,
             buildInterestRows,
             buildInterestRow,
+            numberDuplicateName,
             getOutstandingPrincipal,
             getRateFromInterestDetail,
             buildRow,

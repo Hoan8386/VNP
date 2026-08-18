@@ -84,6 +84,9 @@
             .table-cus tr {
             page-break-inside: avoid;
             }
+            .table-cus tbody td {
+            vertical-align: top;
+            }
             .cell,
             .cell-last {
             border: 0.5pt solid black;
@@ -105,7 +108,7 @@
             }
             .signature-block {
             width: 60%;
-            margin: 20pt 0 0 40%;
+            margin: 20pt 0 0 50%;
             text-align: center;
             page-break-inside: avoid;
             }
@@ -144,14 +147,14 @@
             <table width="100%" class="table-cus" cellspacing="0" cellpadding="0">
                 <thead>
                     <tr>
-                        <td class="cell cell-top bold" width="6%" rowspan="2" align="center">TT</td>
-                        <td class="cell cell-top bold" width="34%" rowspan="2" align="center">Khuyến nghị</td>
-                        <td class="cell cell-top bold" width="14%" rowspan="2" align="center">Thời hạn phản hồi</td>
+                        <td class="cell cell-top bold" width="7%" rowspan="2" align="center">TT</td>
+                        <td class="cell cell-top bold" width="29%" rowspan="2" align="center">Khuyến nghị</td>
+                        <td class="cell cell-top bold" width="14%" rowspan="2" align="center">Thời hạn<br/>phản hồi</td>
                         <td class="cell-last cell-top bold" colspan="2" align="center">Thực hiện đến ngày <#if ph.ngayThucHien?has_content>${ph.ngayThucHien?html}<#else>…</#if></td>
                     </tr>
                     <tr>
-                        <td class="cell bold" width="23%" align="center">Tình hình thực hiện</td>
-                        <td class="cell-last bold" width="23%" align="center">Kết quả thực hiện</td>
+                        <td class="cell" width="25%" align="center">Tình hình thực hiện</td>
+                        <td class="cell-last" width="25%" align="center">Kết quả thực hiện</td>
                     </tr>
                 </thead>
                 <tbody>

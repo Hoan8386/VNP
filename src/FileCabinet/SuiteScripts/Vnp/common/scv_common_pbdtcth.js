@@ -154,80 +154,78 @@ define(['N/format', 'N/record', 'N/url','N/search',
             return true;
         });
 
-        // let groupedData = {};
-        // console.log("check arr ",arrResult);
-        // arrResult.forEach((row) => {
-        //     let salesContract = row.salescontract || '';
-        //     let debitAgreement = row.debitagreement || '';
-        //     let groupKey = row.salescontract || row.debitagreement;
+        let groupedData = {};
+        console.log("check arr ",arrResult);
+        arrResult.forEach((row) => {
+            let salesContract = row.salescontract || '';
+            let debitAgreement = row.debitagreement || '';
+            let groupKey = row.salescontract || row.debitagreement;
 
-        //     if (!groupedData[groupKey]) {
-        //         groupedData[groupKey] = {
-        //             subsidiary: row.subsidiary,
-        //             memo: row.memo || '',
-        //             salesContract: salesContract,
-        //             debitAgreement: debitAgreement,
-        //             lines: []
-        //         };
-        //     }
+            if (!groupedData[groupKey]) {
+                groupedData[groupKey] = {
+                    subsidiary: row.subsidiary,
+                    memo: row.memo || '',
+                    salesContract: salesContract,
+                    debitAgreement: debitAgreement,
+                    lines: []
+                };
+            }
 
-        //     groupedData[groupKey].lines.push(row);
-        // });
+            groupedData[groupKey].lines.push(row);
+        });
 
-        // // Duyệt qua từng nhóm để tạo các Journal Entry tương ứng
-        // Object.keys(groupedData).forEach((key) => {
-        //     let group = groupedData[key];
-        //     if (!group.lines || group.lines.length === 0) return;
+        Object.keys(groupedData).forEach((key) => {
+            let group = groupedData[key];
+            if (!group.lines || group.lines.length === 0) return;
 
-        //     // 1. Khởi tạo Journal Entry Header
-        //     let jeRecord = record.create({
-        //         type: record.Type.JOURNAL_ENTRY,
-        //         isDynamic: true
-        //     });
+            let jeRecord = record.create({
+                type: record.Type.JOURNAL_ENTRY,
+                isDynamic: true
+            });
 
-        //     jeRecord.setValue({ fieldId: 'subsidiary', value: group.subsidiary || params.custpage_subsidiary });
-        //     jeRecord.setValue({ fieldId: 'trandate', value: parseNetSuiteDate(params.custpage_date) });
-        //     jeRecord.setValue({ fieldId: 'postingperiod', value: period });
-        //     jeRecord.setValue({ fieldId: 'currency', value: '1' }); // Mặc định VND
-        //     jeRecord.setValue({ fieldId: 'exchangerate', value: 1 });
-        //     jeRecord.setValue({ fieldId: 'custbody_scv_allow_sys_process', value: true });
-        //     jeRecord.setValue({ fieldId: 'custbody_scv_lms_allow_sys_process', value: true });
+            jeRecord.setValue({ fieldId: 'subsidiary', value: group.subsidiary  });
+            jeRecord.setValue({ fieldId: 'trandate', value: parseNetSuiteDate(params.custpage_date) });
+            jeRecord.setValue({ fieldId: 'postingperiod', value: period });
+            jeRecord.setValue({ fieldId: 'currency', value: '1' }); 
+            jeRecord.setValue({ fieldId: 'exchangerate', value: 1 });
+            jeRecord.setValue({ fieldId: 'custbody_scv_allow_sys_process', value: true });
+            jeRecord.setValue({ fieldId: 'custbody_scv_lms_allow_sys_process', value: true });
             
-        //     if (group.memo) jeRecord.setValue({ fieldId: 'memo', value: group.memo });
-        //     if (group.salesContract) jeRecord.setValue({ fieldId: 'custbody_scv_sales_contract', value: group.salesContract });
-        //     if (group.debitAgreement) jeRecord.setValue({ fieldId: 'custbody_scv_loa', value: group.debitAgreement });
+            if (group.memo) jeRecord.setValue({ fieldId: 'memo', value: group.memo });
+            if (group.salesContract) jeRecord.setValue({ fieldId: 'custbody_scv_sales_contract', value: group.salesContract });
+            if (group.debitAgreement) jeRecord.setValue({ fieldId: 'custbody_scv_loa', value: group.debitAgreement });
 
-        //     // 2. Duyệt qua từng line: Mỗi item trong search tạo ra 2 dòng (Debit & Credit)
-        //     group.lines.forEach((lineItem) => {
-        //         let allocatedAmt = calculateAmount(lineItem, params.custpage_date, period);
-        //         if (allocatedAmt <= 0) return;
+            // 2. Duyệt qua từng line: Mỗi item trong search tạo ra 2 dòng (Debit & Credit)
+            group.lines.forEach((lineItem) => {
+                let allocatedAmt = calculateAmount(lineItem, params.custpage_date, period);
+                if (allocatedAmt <= 0) return;
 
-        //         let lineMemo = lineItem.memo || group.memo;
-        //         let locationId = lineItem.location || lineItem.location_display;
+                let lineMemo = lineItem.memo || group.memo;
+                let locationId = lineItem.location || lineItem.location_display;
 
-        //         // --- DÒNG 1: DEBIT ---
-        //         jeRecord.selectNewLine({ sublistId: 'line' });
-        //         jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountdebit });
-        //         jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'debit', value: allocatedAmt });
-        //         if (lineMemo) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
-        //         if (locationId) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
-        //         jeRecord.commitLine({ sublistId: 'line' });
+                // --- DÒNG 1: DEBIT ---
+                jeRecord.selectNewLine({ sublistId: 'line' });
+                jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountdebit });
+                jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'debit', value: allocatedAmt });
+                if (lineMemo) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
+                if (locationId) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
+                jeRecord.commitLine({ sublistId: 'line' });
 
-        //         // --- DÒNG 2: CREDIT ---
-        //         jeRecord.selectNewLine({ sublistId: 'line' });
-        //         jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountcredit });
-        //         jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'credit', value: allocatedAmt });
-        //         if (lineMemo) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
-        //         if (locationId) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
-        //         jeRecord.commitLine({ sublistId: 'line' });
-        //     });
+                // --- DÒNG 2: CREDIT ---
+                jeRecord.selectNewLine({ sublistId: 'line' });
+                jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountcredit });
+                jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'credit', value: allocatedAmt });
+                if (lineMemo) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
+                if (locationId) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
+                jeRecord.commitLine({ sublistId: 'line' });
+            });
 
-        //     // 3. Lưu bút toán nếu có ít nhất 1 dòng
-        //     if (jeRecord.getLineCount({ sublistId: 'line' }) > 0) {
-        //         let jeId = jeRecord.save();
-        //         console.log(`Đã tạo thành công Journal Entry ID: ${jeId} cho nhóm ${key}`);
-        //     }
-        // });
+            // 3. Lưu bút toán nếu có ít nhất 1 dòng
+            if (jeRecord.getLineCount({ sublistId: 'line' }) > 0) {
+                let jeId = jeRecord.save();
+                console.log(`Đã tạo thành công Journal Entry ID: ${jeId} cho nhóm ${key}`);
+            }
+        });
         
     }
     const parseNetSuiteDate = (d) => {

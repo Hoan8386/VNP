@@ -103,7 +103,7 @@ define(['N/redirect', 'N/runtime', 'N/ui/message', 'N/ui/serverWidget',
                 form.addPageInitMessage({
                     type: message.Type.INFORMATION,
                     message: parameters.message,
-                    duration: 10000
+                    duration: -1
                 });
             }
 
@@ -196,7 +196,7 @@ define(['N/redirect', 'N/runtime', 'N/ui/message', 'N/ui/serverWidget',
                 },
                 {
                     id: 'col_outstanding',
-                    label: 'Outstanding Principal',
+                    label: 'Principal',
                     type: serverWidget.FieldType.FLOAT,
                     display: serverWidget.FieldDisplayType.DISABLED,
                     isEntry: true
