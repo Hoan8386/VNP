@@ -5,10 +5,13 @@
  *  Date                Author                  Description
  *  17 Aug 2026         Thanh Hoan              Init, create file.
  */
-define(['N/format', 'N/record', 'N/url','N/search',
+define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
     '../lib/scv_lib_function.js',
-], (format, record, url,search,
+    '../cons/scv_cons_format.js',
+
+], (format, record, url,search,message,
     lbf,
+    constFormat
 ) => {
     
 
@@ -122,10 +125,11 @@ define(['N/format', 'N/record', 'N/url','N/search',
 
     const crateNewJournals = (params,arrResult) => {
         let period = getPostingPeriod(params.custpage_date);
-
+        let createdJournals = [];
+        let journalIds = [];
         console.log("period" , period);
 
-        search.create({
+        const results = search.create({
             type: search.Type.JOURNAL_ENTRY,
             filters: [
                 ['mainline', 'is', 'T'],
@@ -133,27 +137,33 @@ define(['N/format', 'N/record', 'N/url','N/search',
                 'and', ['custbody_scv_allow_sys_process', 'is', 'T'],
                 'and', ['postingperiod', 'anyof', period]
             ],
-            columns: ['internalid','custbody_scv_allow_sys_process']
-        }).run().each(result => {
+            columns: ['internalid']
+            }).run().getRange({
+                start: 0,
+                end: 1000
+        });
+
+        results.forEach(result => {
             const journal = {
-                internalId: result.getValue('internalid'),
-                tranId: result.getValue('tranid'),
-                tranDate: result.getValue('trandate'),
-                subsidiary: result.getText('subsidiary'),
-                postingPeriod: result.getText('postingperiod'),
-                memo: result.getValue('memo'),
-                allowSystemProcess: result.getValue('custbody_scv_allow_sys_process')
+                internalId: result.getValue('internalid')
             };
 
             console.log("Journal:", journal);
 
-            record.delete({
-                type: record.Type.JOURNAL_ENTRY,
-                id: result.getValue('internalid')
-            });
-            return true;
+            const journalId = result.getValue('internalid');
+            journalIds.push(journalId);
         });
 
+        console.log("journalIds.length ",journalIds.length)
+        if(journalIds.length > 0) {
+            journalIds.forEach((id) => {
+                record.delete({
+                    type: record.Type.JOURNAL_ENTRY,
+                        id: id 
+                    });
+                console.log(`Đã xóa Journal ${id}`);
+            } )
+        }
         let groupedData = {};
         console.log("check arr ",arrResult);
         arrResult.forEach((row) => {
@@ -178,108 +188,135 @@ define(['N/format', 'N/record', 'N/url','N/search',
             let group = groupedData[key];
             if (!group.lines || group.lines.length === 0) return;
 
-            let jeRecord = record.create({
+            let newJournal = record.create({
                 type: record.Type.JOURNAL_ENTRY,
                 isDynamic: true
             });
 
-            jeRecord.setValue({ fieldId: 'subsidiary', value: group.subsidiary  });
-            jeRecord.setValue({ fieldId: 'trandate', value: parseNetSuiteDate(params.custpage_date) });
-            jeRecord.setValue({ fieldId: 'postingperiod', value: period });
-            jeRecord.setValue({ fieldId: 'currency', value: '1' }); 
-            jeRecord.setValue({ fieldId: 'exchangerate', value: 1 });
-            jeRecord.setValue({ fieldId: 'custbody_scv_allow_sys_process', value: true });
-            jeRecord.setValue({ fieldId: 'custbody_scv_lms_allow_sys_process', value: true });
+            newJournal.setValue({ fieldId: 'subsidiary', value: group.subsidiary  });
+            newJournal.setValue({ fieldId: 'trandate', value: constFormat.parseDate(params.custpage_date) });
+            newJournal.setValue({ fieldId: 'memo', value: group.memo });
+            newJournal.setValue({ fieldId: 'currency', value: '1' }); 
+            newJournal.setValue({ fieldId: 'exchangerate', value: 1 });
+            newJournal.setValue({ fieldId: 'custbody_scv_lms_allow_sys_process', value: true });
+            newJournal.setValue({ fieldId: 'custbody_scv_sales_contract', value: group.salesContract });
+            newJournal.setValue({ fieldId: 'custbody_scv_loa', value: group.debitAgreement });
             
-            if (group.memo) jeRecord.setValue({ fieldId: 'memo', value: group.memo });
-            if (group.salesContract) jeRecord.setValue({ fieldId: 'custbody_scv_sales_contract', value: group.salesContract });
-            if (group.debitAgreement) jeRecord.setValue({ fieldId: 'custbody_scv_loa', value: group.debitAgreement });
 
             // 2. Duyệt qua từng line: Mỗi item trong search tạo ra 2 dòng (Debit & Credit)
             group.lines.forEach((lineItem) => {
                 let allocatedAmt = calculateAmount(lineItem, params.custpage_date, period);
                 if (allocatedAmt <= 0) return;
 
-                let lineMemo = lineItem.memo || group.memo;
+                let lineMemo = lineItem.memo || group.memo; // default memo của header 
                 let locationId = lineItem.location || lineItem.location_display;
 
-                // --- DÒNG 1: DEBIT ---
-                jeRecord.selectNewLine({ sublistId: 'line' });
-                jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountdebit });
-                jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'debit', value: allocatedAmt });
-                if (lineMemo) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
-                if (locationId) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
-                jeRecord.commitLine({ sublistId: 'line' });
+                // dòng 1 debit
+                newJournal.selectNewLine({ sublistId: 'line' });
+                newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountdebit });
+                newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'debit', value: allocatedAmt });
+                if (lineMemo) newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
+                if (locationId) newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
+                newJournal.commitLine({ sublistId: 'line' });
 
-                // --- DÒNG 2: CREDIT ---
-                jeRecord.selectNewLine({ sublistId: 'line' });
-                jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountcredit });
-                jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'credit', value: allocatedAmt });
-                if (lineMemo) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
-                if (locationId) jeRecord.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
-                jeRecord.commitLine({ sublistId: 'line' });
+                // dòng 2 credit
+                newJournal.selectNewLine({ sublistId: 'line' });
+                newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountcredit });
+                newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'credit', value: allocatedAmt });
+                if (lineMemo) newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
+                if (locationId) newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
+                newJournal.commitLine({ sublistId: 'line' });
+
             });
 
-            // 3. Lưu bút toán nếu có ít nhất 1 dòng
-            if (jeRecord.getLineCount({ sublistId: 'line' }) > 0) {
-                let jeId = jeRecord.save();
+            if (newJournal.getLineCount({ sublistId: 'line' }) > 0) {
+                let jeId = newJournal.save();
                 console.log(`Đã tạo thành công Journal Entry ID: ${jeId} cho nhóm ${key}`);
+
+                let journalUrl = url.resolveRecord({
+                    recordType: record.Type.JOURNAL_ENTRY,
+                    recordId: jeId,
+                });
+
+                createdJournals.push({
+                    id: jeId,
+                    url: journalUrl
+                });
             }
-        });
+        }); 
+
+        if (createdJournals.length > 0) {
+            let journalLinks = createdJournals
+                .map(journal => {
+                    return `<a href="${journal.url}" target="_blank">
+                                Journal Entry #${journal.id}
+                            </a>`;
+                })
+                .join('<br>');
+
+            const successMessage = message.create({
+                title: 'Create Journal Success',
+                message: `
+                    Đã tạo thành công ${createdJournals.length} Journal Entry:
+                    <br><br>
+                    ${journalLinks}
+                `,
+                type: message.Type.CONFIRMATION
+            });
+
+            successMessage.show({
+                duration: 10000
+            });
+        }
         
     }
-    const parseNetSuiteDate = (d) => {
-        if (!d) return null;
-        if (d instanceof Date) return d;
-        return format.parse({ value: d, type: format.Type.DATE });
-    };
-
+  
     const calculateAmount = (row, suiteletDate, periodId) => {
-        let allocType = String(row.allocationtype || row.allocationtype_display || '').toLowerCase();
-        let allocAmt = parseFloat(row.allocationamt || row.amount) || 0;
+        let allocType = row.allocationtype ;
 
-        // TH1: Phân bổ theo Tháng (AllocationType = 2 hoặc "Tháng")
-        if (allocType === '2' || allocType.includes('tháng') || allocType.includes('month')) {
+        let allocAmt = row.allocationamt * 1;
+
+        if ( allocType === '2' ) {
             return allocAmt;
         }
 
-        // TH2: Phân bổ theo Ngày (AllocationType = 1 hoặc "Ngày")
-        if (allocType === '1' || allocType.includes('ngày') || allocType.includes('day')) {
-            let dtSuitelet = parseNetSuiteDate(suiteletDate);
-            let dtStart = parseNetSuiteDate(row.startdate);
-            let dtEnd = parseNetSuiteDate(row.enddate);
+        // TH2: Phân bổ theo Ngày
+        if (allocType === '1') {
 
-            // Lấy ngày bắt đầu và kết thúc của kỳ hiện tại
+            let periodStartDate = getPostingPeriod(row.startdate);
+            let periodEndDate = getPostingPeriod(row.enddate);
+
             let periodRecord = search.lookupFields({
                 type: search.Type.ACCOUNTING_PERIOD,
                 id: periodId,
                 columns: ['startdate', 'enddate']
             });
-            let dtPerStart = parseNetSuiteDate(periodRecord.startdate);
-            let dtPerEnd = parseNetSuiteDate(periodRecord.enddate);
 
-            let startPeriodId = getPostingPeriod(row.startdate);
-            let endPeriodId = getPostingPeriod(row.enddate);
+            let periodStart = periodRecord.startdate;
+            let periodEnd = periodRecord.enddate;
 
-            const diffDays = (d1, d2) => Math.round(Math.abs((d1.getTime() - d2.getTime()) / (24 * 60 * 60 * 1000)));
-            let numDays = 0;
+            let numberOfDays = 0;
 
-            if (periodId === startPeriodId) {
-                // Kỳ chọn = Kỳ của StartDate => Ngày Suitelet - StartDate + 1
-                numDays = diffDays(dtSuitelet, dtStart) + 1;
-            } else if (periodId === endPeriodId) {
-                // Kỳ chọn = Kỳ của EndDate => EndDate - Ngày đầu tiên của kỳ + 1
-                numDays = diffDays(dtEnd, dtPerStart) + 1;
+            // Kỳ Suitelet = Kỳ StartDate
+            if (periodId == periodStartDate) {
+                numberOfDays = constFormat.calcNumberDays(suiteletDate, row.startdate) + 1;
+
+            // Kỳ Suitelet = Kỳ EndDate
+            } else if (periodId == periodEndDate) {
+                numberOfDays = constFormat.calcNumberDays(row.enddate, periodStart) + 1;
+
+            // Kỳ Suitelet nằm giữa StartDate và EndDate
             } else {
-                // Kỳ chọn nằm giữa StartDate và EndDate => Số ngày của kỳ
-                numDays = diffDays(dtPerEnd, dtPerStart) + 1;
+                numberOfDays = constFormat.calcNumberDays(periodEnd, periodStart) + 1;
             }
 
-            return allocAmt * numDays;
+            // B2: AllocationAmt × số ngày
+            return allocAmt * numberOfDays;
         }
 
-        return allocAmt;
+        return allocAmt
     };
+
 
     const getPostingPeriod = (datetext) => {
         let searchPeriod = search.create({
