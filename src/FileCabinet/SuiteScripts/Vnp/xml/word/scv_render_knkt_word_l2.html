@@ -139,17 +139,23 @@
         </div>
 
         <#list dataJson.phatHienList as ph>
-            <p class="bold finding-title" style="text-align: left;">Phát hiện ${ph.stt?html}. ${ph.chiTietPhatHien?html}</p>
-            <p class="instruction" style="text-align: left;">Tổng Giám đốc, Giám đốc Chi nhánh chỉ đạo các phòng, bộ phận có liên quan thực hiện các nội dung sau:</p>
+            <p class="bold finding-title" style="text-align: left; text-decoration: underline;">Phát hiện ${ph.stt?html}. ${ph.chiTietPhatHien?html}</p>
+            <p class="instruction" style="text-align: left;">Lãnh đạo đơn vị chỉ đạo các phòng, bộ phận có liên quan thực hiện các nội dung sau:</p>
             <table width="100%" class="table-cus" cellspacing="0" cellpadding="0">
-                <!-- TODO(BA-Q18): Mockup FDD gạch chân nhãn header, mẫu lần 1 không gạch — chọn cái nào? -->
+                <!-- BA-Q18 đã chốt theo mockup FDD: "Phát hiện N." có gạch chân, nhãn header không. -->
                 <thead>
                     <tr>
-                        <td class="cell cell-top bold" width="6%" align="center">TT</td>
-                        <td class="cell cell-top bold" width="22%" align="center">Khuyến nghị</td>
-                        <td class="cell cell-top bold" width="14%" align="center">Thời hạn<br/>phản hồi</td>
-                        <td class="cell cell-top bold" width="29%" align="center">Tình hình và kết quả thực hiện<br/>đến ngày <#if ph.ngayThucHienTruoc?has_content>${ph.ngayThucHienTruoc?html}<#else>…</#if></td>
-                        <td class="cell-last cell-top bold" width="29%" align="center">Tình hình và kết quả thực hiện<br/>đến ngày <#if ph.ngayThucHien?has_content>${ph.ngayThucHien?html}<#else>…</#if></td>
+                        <td class="cell cell-top bold" width="6%" rowspan="2" align="center">TT</td>
+                        <td class="cell cell-top bold" width="22%" rowspan="2" align="center">Khuyến nghị</td>
+                        <td class="cell cell-top bold" width="14%" rowspan="2" align="center">Thời hạn<br/>phản hồi</td>
+                        <td class="cell cell-top bold" colspan="2" align="center">Thực hiện đến ngày <#if ph.ngayThucHienTruoc?has_content>${ph.ngayThucHienTruoc?html}<#else>…</#if></td>
+                        <td class="cell-last cell-top bold" colspan="2" align="center">Thực hiện đến ngày <#if ph.ngayThucHien?has_content>${ph.ngayThucHien?html}<#else>…</#if></td>
+                    </tr>
+                    <tr>
+                        <td class="cell bold" width="14.5%" align="center">Tình hình thực hiện</td>
+                        <td class="cell bold" width="14.5%" align="center">Kết quả thực hiện</td>
+                        <td class="cell bold" width="14.5%" align="center">Tình hình thực hiện</td>
+                        <td class="cell-last bold" width="14.5%" align="center">Kết quả thực hiện</td>
                     </tr>
                 </thead>
                 <tbody>
@@ -159,7 +165,9 @@
                             <td class="cell cell-left" align="left">${kn.khuyenNghi?html}</td>
                             <td class="cell" align="center">${kn.thoiHanPhanHoi?html}</td>
                             <td class="cell cell-left" align="left">${kn.tinhHinhThucHienTruoc?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}</td>
-                            <td class="cell-last cell-left" align="left">${kn.tinhHinhThucHien?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}</td>
+                            <td class="cell cell-left" align="left">${kn.ketQuaThucHienTruoc?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}</td>
+                            <td class="cell cell-left" align="left">${kn.tinhHinhThucHien?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}</td>
+                            <td class="cell-last cell-left" align="left">${kn.ketQuaThucHien?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}</td>
                         </tr>
                     </#list>
                 </tbody>

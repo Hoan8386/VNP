@@ -34,14 +34,18 @@ define(['N/runtime', 'N/url',
         let curScript = runtime.getCurrentScript();
 
         if (curScript.deploymentId == CurrentScript.DEPLOYID_DATA) {
+            log.debug("hoan check" )
+
             let objResponse = { data: [] };
-            // log.debug("hoan params" ,params);
+            log.debug("hoan params" ,params);
+            log.debug("hoan params" ,params.custpage_subsidiary);
             switch (params.action) {
                 case 'getDataPbdtcth':
                     objResponse.data = constSearchPbdtcth.getDataSourceFetchPage(params);
                     log.debug("hoan objResponse.data " ,objResponse.data)
                     break;
             }
+            
             constForm.write(objResponse);
         } else if (scriptContext.request.method == 'GET') {
             onCreateFormUI(params);

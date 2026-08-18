@@ -6,6 +6,7 @@
  *  ?                   ?                       ?
  *  13 Aug 2026         Khanh Tran              Init, create file
  *  13 Aug 2026         Khanh Tran              Add button 'Tạo P. Kiểm nhận' tại [purchaseorder, returnauthorization, transferorder] from ms. Thủy (https://app.clickup.com/t/86d40b1jh)
+ *  17 Aug 2026         Khanh Tran              Add button 'Create ITR' tại [purchaseorder, returnauthorization, transferorder] from ms. Thủy (https://app.clickup.com/t/86d41eg08)
  */
 /**
  * @NApiVersion 2.1
@@ -19,6 +20,7 @@ define([
     '../lib/scv_lib_function.js',
     '../lib/scv_lib_common_html.js',
     '../common/scv_common_create_pkn.js',
+    '../common/scv_common_receiveorder.js',
 ], (
     url,
     record,
@@ -28,6 +30,7 @@ define([
     libHtml,
 
     commonCreatePkn,
+    commonReceiveorder,
 ) => {
     let arrBtnPrint = [];
     let _currentRecord = null;
@@ -53,6 +56,7 @@ define([
         let newRec = scriptContext.newRecord;
 
         commonCreatePkn.addButtonCreatePkn(scriptContext);
+        commonReceiveorder.addButtonCreateItr(scriptContext);
 
         switch (newRec.type) {
             case 'customrecord_scv_planning':

@@ -34,6 +34,7 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
                 ) AS thoi_han_phan_hoi,
                 kq.id                                                   AS kq_id,
                 kq.custrecord_scv_kqkn_tinhhinhthuchien               AS tinh_hinh_thuc_hien,
+                kq.custrecord_scv_kqkn_ketquathuchien                 AS ket_qua_thuc_hien,
                 TO_CHAR(
                     kq.custrecord_scv_kqkn_ngaythuchien,
                     'DD/MM/YYYY'
@@ -142,8 +143,9 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
 
         // Renders one KNKT record as HTML that Microsoft Word can open and edit.
         const renderRecordToWord = (recid, printfile) => {
+            const wordPrintFile = getWordPrintFile(printfile);
             const templateFile = file.load({
-                id: WORD_TEMPLATE_FOLDER + getWordPrintFile(printfile) + '.html'
+                id: WORD_TEMPLATE_FOLDER + wordPrintFile + '.html'
             });
             const renderer = render.create();
             renderer.templateContent = templateFile.getContents();
@@ -155,7 +157,10 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
             });
 
             const wordContent = renderer.renderAsString();
-            const wordFileName = 'BaoCaoKNKT_' +
+            const wordFilePrefix = wordPrintFile === WORD_PRINT_FILE_LAN_2
+                ? 'BaoCaoKNKT_Lan2_'
+                : 'BaoCaoKNKT_';
+            const wordFileName = wordFilePrefix +
                 dataJson.soBaoCao.replace(/[\\/:*?"<>|\u0000-\u001F\u007F]/g, '_') +
                 '.doc';
 
@@ -253,6 +258,7 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
                 ngayThucHien: toText(row.ngay_thuc_hien),
                 ngayThucHienSort: toText(row.ngay_thuc_hien_sort),
                 tinhHinhThucHien: toText(row.tinh_hinh_thuc_hien),
+                ketQuaThucHien: toText(row.ket_qua_thuc_hien),
                 kqId: Number(row.kq_id)
             });
         }
@@ -279,13 +285,16 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
             const ketQuaRows = khuyenNghiEntry.ketQuaRows;
             khuyenNghiEntry.khuyenNghi.ketQuaList = ketQuaRows.map((row) => ({
                 ngayThucHien: row.ngayThucHien,
-                tinhHinhThucHien: row.tinhHinhThucHien
+                tinhHinhThucHien: row.tinhHinhThucHien,
+                ketQuaThucHien: row.ketQuaThucHien
             }));
 
             const ketQuaMoiNhat = ketQuaRows[ketQuaRows.length - 1];
             if (ketQuaMoiNhat) {
                 khuyenNghiEntry.khuyenNghi.tinhHinhThucHien =
                     ketQuaMoiNhat.tinhHinhThucHien;
+                khuyenNghiEntry.khuyenNghi.ketQuaThucHien =
+                    ketQuaMoiNhat.ketQuaThucHien;
             }
 
             // TODO(BA-Q15): Khuyến nghị chỉ có 1 kết quả đang để trống cột trái;
@@ -294,6 +303,8 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
             if (ketQuaTruoc) {
                 khuyenNghiEntry.khuyenNghi.tinhHinhThucHienTruoc =
                     ketQuaTruoc.tinhHinhThucHien;
+                khuyenNghiEntry.khuyenNghi.ketQuaThucHienTruoc =
+                    ketQuaTruoc.ketQuaThucHien;
                 keepLatestValue(
                     khuyenNghiEntry.phatHienEntry.truoc,
                     ketQuaTruoc.ngayThucHien,
@@ -318,7 +329,9 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
                     // bỏ qua danh sách này, lần 2 chỉ dùng 2 phần tử cuối.
                     ketQuaList: [],
                     tinhHinhThucHien: '',
-                    tinhHinhThucHienTruoc: ''
+                    tinhHinhThucHienTruoc: '',
+                    ketQuaThucHien: '',
+                    ketQuaThucHienTruoc: ''
                 };
                 khuyenNghiEntry = {
                     khuyenNghi: khuyenNghi,

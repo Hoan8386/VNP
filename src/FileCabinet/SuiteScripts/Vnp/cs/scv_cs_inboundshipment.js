@@ -3,7 +3,8 @@
  * =======================================================================================
  * Date                 Author                  Description
  * 14 Aug 2026          Khanh Tran   		    Init, create file.
- * 14 Aug 2026          Khanh Tran              Tính toán field trên Inbound Shipment from ms. Thủy(https://app.clickup.com/t/86d413xaz)
+ * 14 Aug 2026          Khanh Tran              Tính toán field trên Inbound Shipment (Move từ CPC) from ms. Thủy(https://app.clickup.com/t/86d413xaz)
+ * 17 Aug 2026          Khanh Tran              Kế thừa thông tin từ Purchase Order sang Inbound Shipment from ms. Thủy(https://app.clickup.com/t/86d41e56h)
  */
 /**
  * @NApiVersion 2.1
@@ -12,12 +13,13 @@
  */
 define(['N/search',
     '../lib/scv_lib_function.js',
-    '../cons/scv_cons_search.js'
+    
+    '../cons/scv_cons_search.js',
 ],
 
     function(search,
         lbf,
-        constSearch
+        constSearch,
     ) {
     /**
      * Function to be executed after page is initialized.
@@ -31,8 +33,11 @@ define(['N/search',
 
     function pageInit(scriptContext) {
         let curRec = scriptContext.currentRecord;
-        let objRes = getTotalOfFieldsSublist(curRec, 'items', ['shipmentitemamount', 'custrecord_scv_ibs_custom_amt', 'custrecord_scv_inb_amt',
-            'custrecord_scv_inb_amt_vnd', 'custrecord_scv_inb_importtax_amount', 'custrecord_scv_inb_tax_amount', 'custrecord_scv_inb_tax_total_item']);
+        let objRes = getTotalOfFieldsSublist(curRec, 'items', [
+            'shipmentitemamount', 'custrecord_scv_ibs_custom_amt', 'custrecord_scv_inb_amt',
+            'custrecord_scv_inb_amt_vnd', 'custrecord_scv_inb_importtax_amount', 'custrecord_scv_inb_tax_amount', 'custrecord_scv_inb_tax_total_item'
+        ]);
+
         curRec.setValue('custrecord_scv_custom_amount', (objRes.shipmentitemamount * 1).toFixed(2));
         curRec.setValue('custrecord_scv_amt_good', (objRes.custrecord_scv_ibs_custom_amt * 1).toFixed(2));
         curRec.setValue('custrecord_scv_inb_exp_bh', objRes.custrecord_scv_inb_amt * 1);
@@ -57,62 +62,66 @@ define(['N/search',
     function fieldChanged(scriptContext) {
         let curRec = scriptContext.currentRecord;
         let fieldId = scriptContext.fieldId; 
-        let sl = scriptContext.sublistId;
+        let sublistId = scriptContext.sublistId;
         
         switch (fieldId) {
             case 'shipmentitemamount':
-                setValueAmtVND(curRec, sl);//case 1
-                setValueTtlAmtForeign(curRec, sl);//case 2
-                setValH_custAmt(curRec, sl);//case 7
+                setValueAmtVND(curRec, sublistId);//case 1
+                setValueTtlAmtForeign(curRec, sublistId);//case 2
+                setValH_custAmt(curRec, sublistId);//case 7
                 break;
             case 'custrecord_scv_inb_decla_exr':
                 fieldChanged_declaExr(curRec);//case 1,3
                 break;
             case 'custrecord_scv_inb_amt':
-                setValueTtlAmtVND(curRec, sl);//case 3
-                setValH_ttlAmtForeign(curRec, sl);//case 9
+                setValueTtlAmtVND(curRec, sublistId);//case 3
+                setValH_ttlAmtForeign(curRec, sublistId);//case 9
                 break;
             case 'custrecord_scv_inb_amt_vnd':
-                setValueImpAmt(curRec, sl);//case 4
-                setValueTaxAmt(curRec, sl);//case 5
-                setValH_ttlAmtVND(curRec, sl);//case 10
+                setValueImpAmt(curRec, sublistId);//case 4
+                setValueTaxAmt(curRec, sublistId);//case 5
+                setValH_ttlAmtVND(curRec, sublistId);//case 10
                 break;
             case 'custrecord_scv_inb_importtax_code':
-                setValueImpAmt(curRec, sl);//case 4
+                setValueImpAmt(curRec, sublistId);//case 4
                 break;
             case 'custrecord_scv_inb_importtax_amount':
-                setValueTaxAmt(curRec, sl);//case 5
-                setValueTaxTotalItem(curRec, sl);//case 6
-                setValH_ImpAmt(curRec, sl);//case 11
+                setValueTaxAmt(curRec, sublistId);//case 5
+                setValueTaxTotalItem(curRec, sublistId);//case 6
+                setValH_ImpAmt(curRec, sublistId);//case 11
                 break;
             case 'custrecord_inb_tax_code':
-                setValueTaxAmt(curRec, sl);//case 5
+                setValueTaxAmt(curRec, sublistId);//case 5
                 break;
             case 'custrecord_scv_inb_tax_amount':
-                setValueTaxTotalItem(curRec, sl);//case 6
-                setValH_taxAmt(curRec, sl);//case 12
+                setValueTaxTotalItem(curRec, sublistId);//case 6
+                setValH_taxAmt(curRec, sublistId);//case 12
                 break;
             case 'custrecord_scv_ibs_custom_amt':
-                setValH_amtVnd(curRec, sl);//case 8
+                setValH_amtVnd(curRec, sublistId);//case 8
                 break;
             case 'custrecord_scv_inb_tax_total_item':
-                setValH_taxTtl(curRec, sl);//case 13
+                setValH_taxTtl(curRec, sublistId);//case 13
                 break;
             case 'custrecord_scv_inb_rate_cus':
             case 'custrecord_scv_inb_landcost':
-                calcExpectedCustomRate(curRec, sl);
-                setValueTtlAmtForeign(curRec, sl);//case 2
+                calcExpectedCustomRate(curRec, sublistId);
+                setValueTtlAmtForeign(curRec, sublistId);//case 2
                 break;
             case 'quantityexpected':
-                setValueTtlAmtForeign(curRec, sl);//case 2
+                setValueTtlAmtForeign(curRec, sublistId);//case 2
                 break;
+        }
+
+        if(sublistId == "items" && fieldId == "shipmentitem"){
+            fieldChanged_ShipmentItem(curRec, sublistId)
         }
     }
 
-    const calcExpectedCustomRate = (_curRec, _sublistId) =>{
-        let custrecord_scv_inb_rate_cus = _curRec.getCurrentSublistValue(_sublistId, "custrecord_scv_inb_rate_cus");
-        let custrecord_scv_inb_landcost = _curRec.getCurrentSublistValue(_sublistId, "custrecord_scv_inb_landcost") * 1;
-        let expectedrate = _curRec.getCurrentSublistValue(_sublistId, "expectedrate") * 1;
+    const calcExpectedCustomRate = (curRec, sublistId) =>{
+        let custrecord_scv_inb_rate_cus = curRec.getCurrentSublistValue(sublistId, "custrecord_scv_inb_rate_cus");
+        let custrecord_scv_inb_landcost = curRec.getCurrentSublistValue(sublistId, "custrecord_scv_inb_landcost") * 1;
+        let expectedrate = curRec.getCurrentSublistValue(sublistId, "expectedrate") * 1;
         let custrecord_scv_inb_expected_rate = 0;
 
         if(lbf.isContainValue(custrecord_scv_inb_rate_cus)){
@@ -123,7 +132,7 @@ define(['N/search',
         }
         custrecord_scv_inb_expected_rate = roundNumber(custrecord_scv_inb_expected_rate, 9);
 
-        _curRec.setCurrentSublistValue(_sublistId, "custrecord_scv_inb_expected_rate", custrecord_scv_inb_expected_rate);
+        curRec.setCurrentSublistValue(sublistId, "custrecord_scv_inb_expected_rate", custrecord_scv_inb_expected_rate);
     }
 
     const fieldChanged_declaExr = (curRec) => {
@@ -223,18 +232,18 @@ define(['N/search',
         curRec.setValue('custrecord_scv_amt_good', (val * 1).toFixed(2));
     }
 
-    const getTotalOfFieldsSublist = (_curRec, _sublistId, _fields) =>{
+    const getTotalOfFieldsSublist = (curRec, sublistId, _fields) =>{
 		if(!_fields.toString()) return 0;
 
-		let isDynamic = _curRec.isDynamic;
-		let idxCurrentLine = (isDynamic == "T" || isDynamic == true) ? _curRec.getCurrentSublistIndex(_sublistId) : -1;
+		let isDynamic = curRec.isDynamic;
+		let idxCurrentLine = (isDynamic == "T" || isDynamic == true) ? curRec.getCurrentSublistIndex(sublistId) : -1;
 		let objRes = {};
 		let arrFields = (typeof(_fields) == "string") ? [_fields] : _fields;
-		let sizeSublist = _curRec.getLineCount(_sublistId);
+		let sizeSublist = curRec.getLineCount(sublistId);
 		for(let i = 0; i < arrFields.length; i++){
 			let fieldId = arrFields[i];
 
-			let val_current_field = (idxCurrentLine > -1) ? _curRec.getCurrentSublistValue(_sublistId, fieldId) * 1 : 0;
+			let val_current_field = (idxCurrentLine > -1) ? curRec.getCurrentSublistValue(sublistId, fieldId) * 1 : 0;
 
 			objRes[fieldId] = val_current_field;
 
@@ -242,7 +251,7 @@ define(['N/search',
 
 				if(idxCurrentLine == j) continue;
 
-                let val = _curRec.getSublistValue(_sublistId, fieldId, j) * 1;
+                let val = curRec.getSublistValue(sublistId, fieldId, j) * 1;
                 if(fieldId == "custrecord_scv_ibs_custom_amt") val = val.toFixed() * 1;
                 if(fieldId == "shipmentitemamount") val = val.toFixed(2) * 1;
 
@@ -265,6 +274,50 @@ define(['N/search',
         let shipmentitemamount = curRec.getCurrentSublistValue(sl, 'shipmentitemamount');
         let val = decla_exr * shipmentitemamount;
         curRec.setCurrentSublistValue({sublistId: sl, fieldId: 'custrecord_scv_ibs_custom_amt', value: (val * 1).toFixed(2)});
+    }
+
+    const fieldChanged_ShipmentItem = (curRec, sublistId) => {
+        let poId = curRec.getCurrentSublistValue(sublistId, "purchaseorder");
+        if(!poId) return;
+
+        let shipmentitem = curRec.getCurrentSublistValue(sublistId, "shipmentitem");
+        if(!shipmentitem) return;
+
+        let resultSearch = constSearch.createSearchWithFilter({
+			type: "transaction",
+			filters: [
+				["type","anyof","PurchOrd"],
+                "AND",
+                ["lineuniquekey","equalto", shipmentitem],
+                "AND",
+                ["internalid","anyof", poId]
+			],
+			columns: [
+                "tranid",
+                "taxcode",
+                "custcol_scv_origin_line_num",
+                "custcol_scv_rate_custom",
+                "custcol_scv_rate_tt",
+            ]
+		});
+
+        let arrResult = constSearch.fetchResultSearchRunEach(resultSearch, function(_objLine, _columns){
+            return constSearch.getObjResultFromSearchWithLabel_V2(_objLine, _columns)
+        });
+
+        if(arrResult.length == 0) return;
+        
+        let objRes = arrResult[0];
+
+        let custrecord_scv_inb_rate_cus = objRes.custcol_scv_rate_tt * 1;
+        if(lbf.isContainValue(objRes.custcol_scv_rate_custom)){
+            custrecord_scv_inb_rate_cus = objRes.custcol_scv_rate_custom * 1;
+        }
+
+        curRec.setValue('custrecord_scv_inb_po', poId)
+        curRec.setCurrentSublistValue(sublistId, "custrecord_inb_tax_code", objRes.taxcode);
+        curRec.setCurrentSublistValue(sublistId, "custrecord_scv_original_line_id", objRes.custcol_scv_origin_line_num);
+        curRec.setCurrentSublistValue(sublistId, "custrecord_scv_inb_rate_cus", custrecord_scv_inb_rate_cus);
     }
     /**
      * Function to be executed when field is slaved.

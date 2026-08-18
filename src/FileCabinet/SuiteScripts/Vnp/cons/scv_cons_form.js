@@ -11,6 +11,7 @@ define(['N/ui/serverWidget', 'N/runtime', 'N/query', 'N/search', 'N/ui/message',
     '../cons/scv_cons_record.js',
     '../cons/scv_cons_file.js',
     '../cons/scv_cons_devextreme.js',
+    '../cons/scv_cons_inventorydetail.js',
 ],
 function(serverWidget, runtime, query, search, message, file, url,
     lbf,
@@ -18,9 +19,9 @@ function(serverWidget, runtime, query, search, message, file, url,
     constRecord,
     constFile,
     constDX,
+    constInventoryDetail,
 ) {
     const constJQX = {};
-    const constInventoryDetail = {};
 	const ID = "";
     const TYPE = "";
 	const RECORDS = {
@@ -47,7 +48,7 @@ function(serverWidget, runtime, query, search, message, file, url,
         LIBARY_INCLUDE: [
             "../css/scv_form.css",
             "../scripts/scv_form.js",
-            //"../scripts/scv_inventorydetail.js",
+            "../scripts/scv_inventorydetail.js",
             "../scripts/scv_exceljs.js",
             '../olib/alasql/alasql.min@4.6.6.js',
             '../olib/exceljs.min@4.4.0.js',

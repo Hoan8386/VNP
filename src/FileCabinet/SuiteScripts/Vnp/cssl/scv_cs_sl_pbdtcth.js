@@ -61,11 +61,10 @@ define(['N/search', "N/ui/message",
 
          _scvForm.ajax.postAsync(_scvForm.serviceScript.url,requestData, (response) => {
             let objData = response.data || {};
-            commonPbdtcth.crateNewJournals(params , objData.arrResult)        
+            commonPbdtcth.crateNewJournals(params,objData.arrResult)   
+            _scvForm.showLoadingDialog(false);
+
         });
-
-        _scvForm.showLoadingDialog(false);
-
 
     }
 

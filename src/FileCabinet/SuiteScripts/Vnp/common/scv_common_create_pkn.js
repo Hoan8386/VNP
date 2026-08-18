@@ -97,7 +97,9 @@ define(['N/format', 'N/record', 'N/url',
 
         let custrecord_scv_insp_h_invoicedate = '';
         if (objReqBody.custpage_invoicedate) {
-            custrecord_scv_insp_h_invoicedate = format.parse(objReqBody.custpage_invoicedate);
+            custrecord_scv_insp_h_invoicedate = format.parse({
+                value: objReqBody.custpage_invoicedate, type: format.Type.DATE
+            });
         }
 
         let specificationUnitId = getSpecificationUnitId(objReqBody.unitid, objReqBody.item);
@@ -203,14 +205,14 @@ define(['N/format', 'N/record', 'N/url',
 
     const addButtonCreatePkn = (scriptContext) => {
         let newRecord = scriptContext.newRecord;
-        let status = newRecord.getText({fieldId: 'status'});
+        let statusRef = newRecord.getValue({fieldId: 'statusRef'});
         let allowedStatusByType = {
-            purchaseorder: ['Pending Receipt', 'Partially Billed', 'Pending Billing/Partially Received', 'Partially Received'],
-            returnauthorization: ['Pending Receipt'],
-            transferorder: ['Pending Receipt'],
+            purchaseorder: ['pendingReceipt', 'partiallyBilled', 'pendingBillPartReceived', 'partiallyReceived'],
+            returnauthorization: ['pendingReceipt'],
+            transferorder: ['pendingReceipt'],
         };
 
-        if (!allowedStatusByType[newRecord.type]?.includes(status)) return;
+        if (!allowedStatusByType[newRecord.type]?.includes(statusRef)) return;
 
         let suiteletUrl = url.resolveScript({
             scriptId: 'customscript_scv_sl_create_pkn',
