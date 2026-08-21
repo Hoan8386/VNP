@@ -86,6 +86,27 @@ define(['N/query', 'N/render', 'N/search',
         }
     };
 
+    const layFieldTextAnToan = (type, id, fieldId) => {
+        if (!id || !fieldId) return '';
+        try {
+            const fields = search.lookupFields({type, id, columns: [fieldId]}) || {};
+            const value = fields[fieldId];
+            if (Array.isArray(value)) {
+                return asText(value[0]?.text ?? value[0]?.value);
+            }
+            if (value && typeof value === 'object') {
+                return asText(value.text ?? value.value);
+            }
+            return asText(value);
+        } catch (e) {
+            log.error({
+                title: 'UNC lookup field fallback: ' + fieldId,
+                details: e
+            });
+            return '';
+        }
+    };
+
     const getMaTienTe = (symbol) => {
         const giaTri = asText(symbol);
         const maTienTe = MaTienTeTheoSymbol[giaTri];
@@ -160,8 +181,9 @@ define(['N/query', 'N/render', 'N/search',
     const ghepNganHang = (ten, chiNhanh, coChiNhanh) => {
         const tenNganHang = asText(ten);
         const tenChiNhanh = asText(chiNhanh);
-        return coChiNhanh && tenChiNhanh ?
-            tenNganHang + ' - ' + tenChiNhanh : tenNganHang;
+        if (!coChiNhanh) return tenNganHang;
+        if (tenNganHang && tenChiNhanh) return tenNganHang + ' - ' + tenChiNhanh;
+        return tenNganHang || tenChiNhanh;
     };
 
     const getHeader = (recid) => {
@@ -173,6 +195,7 @@ define(['N/query', 'N/render', 'N/search',
                 ABS(t.total) AS so_tien, -- BA-Q9: chi co cot 'total', va no am
                 cur.symbol AS ma_tien_te,
                 sub.legalname AS ten_nguoi_tra,
+                acc.id AS id_tk_nguoi_tra,
                 acc.custrecord_scv_acc_bank_acc AS stk_nguoi_tra, -- TODO(BA-Q3)
                 acc.custrecord_scv_acc_bank_name AS nh_nguoi_tra, -- TODO(BA-Q3)
                 -- Chi dung de DINH TUYEN mau in, KHONG in ra chung tu.
@@ -210,7 +233,7 @@ define(['N/query', 'N/render', 'N/search',
         return rows[0];
     };
 
-    const buildDataJson = (header, maNganHang, config) => {
+    const buildDataJson = (header, maNganHang, config, tenNhText) => {
         const soTien = Number(header.so_tien);
         const maTienTe = getMaTienTe(header.ma_tien_te);
         const soTienBangChu = libAmount.DocTienBangChu(soTien, maTienTe)
@@ -218,7 +241,7 @@ define(['N/query', 'N/render', 'N/search',
         const tickTienTe = getTickTienTe(maTienTe);
         const tickPhi = getTickPhi(maNganHang);
         const nhNguoiTra = ghepNganHang(
-            header.nh_nguoi_tra, header.cn_nguoi_tra, config.coChiNhanhNguoiTra
+            tenNhText, header.cn_nguoi_tra, config.coChiNhanhNguoiTra
         );
         const nhNguoiHuong = ghepNganHang(
             header.nh_nguoi_huong, header.cn_nguoi_huong, config.coChiNhanhNguoiHuong
@@ -275,15 +298,18 @@ define(['N/query', 'N/render', 'N/search',
             throw new Error('Loại màn hình không hợp lệ: ' + asText(params.rectype));
         }
         const header = getHeader(params.recid);
-        const tenNganHang = asText(header.nh_nguoi_tra) ||
-            asText(header.ten_tk_dinh_tuyen);
-        const maNganHang = timNganHang(tenNganHang);
+        const tenNhText = header.nh_nguoi_tra
+            ? layFieldTextAnToan('account', header.id_tk_nguoi_tra, 'custrecord_scv_acc_bank_name')
+            : '';
+        const tenTk = asText(header.ten_tk_dinh_tuyen);
+        const maNganHang = timNganHang(tenNhText) || timNganHang(tenTk);
         // TODO(BA-Q1): Không có mẫu mặc định cho ngân hàng không khớp.
         if (!maNganHang) {
-            throw new Error('Chưa có mẫu UNC cho ngân hàng: ' + tenNganHang);
+            throw new Error('Chưa có mẫu UNC cho ngân hàng. Tên NH: "' + tenNhText
+                + '" | Tên TK: "' + tenTk + '"');
         }
         const config = NganHang[maNganHang];
-        const dataJson = buildDataJson(header, maNganHang, config);
+        const dataJson = buildDataJson(header, maNganHang, config, tenNhText);
         renderPdf(scriptContext.response, config, dataJson);
     };
 

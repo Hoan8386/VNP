@@ -53,7 +53,7 @@ define(['N/format', 'N/record', 'N/url',
             if (remaningquantity == 0) return;
 
             let arrTCK_KH = arrItemTck04.filter(objTck => objTck.itemid == objSS01.item);
-            arrTCK_KH = arrTCK_KH.map(objTck => ({ tieuchikiem: objTck.tieuchikiem }));
+            arrTCK_KH = arrTCK_KH.map(objTck => ({ tieuchikiem: objTck.tieuchikiem, gtkc: objTck.gtkc }));
 
             let objChiTiet = {
                 subsidiary: objSS01.subsidiary,
@@ -190,6 +190,7 @@ define(['N/format', 'N/record', 'N/url',
         arrTCK_KH.forEach(objTCK => {
             curRec.selectNewLine({sublistId: slTckKiemHang});
             curRec.setCurrentSublistValue({sublistId: slTckKiemHang, fieldId: "custrecord_scv_insp_l_criteria", value: objTCK.tieuchikiem});
+            curRec.setCurrentSublistValue({sublistId: slTckKiemHang, fieldId: "custrecord_scv_insp_l_pre_result", value: objTCK.gtkc});
             curRec.commitLine({sublistId: slTckKiemHang});
         });
     }

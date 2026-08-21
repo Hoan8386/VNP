@@ -9,7 +9,7 @@
  * @NApiVersion 2.1
  * @NScriptType Suitelet
  */
-define(['N/runtime', 'N/url', 'N/format', 'N/record',
+define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search',
     '../common/scv_common_receiveorder.js',
 
     '../cons/scv_cons_form.js',
@@ -18,7 +18,7 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record',
     '../cons/scv_cons_search_receiveorder_03.js',
     '../cons/scv_cons_search_receiveorder_04.js',
 ], (
-    runtime, url, format, record,
+    runtime, url, format, record, search,
     commonReceiveorder,
 
     constForm,
@@ -43,22 +43,12 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record',
         if (curScript.deploymentId == CurrentScript.DEPLOYID_DATA) {
             let objResponse = { data: [] };
             switch (params.action) {
-                case 'get_data_inboundshipment':
-                    objResponse.data = getDataInboundShipment(params);
-                    break;
-                case 'get_data_itemfulfillment':
-                    objResponse.data = getDataItemFulfillment(params);
-                    break;
-                case 'get_data_source_trans_create_itr_01':
-                    objResponse.data = cSearchReceiveorder01.getDataSource(params);
-                    break;
                 case 'onSubmitReceiveorder':
                     objResponse.data = onSubmitReceiveorder(params);
                     break;
             }
 
             constForm.write(objResponse);
-
         }
         else if (scriptContext.request.method == 'GET') {
             onCreateFormUI(params);
@@ -95,8 +85,8 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record',
 
         constForm.addButton({
             id: "custpage_btn_back",
-            label: "Cancel",
-            // functionName: "onBackForm('" + getUrlRedirectToBack(params) + "')"
+            label: "Back",
+            functionName: "onBackForm()"
         });
         
         let mainGrp = constForm.addFieldGroup({ id: 'fieldgrp_main', label: 'Main' });
@@ -150,11 +140,13 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record',
             },
         });
 
-        constForm.addSublist({
+        let resultSublist = constForm.addSublist({
             id: 'custpage_sl_result',
             type: 'list',
             label: 'Result',
         });
+
+        resultSublist.addMarkAllButtons();
 
         constForm.addFieldOfSublist('custpage_sl_result', commonReceiveorder.getColumnsResult());
 
@@ -172,20 +164,24 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record',
             }
         );
 
-        let arrDataSource = [];
+        let arrReceiveOrderDetail  = [];
         if (params.custpage_inboundshipment) {
-            arrDataSource = getDataInboundShipment(params);
+            arrReceiveOrderDetail = getDataInboundShipment(params);
         }
         else if (params.custpage_itemfulfillment) {
-            arrDataSource = getDataItemFulfillment(params);
+            arrReceiveOrderDetail = getDataItemFulfillment(params);
         }
         else if (params.custpage_ordernumber) {
-            arrDataSource = cSearchReceiveorder01.getDataSource(params);
+            arrReceiveOrderDetail = getDataReceiveorder01(params);
         }
+        
+        let arrInventoryDetail = cSearchReceiveorder02.getDataSource(params);
+        let arrResult = commonReceiveorder.getDataResult(params, {
+            arrReceiveOrderDetail,
+            arrInventoryDetail,
+        });
 
-        let arrResult = commonReceiveorder.getDataResult(params, {arrDataSource});
         constForm.setDataOfSublist('custpage_sl_result', arrResult);
-
         constForm.writePage();
     };
     
@@ -198,6 +194,27 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record',
             // let formatToday = format.format({value: today, type: format.Type.DATETIME});
             // let parseToday = format.parse({ value: formatToday, type: format.Type.DATETIME });
         }
+    }
+
+    const getDataReceiveorder01 = (params) => {
+        let arrReceiveorder01 = cSearchReceiveorder01.getDataSource(params);
+        let arrResult = [];
+
+        for (let objSS01 of arrReceiveorder01) {
+            let objRes = {};
+
+            objRes.item = objSS01.item;
+            objRes.description = objSS01.description;
+            objRes.entity = objSS01.entity;
+            objRes.location = objSS01.location;
+            objRes.unit = objSS01.unit_display;
+            objRes.qtyorder = objSS01.qtyorder;
+            objRes.qtyremaining = objSS01.qtyremaining;
+            objRes.originallineid = objSS01.originallineid;
+            arrResult.push(objRes);
+        }
+
+        return arrResult;
     }
     
     const getDataInboundShipment = (params) =>{
@@ -222,13 +239,12 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record',
             objRes.item = inboundShipmentRec.getSublistValue(sublistId, "itemid", i);
             objRes.description = inboundShipmentRec.getSublistValue(sublistId, "shipmentitemdescription", i);
             objRes.entity = inboundShipmentRec.getSublistValue(sublistId, "povendor", i);
-            objRes.receivinglocation = inboundShipmentRec.getSublistValue(sublistId, "receivinglocation", i);
-            objRes.units = inboundShipmentRec.getSublistText(sublistId, "unit", i);
-            objRes.quantityorder = quantityexpected;
-            objRes.quantityreceived = quantityreceived;
-            objRes.quantitytobereceived = quantityexpected;
-
-            objRes.original_line_id = inboundShipmentRec.getSublistValue(sublistId, "custrecord_scv_original_line_id", i);
+            objRes.location = inboundShipmentRec.getSublistValue(sublistId, "receivinglocation", i);
+            objRes.unit = inboundShipmentRec.getSublistText(sublistId, "unit", i);
+            objRes.qtyorder = quantityexpected;
+            objRes.qtyreceived = quantityreceived;
+            objRes.qtyremaining = quantityexpected;
+            objRes.originallineid = inboundShipmentRec.getSublistValue(sublistId, "custrecord_scv_original_line_id", i);
             objRes.lineid_inboundshipment = inboundShipmentRec.getSublistValue(sublistId, "id", i);
             objRes.shipmentitem = inboundShipmentRec.getSublistValue(sublistId, "shipmentitem", i);
 
@@ -256,12 +272,12 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record',
             objRes.item = itfRec.getSublistValue(sublistId, "item", i);
             objRes.description = itfRec.getSublistValue(sublistId, "description", i);
             objRes.entity = "";//
-            objRes.receivinglocation = itfRec.getValue("transferlocation");
-            objRes.units = itfRec.getSublistText(sublistId, "unitsdisplay", i);
-            objRes.quantityorder = itfRec.getSublistValue(sublistId, "quantity", i);
-            objRes.quantityreceived = "";//
-            objRes.quantitytobereceived = itfRec.getSublistValue(sublistId, "quantity", i);
-            objRes.original_line_id = itfRec.getSublistValue(sublistId, "custcol_scv_origin_line_num", i);
+            objRes.location = itfRec.getValue("transferlocation");
+            objRes.unit = itfRec.getSublistText(sublistId, "unitsdisplay", i);
+            objRes.qtyorder = itfRec.getSublistValue(sublistId, "quantity", i);
+            objRes.qtyreceived = "";//
+            objRes.qtyremaining = itfRec.getSublistValue(sublistId, "quantity", i);
+            objRes.originallineid = itfRec.getSublistValue(sublistId, "custcol_scv_origin_line_num", i);
 
             arrResult.push(objRes)
         }
@@ -278,16 +294,50 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record',
         
     }
 
-    const getUrlRedirectToBack = (_params) =>{
-        return url.resolveRecord({
-            recordType: "customsale_scv_shipment_request",
-            recordId: _params.custpage_shipment_request
-        });
-    }
-
     const onSubmitReceiveorder = (params) => {
-        // TODO: Map params and process submit logic.
-        return { success: true, message: 'Success.' };
+        let objResponse = {success: true, msg: 'Success', recId: '', tranId: '', recUrl: ''};
+        let objReqBody = JSON.parse(params.body || '{}');log.error('objReqBody', objReqBody)
+
+        try {
+            if (objReqBody.custpage_inboundshipment) {
+                objResponse.recId = commonReceiveorder.createReceiveInboundShipment(objReqBody, objReqBody.arrLines);
+                objResponse.recUrl = '/app/accounting/bulkprocessing/bulkprocessingstatus.nl?bulkproctype=RECEIVEINBOUNDSHIPMENT&BulkProcSubmission_CREATEDDATE=TODAY&whence=';
+            }
+            else if (objReqBody.custpage_itemfulfillment) {
+                objResponse.recId = commonReceiveorder.createItemReceiptCase3(objReqBody, objReqBody.arrLines);
+                let itemReceiptLkf = search.lookupFields({
+                    type: search.Type.ITEM_RECEIPT,
+                    id: objResponse.recId,
+                    columns: ['tranid'],
+                });
+                objResponse.tranId = itemReceiptLkf.tranid;
+                objResponse.recUrl = url.resolveRecord({
+                    recordType: record.Type.ITEM_RECEIPT,
+                    recordId: objResponse.recId,
+                });
+            }
+            else {
+                let arrSS2 = cSearchReceiveorder02.getDataSource(objReqBody);
+                objResponse.recId = commonReceiveorder.createItemReceiptCase2(objReqBody, objReqBody.arrLines, arrSS2);
+                let itemReceiptLkf = search.lookupFields({
+                    type: search.Type.ITEM_RECEIPT,
+                    id: objResponse.recId,
+                    columns: ['tranid'],
+                });
+                objResponse.tranId = itemReceiptLkf.tranid;
+                objResponse.recUrl = url.resolveRecord({
+                    recordType: record.Type.ITEM_RECEIPT,
+                    recordId: objResponse.recId,
+                });
+            }
+        }
+        catch (err) {
+            log.error('ERROR-onSubmitReceiveorder', err);
+            objResponse.success = false;
+            objResponse.msg = err.message;
+        }
+
+        return objResponse;
     };
 
     return { onRequest };

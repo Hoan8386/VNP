@@ -18,7 +18,8 @@ define(['N/record', 'N/search', 'N/url'],
             PAID_AMOUNT: 'custrecord_scv_payr_paid_amt',
             RELATED: 'custrecord_scv_payment_related',
             DATE: 'custrecord_scv_payment_date',
-            SUBSIDIARY: 'custrecord_scv_payr_subs'
+            SUBSIDIARY: 'custrecord_scv_payr_subs',
+            PO: 'custrecord_scv_payment_po'
         };
 
         const PAYMENT_TYPE = {
@@ -26,7 +27,10 @@ define(['N/record', 'N/search', 'N/url'],
             PAYABLE_PAYMENT: '2',
             OTHER_PAYMENT: '3',
             EMPLOYEE_ADVANCE: '4',
-            CUSTOMER_REFUND: '7'
+            PREPAID_EXPENSE: '5',
+            CUSTOMER_REFUND: '7',
+            EXPENSE_REPORT: '9',
+            INVESTMENT: '10'
         };
 
         const STATUS = {
@@ -34,6 +38,11 @@ define(['N/record', 'N/search', 'N/url'],
             APPROVED_ALT: '3',
             IN_PROGRESS: '8',
             PARTIALLY_PAID: '9'
+        };
+
+        const REASON_CODE = {
+            INVEST_IN: 'A01',
+            INVEST_OUT: 'B01'
         };
 
         const DEFAULT_SEQUENCE_DIGITS = 6;
@@ -111,12 +120,37 @@ define(['N/record', 'N/search', 'N/url'],
                 addRedirectButton(form, rec, 'custpage_scv_payr_customer_refund', 'Customer Refund', 'customerrefund', 'payment_to_customer_refund');
             }
 
-            if (isBillStatus(status) && type === PAYMENT_TYPE.PAYABLE_PAYMENT && !hasRelatedType(rec, 'vendorbill')) {
+            if (isBillStatus(status) && type === PAYMENT_TYPE.PAYABLE_PAYMENT && !rec.getValue(FIELD.PO) && !hasRelatedType(rec, 'vendorbill')) {
                 addRedirectButton(form, rec, 'custpage_scv_payr_vendor_bill', 'Enter Bill', 'vendorbill', 'payment_to_vendor_bill');
             }
 
             if (status === STATUS.APPROVED && type === PAYMENT_TYPE.PAYABLE_PAYMENT && hasRemaining) {
                 addRedirectButton(form, rec, 'custpage_scv_payr_vendor_payment', 'Bill Payment', 'vendorpayment', 'payment_to_bill_payment');
+            }
+
+            if (status === STATUS.APPROVED && type === PAYMENT_TYPE.EXPENSE_REPORT && !hasRelatedType(rec, 'expensereport')) {
+                addRedirectButton(form, rec, 'custpage_scv_payr_expense_report', 'Enter Expense Report', 'expensereport', 'payment_to_expense_report');
+            }
+
+            if (status === STATUS.APPROVED && type === PAYMENT_TYPE.PREPAID_EXPENSE && !hasRelatedType(rec, 'journalentry')) {
+                addRedirectButton(form, rec, 'custpage_scv_payr_journal_prepaid', 'Make Journal Entry', 'journalentry', 'payment_to_journal_prepaid');
+            }
+
+            if (type === PAYMENT_TYPE.INVESTMENT && status === STATUS.APPROVED) {
+                const reasonCode = getReasonCode(rec);
+
+                if (reasonCode === REASON_CODE.INVEST_IN && hasRemaining) {
+                    addRedirectButton(form, rec, 'custpage_scv_payr_invest_check', 'Check', 'check', 'payment_to_check_investment');
+                    addRedirectButton(form, rec, 'custpage_scv_payr_invest_jrl_in', 'Create JRL', 'journalentry', 'payment_to_journal_invest_in');
+                }
+
+                if (reasonCode === REASON_CODE.INVEST_OUT) {
+                    addRedirectButton(form, rec, 'custpage_scv_payr_invest_deposit', 'Deposit', 'deposit', 'payment_to_deposit_investment');
+
+                    if (!hasRelatedType(rec, 'journalentry')) {
+                        addRedirectButton(form, rec, 'custpage_scv_payr_invest_jrl_out', 'Create JRL', 'journalentry', 'payment_to_journal_invest_out');
+                    }
+                }
             }
         }
 
@@ -344,6 +378,23 @@ define(['N/record', 'N/search', 'N/url'],
                 return true;
             });
             return found;
+        }
+
+        function getReasonCode(rec) {
+            if (!rec.id) return '';
+            let reasonCode = '';
+            search.create({
+                type: PAYR_RECORD,
+                filters: [['internalid', 'anyof', rec.id]],
+                columns: [search.createColumn({
+                    name: 'custrecord_scv_reasonttdt_code',
+                    join: 'custrecord_scv_payr_detail_type'
+                })]
+            }).run().each(result => {
+                reasonCode = result.getValue(result.columns[0]) || '';
+                return false;
+            });
+            return reasonCode;
         }
 
         function getPurchaseOrderType(poId) {

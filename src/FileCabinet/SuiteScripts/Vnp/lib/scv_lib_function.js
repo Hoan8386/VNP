@@ -985,6 +985,11 @@ define(['N/https', 'N/query', 'N/record', 'N/search', 'N/url'],
             }
         }
 
+        const getUniqueIdForLineNum = (lineNumber) => {
+            const uniqueId = generateUniqueId() + '_' + lineNumber;
+            return uniqueId;
+        }
+
         const generateUniqueId = () => {
             const unixTimestamp = Date.now();
             const randomNumber = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
@@ -1353,6 +1358,27 @@ define(['N/https', 'N/query', 'N/record', 'N/search', 'N/url'],
                     details: e.name
                 });
             });
+        }
+
+        const createRecordNoDynamic = (type, sublistId, options, sublist) => {
+            let rec = record.create({type: type});
+            util.each(Object.keys(options), function (o) {
+                rec.setValue(o, options[o]);
+            });
+            let line = 0;
+            util.each(sublist, function (o) {
+                util.each(Object.keys(o), function (ol) {
+                        rec.setSublistValue({
+                            sublistId: sublistId,
+                            fieldId: ol,
+                            value: o[ol],
+                            line: line
+                        });
+                    }
+                );
+                line++;
+            });
+            return rec.save({enableSourcing: false, ignoreMandatoryFields: true});
         }
 
         const postServerData = (options, rlInfo) => {
@@ -1937,6 +1963,7 @@ define(['N/https', 'N/query', 'N/record', 'N/search', 'N/url'],
             callQuery,
             addSavedSearchToForm,
             generateUniqueIdForMultiLines,
+            getUniqueIdForLineNum,
             generateUniqueIdForHeader,
             isTrue,
             groupArrayData,
@@ -1963,6 +1990,7 @@ define(['N/https', 'N/query', 'N/record', 'N/search', 'N/url'],
             getRecordData,
             createRecord,
             createRecordPromise,
+            createRecordNoDynamic,
             postServerData,
             doSearchSSRangeLabelId,
             defaultField,

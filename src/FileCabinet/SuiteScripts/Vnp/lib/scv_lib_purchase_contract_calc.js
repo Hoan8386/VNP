@@ -12,8 +12,8 @@ define(['N/search', 'N/record', './scv_lib_function'],
 
         const FIELD = {
             QUANTITY_CUSTOM: 'custcol_scv_quantity',
-            RATE_TT: 'custcol_scv_rate_tt',
-            AMT_TT: 'custcol_scv_amt_tt',
+            RATE_TT: 'custcol_scv_rate_pre_discount',
+            AMT_TT: 'custcol_scv_amt_pre_discount',
             DISCOUNT_PER: 'custcol_scv_discount_per',
             DISCOUNT_AMT: 'custcol_scv_discount_amt',
             RATE_CUSTOM: 'custcol_scv_rate_custom',

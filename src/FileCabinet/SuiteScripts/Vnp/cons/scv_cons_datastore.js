@@ -1,6 +1,6 @@
 /**
  * Nội dung: 
- * Version: 1.251104.8
+ * Version: 1.250612.4
  * =======================================================================================
  *  Date                Author                  Description
  *  12 Jun 2024         Huy Pham                Init & create file
@@ -37,21 +37,6 @@ function(query, record,
                 NAME: "Temporary",
                 PARENT_NAME: "DataStore",
             },
-            FileImport: {
-                ID: "",
-                NAME: "FileImport",
-                PARENT_NAME: "DataStore",
-            },
-            SuiteQL: {
-                ID: "",
-                NAME: "SuiteQL",
-                PARENT_NAME: "DataStore",
-            },
-            OpenAI: {
-                ID: "",
-                NAME: "OpenAI",
-                PARENT_NAME: "DataStore",
-            },
         }
     }
 
@@ -85,7 +70,7 @@ function(query, record,
         });
 
         let arrFolderCabinet = query.runSuiteQL({
-            query: `SELECT parent, id, name, appfolder, level as folder_level
+            query: `SELECT parent, id, name, appfolder
             FROM MediaItemFolder
             WHERE name IN ('${arrFolderName.join("','")}')
             START WITH id = '${RECORDS.Folder.UserDocuments.ID}'

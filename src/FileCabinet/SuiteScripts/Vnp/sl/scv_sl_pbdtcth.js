@@ -9,21 +9,19 @@
  * @NApiVersion 2.1
  * @NScriptType Suitelet
  */
-define(['N/runtime', 'N/url',
+define(['N/runtime', 'N/redirect', 'N/search', 'N/task', 'N/ui/message',
     '../cons/scv_cons_form.js',
-    '../cons/scv_cons_search_pbdtcth.js',    
-    '../common/scv_common_pbdtcth.js',    
+    '../common/scv_common_pbdtcth.js',
     
 ], (
-    runtime, url,
+    runtime, redirect, search, task, message,
     constForm,
-    constSearchPbdtcth,
     commonPbdtcth
 ) => {
     const CurrentScript = {
         ID: 'customscript_scv_sl_pbdtcth',
         DEPLOYID_UI: 'customdeploy_scv_sl_pbdtcth',
-        DEPLOYID_DATA: 'customdeploy_scv_sl_pbdtcth_scv',
+        DEPLOYID_DATA: 'customdeploy_scv_sl_pbdtcth_svc',
     };
 
     const onRequest = (scriptContext) => {
@@ -34,30 +32,81 @@ define(['N/runtime', 'N/url',
         let curScript = runtime.getCurrentScript();
 
         if (curScript.deploymentId == CurrentScript.DEPLOYID_DATA) {
-            log.debug("hoan check" )
-
             let objResponse = { data: [] };
-            log.debug("hoan params" ,params);
-            log.debug("hoan params" ,params.custpage_subsidiary);
             switch (params.action) {
-                case 'getDataPbdtcth':
-                    objResponse.data = constSearchPbdtcth.getDataSourceFetchPage(params);
-                    log.debug("hoan objResponse.data " ,objResponse.data)
+                case 'getDataSource':
+                    objResponse.data = commonPbdtcth.getDataSource(params);
                     break;
             }
             
             constForm.write(objResponse);
-        } else if (scriptContext.request.method == 'GET') {
-            onCreateFormUI(params);
+            return;
         }
+        else{
+            if (scriptContext.request.method == 'GET') {
+                onCreateFormUI(params);
+                
+                showMsgJournal(params);
+
+                constForm.writePage();
+            }
+
+            if (scriptContext.request.method === 'POST') {
+                const paramsExecute = {
+                    custpage_subsidiary: params.custpage_subsidiary,
+                    custpage_date: params.custpage_date,
+                    custpage_debit: params.custpage_debit,
+                    custpage_salecontract: params.custpage_salecontract,
+                };
+
+                const arrResultCreate = commonPbdtcth.getDataSourceCreate(paramsExecute);
+                const arrResultDelete = commonPbdtcth.getDataSourceDelete(paramsExecute);
+
+                const arrResult = arrResultCreate.concat(arrResultDelete);
+
+                if(arrResult.length < 5){
+                    const journalIds = [];
+
+                    arrResult.forEach(objRes => {
+
+                        if(objRes.action === "delete"){
+                            commonPbdtcth.deleteJournalOld(paramsExecute, objRes);
+                        }
+                        else if(objRes.action === "create"){
+                            let jeId = commonPbdtcth.createJournal(paramsExecute, objRes);
+
+                            journalIds.push(jeId);
+                        }
+                    });
+
+                    paramsExecute.journalIds = journalIds.join(",");
+                }
+                else{
+                    let mrTask = task.create({
+                        taskType: task.TaskType.MAP_REDUCE,
+                        scriptId: "customscript_scv_mr_pbdtcth",
+                        deploymentId: "customdeploy_scv_mr_pbdtcth",
+                        params: {
+                            custscript_scv_mr_pbdtcth_param: JSON.stringify(paramsExecute)
+                        }
+                    });
+                    paramsExecute.mrTaskId = mrTask.submit();
+                }
+
+                redirect.toSuitelet({
+                    scriptId: CurrentScript.ID,
+                    deploymentId: CurrentScript.DEPLOYID_UI,
+                    parameters: {...paramsExecute}
+                });
+            }   
+        }
+        
     };
 
     const onCreateFormUI = (params) => {
-        let hasCreatedFrom = !!params?.custpage_createdfrom;
-
         constForm.createForm('Chức năng phân bổ doanh thu chưa thực hiên', '../cssl/scv_cs_sl_pbdtcth.js');
 
-        constForm.addPageLink([constSearchPbdtcth.ID], true);
+        constForm.addPageLink(commonPbdtcth.getListSavedSearchId(), true);
 
         constForm.addButton({
             id: 'custpage_btn_search',
@@ -65,46 +114,49 @@ define(['N/runtime', 'N/url',
             functionName: 'searchResult()',
         });
 
-        constForm.addButton({
-            id: 'custpage_btn_submit',
-            label: 'Create',
-            functionName: 'onSubmit()',
-        }, { styleSubmit: true });
+        constForm.addSubmitButton({
+            label: 'Create'
+        });
 
-        constForm.addButton({
-            id: 'custpage_btn_export',
-            label: 'Export Results',
-            functionName: 'onExport()',
-        }, { styleSubmit: true });
         
         
         constForm.addField({
             id: "custpage_subsidiary",
-            label: "Subsidiary ",
+            label: "Subsidiary",
             type: "select",
             source: "subsidiary",
-        }, true);
+        }, true, {
+            defaultValue: params.custpage_subsidiary
+        });
 
-        
+
         constForm.addField({
             id: "custpage_date",
             label: "Date",
             type: "date",
-        }, true);
-        
+        }, true, {
+            defaultValue: params.custpage_date
+        });
+
+
         constForm.addField({
             id: "custpage_debit",
-            label: "Debit/loan Agreemnt ",
+            label: "Debit/loan Agreemnt",
             type: "select",
-            source:"customrecord_scv_loa"
-        }, false);
-        
+            source: "customrecord_scv_loa"
+        }, false, {
+            defaultValue: params.custpage_debit,
+        })
+
+
         constForm.addField({
             id: "custpage_salecontract",
             label: "Sale Contract",
             type: "select",
-            source:"customsale_scv_sales_contract"
-        }, false);
+            source: "customsale_scv_sales_contract"
+        }, false, {
+            defaultValue: params.custpage_salecontract
+        });
         
         constForm.addGridDx({
             id: 'custpage_sl_result',
@@ -112,11 +164,33 @@ define(['N/runtime', 'N/url',
             label: 'Chi tiết',
             columns: commonPbdtcth.getColumnsResult(),
         });
-
-        constForm.writePage();
     };
 
-    
+    const showMsgJournal = (params) => {
+        let msgContents = ``;
 
-    return { onRequest };
+        if(params.mrTaskId){
+            let taskStatus = task.checkStatus(params.mrTaskId).status;
+
+            msgContents = "Map/Reduce: " + taskStatus;
+        }
+        else if(params.journalIds){
+            let journalIds = params.journalIds.split(",");
+            journalIds.forEach((_id, index) =>{
+                if(index > 0){
+                    msgContents += ", ";
+                }
+
+                let tranid = search.lookupFields({type: "journalentry", id: _id, columns: "tranid"}).tranid;
+
+                msgContents += `<a href="/app/accounting/transactions/transaction.nl?id=${_id}" target="_blank">${tranid}</a>`;
+            })
+        }
+
+        if(msgContents){
+            constForm.addPageInitMessage( { type: message.Type.CONFIRMATION, message: msgContents, duration: 60000 })
+        }
+    }
+
+    return { onRequest, };
 });

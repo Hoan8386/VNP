@@ -1,27 +1,25 @@
 /**
  * Nội dung: 
- * Version: 1.260401.36
+ * Version: 1.251104.27
  * =======================================================================================
  *  Date                Author                  Description
  *  25 Dec 2024         Huy Pham                Init & create file
  */
-define(['N/ui/serverWidget', 'N/runtime', 'N/query', 'N/search', 'N/ui/message', 'N/file', 'N/url',
+define(['N/ui/serverWidget', 'N/runtime', 'N/query', 'N/search', 'N/ui/message', 'N/file',
     '../lib/scv_lib_function.js',
     '../olib/alasql/alasql.min@4.6.6.js',
     '../cons/scv_cons_record.js',
-    '../cons/scv_cons_file.js',
-    '../cons/scv_cons_devextreme.js',
     '../cons/scv_cons_inventorydetail.js',
+    '../cons/scv_cons_devextreme.js',
 ],
-function(serverWidget, runtime, query, search, message, file, url,
+function(serverWidget, runtime, query, search, message, file,
     lbf,
     alasql,
     constRecord,
-    constFile,
-    constDX,
     constInventoryDetail,
+    constDX,
 ) {
-    const constJQX = {};
+    const constJQX = {};//
 	const ID = "";
     const TYPE = "";
 	const RECORDS = {
@@ -32,7 +30,6 @@ function(serverWidget, runtime, query, search, message, file, url,
         sublist: {},
         fieldGroup: {},
         tab: {},
-        subTab: {},
         jqx: {},
         dx: {},
         mainKeyInventoryDetail: "",
@@ -63,6 +60,7 @@ function(serverWidget, runtime, query, search, message, file, url,
             alasql: "../olib/alasql/alasql.min@4.6.6.js",
             moment: "../olib/moment.js",
         },
+        suiteType: "SuiteScripts : Vnp",
     }
 
     const getForm = () => {
@@ -99,21 +97,6 @@ function(serverWidget, runtime, query, search, message, file, url,
     const setServiceScript = (_id, _deploymentId) => {
         RECORDS.serviceScript.id = _id;
         RECORDS.serviceScript.deploymentId =_deploymentId;
-        try{
-            let curUserId = runtime.getCurrentUser().id;
-            if(curUserId == -5) return;
-
-            if(curUserId < 0){
-                RECORDS.serviceScript.url = url.resolveScript({
-                    scriptId: RECORDS.serviceScript.id,
-                    deploymentId: RECORDS.serviceScript.deploymentId,
-                    returnExternalUrl: true
-                })
-            }
-        }
-        catch(err){
-            log.error("ERROR: setServiceScript", err)
-        }
     }
 
     const write = (_dataResponse) => {
@@ -181,7 +164,7 @@ function(serverWidget, runtime, query, search, message, file, url,
             FROM file a,
                 (SELECT id, name, appfolder
                     FROM MediaItemFolder
-                    START WITH appfolder = '${constFile.getCurrentAppFolder()}'
+                    START WITH appfolder = '${RECORDS.suiteType}'
                     CONNECT BY PRIOR id = parent) b
             WHERE a.folder = b.id
                 AND a.isinactive = 'F'
@@ -249,7 +232,7 @@ function(serverWidget, runtime, query, search, message, file, url,
             FROM file a,
                 (SELECT id, name, appfolder
                     FROM MediaItemFolder
-                    START WITH appfolder = '${constFile.getCurrentAppFolder()}'
+                    START WITH appfolder = '${RECORDS.suiteType}'
                     CONNECT BY PRIOR id = parent) b
             WHERE a.folder = b.id
                 AND a.isinactive = 'F'
@@ -330,21 +313,6 @@ function(serverWidget, runtime, query, search, message, file, url,
         let curScript = runtime.getCurrentScript();
         RECORDS.currentScript.id = curScript.id;
         RECORDS.currentScript.deploymentId = curScript.deploymentId;
-        try{
-            let curUserId = runtime.getCurrentUser().id;
-            if(curUserId == -5) return;
-            
-            if(curUserId < 0){
-                RECORDS.currentScript.url = url.resolveScript({
-                    scriptId: RECORDS.currentScript.id,
-                    deploymentId: RECORDS.currentScript.deploymentId,
-                    returnExternalUrl: true
-                })
-            }
-        }
-        catch(err){
-            log.error("ERROR: createForm-currentScript.external", err)
-        }
 
         let optionUpdate = _optionUpdate||{};
         optionUpdate.pinHeaderSublist = _optionUpdate.pinHeaderSublist??false;
@@ -356,7 +324,7 @@ function(serverWidget, runtime, query, search, message, file, url,
         }
 
         addNoWrapSubist(optionUpdate.noWrapHeaderSublist, optionUpdate.noWrapLineSublist)
-
+        
         return RECORDS.form;
     }
 
@@ -425,17 +393,6 @@ function(serverWidget, runtime, query, search, message, file, url,
         };
 
         return {id: _options.id, tab: objRes};
-    }
-
-    const addSubTab = (_options) => {
-        let objRes = RECORDS.form.addSubtab(_options);
-
-        RECORDS.subTab[_options.id] = {
-            id: _options.id,
-            label: objRes
-        };
-
-        return {id: _options.id, subtab: objRes};
     }
 
     const addField = (_options, _isMandatory = false, _optionUpdate) =>{
@@ -665,18 +622,8 @@ function(serverWidget, runtime, query, search, message, file, url,
 			return objRes;
 		})
 
-        //#region Add link Translation for current Suitelet
-        let curScript = runtime.getCurrentScript();
-
-        _lstLink.push({
-            id: "",
-            url: "/app/site/hosting/scriptlet.nl?script=customscript_scv_sl_translate&deploy=customdeploy_scv_sl_translate&custpage_collection=" + curScript.id, 
-            name: "Manage Translations Current"
-        })
-        //#endregion
-
 		if(isShowCurSuitelet){
-			_lstLink.push({id: curScript.deploymentId, name: "Script Depoyment Current"})
+			_lstLink.push({id: runtime.getCurrentScript().deploymentId, name: "Script Depoyment Current"})
 		}
 
 		try{
@@ -729,7 +676,7 @@ function(serverWidget, runtime, query, search, message, file, url,
 		
 		for(let i = 0; i < _lstLink.length; i++){
 			let urlPage = "";
-			let linkId = _lstLink[i].id ?? "";
+			let linkId = _lstLink[i].id;
 			if(linkId.indexOf("customsearch") === 0){
 				urlPage = "/app/common/search/searchresults.nl?searchid=" + linkId;
 			}
@@ -770,43 +717,7 @@ function(serverWidget, runtime, query, search, message, file, url,
     const addSubmitButton = (_options, _optionUpdate) => {
         let objRes = RECORDS.form.addSubmitButton(_options);
 
-        let optionUpdate = _optionUpdate||{};
-        if(optionUpdate?.hideButton) {
-            let randomCode = onGenCodeRandom();
-            let htmlField = RECORDS.form.addField({
-                id: 'custpage_hide_submitbtn_' + randomCode,
-                label: "html",
-                type: "INLINEHTML",
-            });
-            htmlField.defaultValue = onCreateScriptHideSubmitBtn();
-        }
-
         return objRes;
-    }
-
-    // TODO: 260518 -> Chỉ ẩn nút submit trên UI, vẫn cho phép submit data bằng POST từ client
-    const onCreateScriptHideSubmitBtn = () => {
-        return `<script>
-            hideSubmitButton();
-            function hideSubmitButton() {
-                var elSubmitter = document.getElementById('tbl_submitter')?.parentElement;
-                if (elSubmitter) {
-                    elSubmitter.style.display = 'none';
-                    var nextEleSubmit = elSubmitter?.nextElementSibling;
-                    if(nextEleSubmit) nextEleSubmit.style.display = 'none';
-                }
-
-                var interval = setInterval(function () {
-                    var elSecondary = document.getElementById('tbl_secondarysubmitter')?.parentElement;
-                    if (elSecondary) {
-                        elSecondary.style.display = 'none';
-                        var nextEleSecond = elSecondary?.nextElementSibling;
-                        if(nextEleSecond) nextEleSecond.style.display = 'none';
-                        clearInterval(interval);
-                    }
-                }, 500);
-            }
-        </script>`;
     }
     
     const addButton = (_options, _optionUpdate) => {
@@ -840,9 +751,9 @@ function(serverWidget, runtime, query, search, message, file, url,
             var _scvPrefThemeNS = document.getElementsByTagName("body")[0]?.getAttribute("data-page-theme") || "";
 
             if(_scvPrefThemeNS == "redwood"){
-                document.getElementById("${btnId}")?.setAttribute("data-button-type", "primary");
+                document.getElementById("${btnId}").setAttribute("data-button-type", "primary");
             }else{
-                document.getElementById("tr_${btnId}")?.classList?.add('pgBntB');
+                document.getElementById("tr_${btnId}").classList.add('pgBntB');
             }
             
             addClassSubmitBtn_${randomCode}('${btnId}');
@@ -855,7 +766,7 @@ function(serverWidget, runtime, query, search, message, file, url,
                     if(_scvPrefThemeNS == "redwood"){
                         document.getElementById("secondary${btnId}").setAttribute("data-button-type", "primary");
                     }else{
-                        btnSecond.classList?.add('pgBntB');
+                        btnSecond.classList.add('pgBntB');
                     }
                 }
             }
@@ -1008,17 +919,13 @@ function(serverWidget, runtime, query, search, message, file, url,
             inventorydetail = constInventoryDetail.formatDataInventoryDetail(_objResLine?.inventorydetail);
         }
 
-        let itemFieldId =  objInventoryDetail.relatedFieldId.item;
-        let quantityFieldId =  objInventoryDetail.relatedFieldId.quantity;
-        let locationFieldId =  objInventoryDetail.relatedFieldId.location;
+        let itemFieldId = objInventoryDetail.relatedFieldId.item;
+        let quantityFieldId = objInventoryDetail.relatedFieldId.quantity;
+        let locationFieldId = objInventoryDetail.relatedFieldId.location;
 
         inventorydetail.custpage_item = _objResLine[itemFieldId];
         inventorydetail.custpage_quantity = _objResLine[quantityFieldId];
         inventorydetail.custpage_location = _objResLine[locationFieldId];
-
-        inventorydetail.item = _objResLine[itemFieldId];
-        inventorydetail.quantity = _objResLine[quantityFieldId];
-        inventorydetail.location = _objResLine[locationFieldId];
 
         if(!!_data){
             if(util.isObject(_data)){
@@ -1077,7 +984,7 @@ function(serverWidget, runtime, query, search, message, file, url,
         let arrJqxAll = Object.values(RECORDS.jqx);
         if(arrJqxAll.length == 0) return;
 
-        constJQX.setSuiteType(constFile.getCurrentAppFolder());
+        constJQX.setSuiteType(RECORDS.suiteType);
 
         let arrJqxSplitter = arrJqxAll.filter(e => e.type == "splitter");
         let arrJqx = arrJqxAll.filter(e => e.type != "splitter");
@@ -1348,7 +1255,7 @@ function(serverWidget, runtime, query, search, message, file, url,
         let arrDxAll = Object.values(RECORDS.dx);
         if(arrDxAll.length == 0) return;
 
-        constDX.setSuiteType(constFile.getCurrentAppFolder());
+        constDX.setSuiteType(RECORDS.suiteType);
 
         let arrDxSplitter = arrDxAll.filter(e => e.type == "splitter");
         let arrDx = arrDxAll.filter(e => e.type != "splitter");
@@ -1606,7 +1513,6 @@ function(serverWidget, runtime, query, search, message, file, url,
         createForm,
         addTab,
         addFieldGroup,
-        addSubTab,
         addField,
         getLastField,
         addSublist,
@@ -1619,7 +1525,7 @@ function(serverWidget, runtime, query, search, message, file, url,
         setResponse,
         write,
         writePage,
-		getForm,
+        getForm,
         setForm,
         setServiceScript,
         addPageInitMessage,

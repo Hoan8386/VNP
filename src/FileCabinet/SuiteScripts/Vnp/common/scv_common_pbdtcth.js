@@ -7,13 +7,33 @@
  */
 define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
     '../lib/scv_lib_function.js',
+
+    '../olib/alasql/alasql.min@4.6.6.js',
+
     '../cons/scv_cons_format.js',
+    '../cons/scv_cons_search.js',
+
+    '../cons/scv_cons_currency.js',
+
+    '../cons/scv_cons_search_pbdtcth.js',
 
 ], (format, record, url,search,message,
     lbf,
-    constFormat
+
+    alasql,
+
+    constFormat,
+    constSearch,
+
+    constCurrency,
+
+    constSearchPbdtcth,
 ) => {
-    
+    const getListSavedSearchId = () =>{
+        return [
+            constSearchPbdtcth.ID
+        ]
+    }
 
     const getColumnsResult = () => {
         let columns = [
@@ -123,13 +143,37 @@ define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
         return columns;
     };
 
-    const crateNewJournals = (params,arrResult) => {
-        let period = getPostingPeriod(params.custpage_date);
-        let createdJournals = [];
-        let journalIds = [];
-        console.log("period" , period);
+    const getDataSource = (params) =>{
+        const arrResult = constSearchPbdtcth.getDataSource(params);
 
-        const results = search.create({
+        return arrResult;
+    }
+
+    const getDataSourceCreate = (params) => {
+        let periodId = getPostingPeriod(params.custpage_date);
+
+        let arrResRaw = getDataSource(params);
+
+        let arrResult = alasql(`SELECT DISTINCT salescontract, debitagreement FROM ?`, [arrResRaw]);
+        
+        arrResult.forEach(objRes => {
+            objRes.lines = arrResRaw.filter(e => e.salescontract == objRes.salescontract
+                && e.debitagreement == objRes.debitagreement
+            );
+
+            objRes.subsidiary = objRes.lines[0].subsidiary;
+            objRes.memo = objRes.lines[0].memo;
+            objRes.period = periodId;
+            objRes.action = "create";
+        });
+
+        return arrResult;
+    }
+
+    const getDataSourceDelete = (params) => {
+        let period = getPostingPeriod(params.custpage_date);
+
+        let resultSearch = constSearch.createSearchWithFilter({
             type: search.Type.JOURNAL_ENTRY,
             filters: [
                 ['mainline', 'is', 'T'],
@@ -137,138 +181,83 @@ define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
                 'and', ['custbody_scv_allow_sys_process', 'is', 'T'],
                 'and', ['postingperiod', 'anyof', period]
             ],
-            columns: ['internalid']
-            }).run().getRange({
-                start: 0,
-                end: 1000
+            columns: [
+				{
+                    name: "internalid",
+                    summary: "GROUP"
+                }
+			]
         });
-
-        results.forEach(result => {
-            const journal = {
-                internalId: result.getValue('internalid')
-            };
-
-            console.log("Journal:", journal);
-
-            const journalId = result.getValue('internalid');
-            journalIds.push(journalId);
-        });
-
-        console.log("journalIds.length ",journalIds.length)
-        if(journalIds.length > 0) {
-            journalIds.forEach((id) => {
-                record.delete({
-                    type: record.Type.JOURNAL_ENTRY,
-                        id: id 
-                    });
-                console.log(`Đã xóa Journal ${id}`);
-            } )
-        }
-        let groupedData = {};
-        console.log("check arr ",arrResult);
-        arrResult.forEach((row) => {
-            let salesContract = row.salescontract || '';
-            let debitAgreement = row.debitagreement || '';
-            let groupKey = row.salescontract || row.debitagreement;
-
-            if (!groupedData[groupKey]) {
-                groupedData[groupKey] = {
-                    subsidiary: row.subsidiary,
-                    memo: row.memo || '',
-                    salesContract: salesContract,
-                    debitAgreement: debitAgreement,
-                    lines: []
-                };
-            }
-
-            groupedData[groupKey].lines.push(row);
-        });
-
-        Object.keys(groupedData).forEach((key) => {
-            let group = groupedData[key];
-            if (!group.lines || group.lines.length === 0) return;
-
-            let newJournal = record.create({
-                type: record.Type.JOURNAL_ENTRY,
-                isDynamic: true
-            });
-
-            newJournal.setValue({ fieldId: 'subsidiary', value: group.subsidiary  });
-            newJournal.setValue({ fieldId: 'trandate', value: constFormat.parseDate(params.custpage_date) });
-            newJournal.setValue({ fieldId: 'memo', value: group.memo });
-            newJournal.setValue({ fieldId: 'currency', value: '1' }); 
-            newJournal.setValue({ fieldId: 'exchangerate', value: 1 });
-            newJournal.setValue({ fieldId: 'custbody_scv_lms_allow_sys_process', value: true });
-            newJournal.setValue({ fieldId: 'custbody_scv_sales_contract', value: group.salesContract });
-            newJournal.setValue({ fieldId: 'custbody_scv_loa', value: group.debitAgreement });
-            
-
-            // 2. Duyệt qua từng line: Mỗi item trong search tạo ra 2 dòng (Debit & Credit)
-            group.lines.forEach((lineItem) => {
-                let allocatedAmt = calculateAmount(lineItem, params.custpage_date, period);
-                if (allocatedAmt <= 0) return;
-
-                let lineMemo = lineItem.memo || group.memo; // default memo của header 
-                let locationId = lineItem.location || lineItem.location_display;
-
-                // dòng 1 debit
-                newJournal.selectNewLine({ sublistId: 'line' });
-                newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountdebit });
-                newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'debit', value: allocatedAmt });
-                if (lineMemo) newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
-                if (locationId) newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
-                newJournal.commitLine({ sublistId: 'line' });
-
-                // dòng 2 credit
-                newJournal.selectNewLine({ sublistId: 'line' });
-                newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountcredit });
-                newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'credit', value: allocatedAmt });
-                if (lineMemo) newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
-                if (locationId) newJournal.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
-                newJournal.commitLine({ sublistId: 'line' });
-
-            });
-
-            if (newJournal.getLineCount({ sublistId: 'line' }) > 0) {
-                let jeId = newJournal.save();
-                console.log(`Đã tạo thành công Journal Entry ID: ${jeId} cho nhóm ${key}`);
-
-                let journalUrl = url.resolveRecord({
-                    recordType: record.Type.JOURNAL_ENTRY,
-                    recordId: jeId,
-                });
-
-                createdJournals.push({
-                    id: jeId,
-                    url: journalUrl
-                });
-            }
-        }); 
-
-        if (createdJournals.length > 0) {
-            let journalLinks = createdJournals
-                .map(journal => {
-                    return `<a href="${journal.url}" target="_blank">
-                                Journal Entry #${journal.id}
-                            </a>`;
-                })
-                .join('<br>');
-
-            const successMessage = message.create({
-                title: 'Create Journal Success',
-                message: `
-                    Đã tạo thành công ${createdJournals.length} Journal Entry:
-                    <br><br>
-                    ${journalLinks}
-                `,
-                type: message.Type.CONFIRMATION
-            });
-
-            successMessage.show({
-                duration: 10000
-            });
-        }
         
+        resultSearch = resultSearch.runPaged({pageSize: 1000});
+
+        let arrResult = constSearch.fetchResultSearchAllPage(resultSearch, function(_objSearch, _column){
+            let objRes = constSearch.getObjResultFromSearchByKey(_objSearch, _column, [
+                "internalid"
+            ]);
+
+            objRes.action = "delete";
+			
+            return objRes;
+        });
+
+        return arrResult;
+    }
+
+    const deleteJournalOld = (params, resultJournal) =>{
+        if(!resultJournal.internalid) return;
+
+        try{
+            record.delete({type: record.Type.JOURNAL_ENTRY, id: resultJournal.internalid});
+        }
+        catch(err){
+            log.error("Error: try.catch.deleteJournalOld", err);
+        }
+    }
+
+    const createJournal = (params, resultJournal) =>{
+        let journalRec = record.create({
+            type: record.Type.JOURNAL_ENTRY,
+            isDynamic: true
+        });
+
+        journalRec.setValue({ fieldId: 'subsidiary', value: resultJournal.subsidiary  });
+        journalRec.setValue({ fieldId: 'trandate', value: constFormat.parseDate(params.custpage_date) });
+        journalRec.setValue({ fieldId: 'memo', value: resultJournal.memo });
+        journalRec.setValue({ fieldId: 'currency', value: constCurrency.RECORDS.VND.ID }); 
+        journalRec.setValue({ fieldId: 'exchangerate', value: 1 });
+        journalRec.setValue({ fieldId: 'custbody_scv_lms_allow_sys_process', value: true });
+        journalRec.setValue({ fieldId: 'custbody_scv_sales_contract', value: resultJournal.salescontract });
+        journalRec.setValue({ fieldId: 'custbody_scv_loa', value: resultJournal.debitagreement });
+
+        resultJournal.lines.forEach((lineItem) => {
+            let allocatedAmt = calculateAmount(lineItem, params.custpage_date, resultJournal.period);
+            if (allocatedAmt <= 0) return;
+
+            let lineMemo = lineItem.memo || resultJournal.memo; // default memo của header 
+            let locationId = lineItem.location || lineItem.location_display;
+
+            // dòng 1 debit
+            journalRec.selectNewLine({ sublistId: 'line' });
+            journalRec.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountdebit });
+            journalRec.setCurrentSublistValue({ sublistId: 'line', fieldId: 'debit', value: allocatedAmt });
+            if (lineMemo) journalRec.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
+            if (locationId) journalRec.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
+            journalRec.commitLine({ sublistId: 'line' });
+
+            // dòng 2 credit
+            journalRec.selectNewLine({ sublistId: 'line' });
+            journalRec.setCurrentSublistValue({ sublistId: 'line', fieldId: 'account', value: lineItem.accountcredit });
+            journalRec.setCurrentSublistValue({ sublistId: 'line', fieldId: 'credit', value: allocatedAmt });
+            if (lineMemo) journalRec.setCurrentSublistValue({ sublistId: 'line', fieldId: 'memo', value: lineMemo });
+            if (locationId) journalRec.setCurrentSublistValue({ sublistId: 'line', fieldId: 'location', value: locationId });
+            journalRec.commitLine({ sublistId: 'line' });
+
+        });
+
+        let journalRecId = journalRec.save({enableSourcing: false, ignoreMandatoryFields: true});
+
+        return journalRecId;
     }
   
     const calculateAmount = (row, suiteletDate, periodId) => {
@@ -276,12 +265,12 @@ define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
 
         let allocAmt = row.allocationamt * 1;
 
-        if ( allocType === '2' ) {
+        if ( allocType === '2' ) {//Tháng
             return allocAmt;
         }
 
         // TH2: Phân bổ theo Ngày
-        if (allocType === '1') {
+        if (allocType === '1') {//Ngày
 
             let periodStartDate = getPostingPeriod(row.startdate);
             let periodEndDate = getPostingPeriod(row.enddate);
@@ -335,8 +324,15 @@ define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
         return period;
     }
     return {
+        getListSavedSearchId,
         getColumnsResult,
-        crateNewJournals,
+        getDataSource,
+        getDataSourceCreate,
+        getDataSourceDelete,
+
+        createJournal,
+        deleteJournalOld,
+
         getPostingPeriod
     };
 });

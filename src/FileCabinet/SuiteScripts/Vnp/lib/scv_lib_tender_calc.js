@@ -10,6 +10,13 @@ define(['N/search', 'N/record', './scv_lib_function'],
         const FIELD_TAX_CODE = 'custcol_scv_sumtrans_line_taxcode';
         const FIELD_TAX_RATE = 'custcol_scv_sumtrans_line_taxrate';
 
+        const FIELD_END_DATE = 'enddate';
+
+        const HEADER_DATE_GROUPS = [
+            {days: 'custbody_scv_hieu_luc_hsthau', dateOut: 'custbody_scv_ngay_het_hieu_luc_thau'},
+            {days: 'custbody_scv_hsdt_hlgh', dateOut: 'custbody_scv_hsdt_ngay_hlgh'}
+        ];
+
         const GROUPS = [
             {
                 qty: 'custcol_scv_qty_dt', rate: 'custcol_scv_rate_dt', rateVat: 'custcol_scv_rate_dt_vat',
@@ -24,7 +31,9 @@ define(['N/search', 'N/record', './scv_lib_function'],
             {
                 qty: 'custcol_scv_quantity', rate: 'custcol_scv_rate_custom', rateVat: 'custcol_scv_rate_vat_custom',
                 amt: 'custcol_scv_amt_custom', taxAmt: 'custcol_scv_tax_amt_custom', grossAmt: 'custcol_scv_gross_amt_custom',
-                total: 'custbody_scv_total_amt_custom'
+                total: 'custbody_scv_total_amt_custom',
+                ratePreDiscount: 'custcol_scv_rate_pre_discount', amtPreDiscount: 'custcol_scv_amt_pre_discount',
+                discountPer: 'custcol_scv_discount_per', discountAmt: 'custcol_scv_discount_amt'
             }
         ];
 
@@ -95,7 +104,28 @@ define(['N/search', 'N/record', './scv_lib_function'],
                 let rate = parseFloat(getLineValue(curRec, group.rate, line)) || 0;
                 let rateVat = parseFloat(getLineValue(curRec, group.rateVat, line)) || 0;
 
-                if (!rate && rateVat) {
+                if (group.ratePreDiscount) {
+                    const ratePreDiscount = parseFloat(getLineValue(curRec, group.ratePreDiscount, line)) || 0;
+                    const amtPreDiscount = roundNumber(ratePreDiscount * qty, digit);
+                    setLineValue(curRec, group.amtPreDiscount, line, amtPreDiscount);
+                    const discountPer = parseFloat(getLineValue(curRec, group.discountPer, line)) || 0;
+                    const discountAmt = roundNumber(amtPreDiscount * discountPer / 100, digit);
+                    setLineValue(curRec, group.discountAmt, line, discountAmt);
+
+                    if (ratePreDiscount) {
+                        // TT hợp đồng đã nhập -> Rate Custom luôn tính theo (TT hợp đồng - chiết khấu)/SL, ghi đè giá trị gõ tay
+                        rate = qty ? roundNumber((amtPreDiscount - discountAmt) / qty, 6) : 0;
+                        setLineValue(curRec, group.rate, line, rate);
+                        rateVat = roundNumber(rate * (1 + taxRate / 100), 6);
+                        setLineValue(curRec, group.rateVat, line, rateVat);
+                    } else if (!rate && rateVat) {
+                        rate = roundNumber(rateVat / (1 + taxRate / 100), 6);
+                        setLineValue(curRec, group.rate, line, rate);
+                    } else {
+                        rateVat = roundNumber(rate * (1 + taxRate / 100), 6);
+                        setLineValue(curRec, group.rateVat, line, rateVat);
+                    }
+                } else if (!rate && rateVat) {
                     rate = roundNumber(rateVat / (1 + taxRate / 100), 6);
                     setLineValue(curRec, group.rate, line, rate);
                 } else {
@@ -137,7 +167,8 @@ define(['N/search', 'N/record', './scv_lib_function'],
         }
 
         function getGroupByField(fieldId) {
-            return GROUPS.find(g => fieldId === g.qty || fieldId === g.rate || fieldId === g.rateVat);
+            return GROUPS.find(g => fieldId === g.qty || fieldId === g.rate || fieldId === g.rateVat
+                || fieldId === g.ratePreDiscount || fieldId === g.discountPer);
         }
 
         function setTaxCodeFromItem(curRec) {
@@ -161,8 +192,30 @@ define(['N/search', 'N/record', './scv_lib_function'],
             const qty = parseFloat(curRec.getCurrentSublistValue(SUBLIST_ITEM, group.qty)) || 0;
             let rate = parseFloat(curRec.getCurrentSublistValue(SUBLIST_ITEM, group.rate)) || 0;
             let rateVat = parseFloat(curRec.getCurrentSublistValue(SUBLIST_ITEM, group.rateVat)) || 0;
+            const digit = isBaseCurrency(currencyId) ? 0 : 2;
 
-            if (changedFieldId === group.rateVat) {
+            if (group.ratePreDiscount) {
+                const ratePreDiscount = parseFloat(curRec.getCurrentSublistValue(SUBLIST_ITEM, group.ratePreDiscount)) || 0;
+                const amtPreDiscount = roundNumber(ratePreDiscount * qty, digit);
+                curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.amtPreDiscount, value: amtPreDiscount, ignoreFieldChange: true});
+                const discountPer = parseFloat(curRec.getCurrentSublistValue(SUBLIST_ITEM, group.discountPer)) || 0;
+                const discountAmt = roundNumber(amtPreDiscount * discountPer / 100, digit);
+                curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.discountAmt, value: discountAmt, ignoreFieldChange: true});
+
+                if (ratePreDiscount) {
+                    // TT hợp đồng đã nhập -> Rate Custom luôn tính theo (TT hợp đồng - chiết khấu)/SL, ghi đè giá trị gõ tay
+                    rate = qty ? roundNumber((amtPreDiscount - discountAmt) / qty, 6) : 0;
+                    curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.rate, value: rate, ignoreFieldChange: true});
+                    rateVat = roundNumber(rate * (1 + taxRate / 100), 6);
+                    curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.rateVat, value: rateVat, ignoreFieldChange: true});
+                } else if (changedFieldId === group.rateVat) {
+                    rate = roundNumber(rateVat / (1 + taxRate / 100), 6);
+                    curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.rate, value: rate, ignoreFieldChange: true});
+                } else {
+                    rateVat = roundNumber(rate * (1 + taxRate / 100), 6);
+                    curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.rateVat, value: rateVat, ignoreFieldChange: true});
+                }
+            } else if (changedFieldId === group.rateVat) {
                 rate = roundNumber(rateVat / (1 + taxRate / 100), 6);
                 curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.rate, value: rate, ignoreFieldChange: true});
             } else {
@@ -170,7 +223,6 @@ define(['N/search', 'N/record', './scv_lib_function'],
                 curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.rateVat, value: rateVat, ignoreFieldChange: true});
             }
 
-            const digit = isBaseCurrency(currencyId) ? 0 : 2;
             const amt = roundNumber(qty * rate, digit);
             const grossAmt = roundNumber(qty * rateVat, digit);
             const taxAmt = roundNumber(grossAmt - amt, digit);
@@ -200,11 +252,41 @@ define(['N/search', 'N/record', './scv_lib_function'],
             GROUPS.forEach(group => updateGroupTotal(curRec, group));
         }
 
+        function addDays(date, days) {
+            const result = new Date(date.getTime());
+            result.setDate(result.getDate() + days);
+            return result;
+        }
+
+        function recalcHeaderDate(curRec, group) {
+            const endDate = curRec.getValue(FIELD_END_DATE);
+            if (!endDate) {
+                curRec.setValue({fieldId: group.dateOut, value: '', ignoreFieldChange: true});
+                return;
+            }
+            const days = parseFloat(curRec.getValue(group.days)) || 0;
+            curRec.setValue({fieldId: group.dateOut, value: addDays(endDate, days), ignoreFieldChange: true});
+        }
+
+        function recalcAllHeaderDates(curRec) {
+            HEADER_DATE_GROUPS.forEach(group => recalcHeaderDate(curRec, group));
+        }
+
+        function recalcHeaderDateByField(curRec, fieldId) {
+            if (fieldId === FIELD_END_DATE) {
+                recalcAllHeaderDates(curRec);
+                return;
+            }
+            const group = HEADER_DATE_GROUPS.find(g => fieldId === g.days);
+            if (group) recalcHeaderDate(curRec, group);
+        }
+
         return {
             SUBLIST_ITEM,
             FIELD_ITEM,
             FIELD_TAX_CODE,
             FIELD_TAX_RATE,
+            FIELD_END_DATE,
             GROUPS,
             setLineDefaults,
             recalcAllLines,
@@ -215,7 +297,8 @@ define(['N/search', 'N/record', './scv_lib_function'],
             recalcGroupLine,
             recalcAllGroups,
             updateGroupTotal,
-            updateAllGroupTotals
+            updateAllGroupTotals,
+            recalcHeaderDateByField
         };
 
     });

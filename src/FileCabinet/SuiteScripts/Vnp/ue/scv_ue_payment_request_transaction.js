@@ -28,7 +28,8 @@ define(['N/record', 'N/search'],
             custbody_scv_bank_branch: 'custrecord_scv_payment_bankbranch',
             custbody_scv_pur_contract_no: 'custrecord_scv_payment_pc',
             custbody_scv_salescontract: 'custrecord_scv_payment_sc',
-            cseg_inv_portfolio: 'cseg_inv_portfolio'
+            cseg_inv_portfolio: 'cseg_inv_portfolio',
+            custbody_scv_ttdt: 'custrecord_scv_payr_ttdt'
         };
 
         const LINE_MAP = {
@@ -62,6 +63,12 @@ define(['N/record', 'N/search'],
                 grossamt: 'custrecord_scv_pay_detail_gr_amt',
                 memo: 'custrecord_scv_pay_detail_des',
                 department: 'custrecord_scv_pay_detail_department',
+                custcol_scv_invoice_serial: 'custrecord_scv_pay_detail_inv_serial',
+                custcol_scv_invoice_number: 'custrecord_scv_pay_detail_invoice_number',
+                custcol_scv_invoice_date: 'custrecord_scv_pay_detail_invoice_date',
+                custcol_scv_entity_name: 'custrecord_scv_pay_detail_entity_name',
+                custcol_scv_invoice_taxreg: 'custrecord_scv_pay_detail_entity_tax',
+                custcol_scv_entity_address: 'custrecord_scv_pay_detail_entity_addr',
                 class: 'custrecord_scv_pay_detail_class',
                 custcol_scv_payr_detail: 'id'
             }
@@ -106,6 +113,31 @@ define(['N/record', 'N/search'],
                 return;
             }
 
+            if (params.type_func === 'payment_to_journal_prepaid') {
+                setPrepaidJournalLines(targetRec, payrRec);
+                return;
+            }
+
+            if (params.type_func === 'payment_to_check_investment') {
+                setInvestmentAccountLine(targetRec, payrRec);
+                return;
+            }
+
+            if (params.type_func === 'payment_to_deposit_investment') {
+                setInvestmentDepositLine(targetRec, payrRec);
+                return;
+            }
+
+            if (params.type_func === 'payment_to_journal_invest_in') {
+                setInvestmentJournalLines(targetRec, payrRec, 'in');
+                return;
+            }
+
+            if (params.type_func === 'payment_to_journal_invest_out') {
+                setInvestmentJournalLines(targetRec, payrRec, 'out');
+                return;
+            }
+
             const useItem = targetRec.type === 'vendorbill';
             setTransactionLines(targetRec, payrRec, useItem ? 'item' : 'expense');
         }
@@ -126,7 +158,7 @@ define(['N/record', 'N/search'],
             const amount = payrRec.getValue('custrecord_scv_payment_amount');
             const memo = payrRec.getValue('custrecord_scv_payment_memo');
             const department = payrRec.getValue('custrecord_scv_payment_department');
-            setExpenseLine(targetRec, 0, {
+            setExpenseLine(targetRec, 'expense', 0, {
                 account: '330',
                 amount,
                 taxcode: '5',
@@ -143,7 +175,7 @@ define(['N/record', 'N/search'],
             const lineCount = payrRec.getLineCount({sublistId: DETAIL_SUBLIST});
             if (!lineCount) {
                 const amount = payrRec.getValue('custrecord_scv_payment_amount');
-                setExpenseLine(targetRec, 0, {
+                setExpenseLine(targetRec, 'expense', 0, {
                     account: getPaymentTypeAccount(payrRec),
                     amount,
                     grossamt: amount,
@@ -158,7 +190,7 @@ define(['N/record', 'N/search'],
             for (let line = 0; line < lineCount; line++) {
                 const grossAmount = getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_gr_amt', line);
                 total += toNumber(grossAmount);
-                setExpenseLine(targetRec, line, {
+                setExpenseLine(targetRec, 'expense', line, {
                     account: getExpenseAccount(payrRec, line),
                     amount: getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_amt', line),
                     taxcode: getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_taxcode', line),
@@ -174,9 +206,111 @@ define(['N/record', 'N/search'],
             safeSetValue(targetRec, 'usertotal', total);
         }
 
-        function setExpenseLine(targetRec, line, values) {
+        function setPrepaidJournalLines(targetRec, payrRec) {
+            const creditAccount = getPaymentTypeAccount(payrRec);
+            const entity = firstValue(payrRec.getValue('custrecord_scv_payment_entity'));
+            const headerDepartment = payrRec.getValue('custrecord_scv_payment_department');
+            const lineCount = payrRec.getLineCount({sublistId: DETAIL_SUBLIST});
+
+            let jLine = 0;
+            for (let line = 0; line < lineCount; line++) {
+                const debitAccount = getItemExpenseAccount(payrRec, line);
+                const amount = getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_amt', line);
+                const grossAmount = getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_gr_amt', line);
+                const memo = getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_des', line);
+                const department = getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_department', line) || headerDepartment;
+                const cls = getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_class', line);
+                const detailId = getPayrLineValue(payrRec, 'id', line);
+
+                setExpenseLine(targetRec, 'line', jLine, {
+                    account: debitAccount,
+                    debit: amount,
+                    taxcode: getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_taxcode', line),
+                    taxrate1: getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_taxrate', line),
+                    tax1amt: getPayrLineValue(payrRec, 'custrecord_scv_pay_detail_taxamt', line),
+                    grossamt: grossAmount,
+                    memo,
+                    entity,
+                    department,
+                    class: cls,
+                    custcol_scv_payr_detail: detailId
+                });
+                jLine++;
+
+                setExpenseLine(targetRec, 'line', jLine, {
+                    account: creditAccount,
+                    credit: grossAmount,
+                    memo,
+                    entity,
+                    department,
+                    class: cls,
+                    custcol_scv_payr_detail: detailId
+                });
+                jLine++;
+            }
+        }
+
+        function setInvestmentAccountLine(targetRec, payrRec) {
+            const amount = payrRec.getValue('custrecord_scv_payment_amount');
+            setExpenseLine(targetRec, 'expense', 0, {
+                account: getPaymentTypeAccount(payrRec),
+                amount,
+                taxcode: '5',
+                taxrate1: '0.0%',
+                tax1amt: 0,
+                grossamt: amount,
+                memo: payrRec.getValue('custrecord_scv_payment_memo'),
+                customer: firstValue(payrRec.getValue('custrecord_scv_payment_entity')),
+                department: payrRec.getValue('custrecord_scv_payment_department')
+            });
+            safeSetValue(targetRec, 'usertotal', amount);
+        }
+
+        function setInvestmentDepositLine(targetRec, payrRec) {
+            const amount = payrRec.getValue('custrecord_scv_payment_amount');
+            setExpenseLine(targetRec, 'other', 0, {
+                account: getPaymentTypeAccount(payrRec),
+                entity: firstValue(payrRec.getValue('custrecord_scv_payment_entity')),
+                amount,
+                memo: payrRec.getValue('custrecord_scv_payment_memo')
+            });
+        }
+
+        function setInvestmentJournalLines(targetRec, payrRec, direction) {
+            const amount = payrRec.getValue('custrecord_scv_payment_amount');
+            const memo = payrRec.getValue('custrecord_scv_payment_memo');
+            const entity = firstValue(payrRec.getValue('custrecord_scv_payment_entity'));
+            const department = payrRec.getValue('custrecord_scv_payment_department');
+            const projectId = firstValue(payrRec.getValue('cseg_inv_portfolio'));
+            const projectAccount = getProjectAccount(payrRec);
+            const typeAccount = getPaymentTypeAccount(payrRec);
+
+            // direction 'in' (Nợ khoản đầu tư / Có tài khoản mặc định loại thanh toán):
+            // direction 'out' (Nợ tài khoản mặc định loại thanh toán / Có khoản đầu tư) - reverse of 'in'.
+            const debitAccount = direction === 'in' ? projectAccount : typeAccount;
+            const creditAccount = direction === 'in' ? typeAccount : projectAccount;
+
+            setExpenseLine(targetRec, 'line', 0, {
+                account: debitAccount,
+                debit: amount,
+                memo,
+                entity,
+                department,
+                cseg_inv_portfolio: projectId
+            });
+            setExpenseLine(targetRec, 'line', 1, {
+                account: creditAccount,
+                credit: amount,
+                memo,
+                entity,
+                department,
+                cseg_inv_portfolio: projectId
+            });
+        }
+
+        function setExpenseLine(targetRec, sublistId, line, values) {
             Object.keys(values).forEach(fieldId => {
-                safeSetSublistValue(targetRec, 'expense', fieldId, line, values[fieldId]);
+                safeSetSublistValue(targetRec, sublistId, fieldId, line, values[fieldId]);
             });
         }
 
@@ -213,6 +347,10 @@ define(['N/record', 'N/search'],
             const accountFromType = getPaymentTypeAccount(payrRec);
             if (accountFromType) return accountFromType;
 
+            return getItemExpenseAccount(payrRec, line);
+        }
+
+        function getItemExpenseAccount(payrRec, line) {
             const itemId = payrRec.getSublistValue({
                 sublistId: DETAIL_SUBLIST,
                 fieldId: 'custrecord_scv_pay_detail_item',
@@ -226,6 +364,34 @@ define(['N/record', 'N/search'],
                 columns: ['expenseaccount']
             });
             return (fields.expenseaccount || [])[0]?.value || '';
+        }
+
+        function getProjectAccount(payrRec) {
+            const projectId = firstValue(payrRec.getValue('cseg_inv_portfolio'));
+            if (!projectId) return '';
+            try {
+                const segmentFields = search.lookupFields({
+                    type: 'cseg_inv_portfolio',
+                    id: projectId,
+                    columns: ['custrecord_scv_proj_type']
+                });
+                const projectTypeId = firstValue(segmentFields.custrecord_scv_proj_type);
+                if (!projectTypeId) return '';
+                const typeFields = search.lookupFields({
+                    type: 'customrecord_scv_proj_type',
+                    id: projectTypeId,
+                    columns: ['custrecord_scv_projtype_account']
+                });
+                return firstValue(typeFields.custrecord_scv_projtype_account);
+            } catch (e) {
+                log.debug('getProjectAccount lookup failed', e.message || e);
+                return '';
+            }
+        }
+
+        function firstValue(value) {
+            if (Array.isArray(value)) return (value[0] && (value[0].value || value[0])) || '';
+            return value || '';
         }
 
         function getPaymentTypeAccount(payrRec) {

@@ -1,6 +1,6 @@
 /**
  * Nội dung: 
- * Version: 1.260119.16
+ * Version: 1.260605.22
  * =======================================================================================
  *  Date                Author                  Description
  *  17 Mar 2025         Huy Pham                Init & create file
@@ -224,6 +224,17 @@ const _scvForm = {
 
 		return infoMsg;
 	},
+    showMsgInfo: function (_msg, _duration = 10000) {
+        let N_Message = _scvForm.modul.ui.message;
+
+		let infoMsg = N_Message.create({
+			title: "Information",
+			message: _msg||"Information",
+			type: N_Message.Type.INFORMATION
+		}).show({duration: _duration});
+
+		return infoMsg;
+	},
     ajax: {
         request: function (_method, _urlReq, _isAsync, _params,
             _callbackSucc = function(_res, _paramsCallback){}, 
@@ -271,7 +282,14 @@ const _scvForm = {
             }
     
             let objReqAction = _arrReqAction[_idxExcute];
-            objReqAction.params.action = objReqAction.action;
+
+            if(!!objReqAction?.params){
+                objReqAction.params.action = objReqAction.action;
+            }
+            else{
+                objReqAction.params = {...objReqAction}
+            }
+            
             let nextExcute = _idxExcute + 1;
             _scvForm.ajax.postAsync(_urlReq, objReqAction.params, function(_res, _paramsCallback){
                 objReqAction.data = _res.data;
@@ -303,7 +321,7 @@ const _scvForm = {
             _callbackErr = function(_request, _status, _error, _paramsCallback){})
         {
             if(_arrReqAction.length == 0){
-                if(typeof _callbackSucc == "function"){
+                if(typeof _callbackCompletedMulti == "function"){
                     _callbackCompletedMulti(_arrReqAction);
                 }
             }
@@ -325,19 +343,19 @@ const _scvForm = {
     
                     if(cntCallData < _arrReqAction.length) return;
     
-                    if(typeof _callbackSucc == "function"){
+                    if(typeof _callbackCompletedMulti == "function"){
                         _callbackCompletedMulti(_arrReqAction);
                     }
                 }, function(request, status, error, _paramsCallback){
                     cntCallData++;
     
-                    if(typeof _callbackSucc == "function"){
+                    if(typeof _callbackErr == "function"){
                         _callbackErr(request, status, error, _paramsCallback);
                     }
     
                     if(cntCallData < _arrReqAction.length) return;
     
-                    if(typeof _callbackSucc == "function"){
+                    if(typeof _callbackCompletedMulti == "function"){
                         _callbackCompletedMulti(_arrReqAction);
                     }
                 })
@@ -353,7 +371,7 @@ const _scvForm = {
         )
         {
             if(_arrReqAction.length == 0){
-                if(typeof _callbackSucc == "function"){
+                if(typeof _callbackCompletedMulti == "function"){
                     _callbackCompletedMulti(_arrReqAction);
                 }
             }
@@ -501,10 +519,12 @@ const _scvForm = {
     openPopupAttachFile: function(_options){
         let custpage_recordtype = "transaction";
         let custpage_recordid = "";
+        let custpage_folder = "";
 
         if(typeof(_options) == "object"){
             custpage_recordtype = _options?.custpage_recordtype || "transaction";
             custpage_recordid = _options?.custpage_recordid || "";
+            custpage_folder = _options?.custpage_folder || "";
         }
         else{
             custpage_recordid = _options;
@@ -513,8 +533,26 @@ const _scvForm = {
         let urlScript = `/app/site/hosting/scriptlet.nl?script=customscript_scv_sl_attachfile&deploy=customdeploy_scv_sl_attachfile`;
         urlScript += `&custpage_recordtype=` + custpage_recordtype;
         urlScript += `&custpage_recordid=` + custpage_recordid;
+        urlScript += `&custpage_folder=` + custpage_folder;
         urlScript += `&isPopup=T`;
 
         nlExtOpenWindow(urlScript, 'popupAttachFile', window.innerWidth - 500, window.innerHeight - 400, this, true, "Attach File");
+    },
+    initReadyEditor: function(_fieldId) {
+        let editor = document.getElementById(_fieldId);
+        if (!editor) return;
+
+        editor.addEventListener('keydown', function (e) {
+            if (e.key != 'Tab') return;
+            e.preventDefault();
+
+            let start = this.selectionStart;
+            let end = this.selectionEnd;
+
+            // chèn 4 space (hoặc '\t')
+            let tab = '    ';
+            this.value = this.value.substring(0, start) + tab + this.value.substring(end);
+            this.selectionStart = this.selectionEnd = start + tab.length;
+        });
     }
 };

@@ -24,6 +24,8 @@ const _scvInventoryDetail = {
 		this.addInforMappingDetail(_sublistId, _fieldId, _mappingFieldPopup, _isEdit);
 		
 		let idxColInventoryDetail = this.getIndexColumnInventoryDetail(_sublistId, _fieldId);
+		let isRedwood = document.body.getAttribute("data-page-theme") == "redwood";
+		let helperButtonClass = isRedwood ? "uir-helper-button uir-no-link " : "";
 		
 		for(let i = 0; i < curRec.getLineCount(_sublistId); i++) {
 			let isAvail = curRec.getSublistValue(_sublistId, this.getAvailableFieldId(_fieldId), i);
@@ -38,8 +40,8 @@ const _scvInventoryDetail = {
 
 			cellsDisplay[idxColInventoryDetail].innerHTML  = `
 			<span class="always-visible field_widget_boxpos uir-summary-field-helper" style="left: 0px;">
-				<span id="${neededId}" class="smalltextul i_inventorydetailneeded" style="visibility: inherit; cursor: pointer;" /></span>
-				<span id="${setId}" class="smalltextul i_inventorydetailset" style="visibility: inherit; cursor: pointer;" ></span>
+				<span id="${neededId}" class="${helperButtonClass}smalltextul i_inventorydetailneeded" title="Set" style="visibility: inherit; cursor: pointer;"></span>
+				<span id="${setId}" class="${helperButtonClass}smalltextul i_inventorydetailset" title="Edit" style="visibility: inherit; cursor: pointer;"></span>
 				<span id="${removedId}">
 					<a data-helperbuttontype="" class="smalltextul " title="Delete" href="#" style="" aria-label="Delete" role="button">
 						<img src="/images/forms/icon_remove_row_default.png" alt="Delete" border="0" style="margin-left: 5px; position: relative; top:2px;">

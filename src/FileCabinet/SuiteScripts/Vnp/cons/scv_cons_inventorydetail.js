@@ -223,7 +223,7 @@ function(search,
 
 		let itemLkf = constSearch.getDataLookupFieldsStore(RECORDS.storesItem, "item", _internalid, ["type", "islotitem"]);
 		
-		let itemType = itemLkf.type[0].value;
+		let itemType = itemLkf.type?.[0]?.value;
 		let islotitem = itemLkf.islotitem;
 
 		let isValidate = false;

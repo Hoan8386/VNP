@@ -73,6 +73,16 @@ define(['N/format', 'N/record', 'N/runtime', 'N/search', 'N/url'],
             return format.format({value: value, type: format.Type.DATE});
         }
 
+        function getTodayDate() {
+            const now = new Date();
+            const vietnamOffsetMinutes = 7 * 60;
+            const vietnamNow = new Date(now.getTime() + vietnamOffsetMinutes * 60 * 1000);
+            const year = vietnamNow.getUTCFullYear();
+            const month = vietnamNow.getUTCMonth();
+            const date = vietnamNow.getUTCDate();
+            return formatDate(new Date(Date.UTC(year, month, date, 12, 0, 0)));
+        }
+
         function getColumnKeys(column) {
             return [
                 column.label,
@@ -307,7 +317,7 @@ define(['N/format', 'N/record', 'N/runtime', 'N/search', 'N/url'],
                 amount,
                 taxAmount: calcTaxAmount(amount, taxRate),
                 grossAmount: amount + calcTaxAmount(amount, taxRate),
-                expectedReceiptDate: formatDate(new Date()),
+                expectedReceiptDate: getTodayDate(),
                 orderType: getMapped(data, RESULT_FIELD.orderType, false),
                 orderTypeText: getMappedText(data, RESULT_FIELD.orderType),
                 department: getMapped(data, RESULT_FIELD.department, false),
@@ -446,7 +456,40 @@ define(['N/format', 'N/record', 'N/runtime', 'N/search', 'N/url'],
             }
         }
 
+        function applySourceDefaults(params, lines) {
+            if (params.createdFrom !== CREATED_FROM.PC || (params.location && params.vendor)) return params;
+            const pcId = params.purchaseContract || getFirstPurchaseContractId(lines);
+            if (!pcId) return params;
+            try {
+                const lookup = search.lookupFields({
+                    type: RECORD_TYPE.PC,
+                    id: pcId,
+                    columns: ['entity', 'location']
+                });
+                const location = lookup.location && lookup.location[0] ? lookup.location[0].value : '';
+                const vendor = lookup.entity && lookup.entity[0] ? lookup.entity[0].value : '';
+                return Object.assign({}, params, {
+                    location: params.location || location,
+                    vendor: params.vendor || vendor,
+                    purchaseContract: params.purchaseContract || pcId
+                });
+            } catch (e) {
+                log.error('Create PO Cannot Apply Purchase Contract Defaults', {pcId, error: e});
+                return params;
+            }
+        }
+
+        function getFirstPurchaseContractId(lines) {
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].sourceRecordType === RECORD_TYPE.PC && lines[i].sourceRecordId) {
+                    return lines[i].sourceRecordId;
+                }
+            }
+            return '';
+        }
+
         function createPurchaseOrders(params, selectedLines) {
+            params = applySourceDefaults(params, selectedLines);
             validateCreateRequest(params, selectedLines);
             const poIds = [];
             const userDepartment = getCurrentUserDepartment();
@@ -458,12 +501,19 @@ define(['N/format', 'N/record', 'N/runtime', 'N/search', 'N/url'],
                 setOptionalValue(po, FIELD.PO_ORDER_TYPE, firstLine.orderType || params.orderType);
                 po.setValue({fieldId: 'trandate', value: parseDate(params.date)});
                 po.setValue({fieldId: 'location', value: params.location});
-                po.setValue({fieldId: 'subsidiary', value: params.subsidiary});
                 setOptionalValue(po, 'department', userDepartment);
                 setOptionalValue(po, 'memo', params.memo);
                 setOptionalValue(po, FIELD.PO_CONTRACT, resolvePurchaseContractId(params, firstLine));
 
                 lines.forEach((line) => addPoLine(po, line, params));
+                po.setValue({fieldId: 'location', value: params.location});
+                log.error('Create PO Before Save Defaults', {
+                    subsidiary: po.getValue({fieldId: 'subsidiary'}),
+                    paramsSubsidiary: params.subsidiary,
+                    vendor: po.getValue({fieldId: 'entity'}),
+                    location: po.getValue({fieldId: 'location'}),
+                    paramsLocation: params.location
+                });
                 const poId = po.save({enableSourcing: true, ignoreMandatoryFields: false});
                 poIds.push(poId);
                 updateSourceQuantities(lines, 1);
@@ -485,6 +535,7 @@ define(['N/format', 'N/record', 'N/runtime', 'N/search', 'N/url'],
             po.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: 'rate', value: parseNumber(line.rate)});
             setCurrentOptionalValue(po, 'amount', parseNumber(line.quantity) * parseNumber(line.rate));
             setCurrentOptionalValue(po, 'taxcode', line.taxCode);
+            setCurrentOptionalValue(po, 'location', params.location);
             if (params.createdFrom === CREATED_FROM.PR) {
                 setCurrentOptionalValue(po, FIELD.LINE_PR, line.sourceRecordId);
             }

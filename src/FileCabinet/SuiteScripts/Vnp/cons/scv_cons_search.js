@@ -1,6 +1,6 @@
 /**
  * Nội dung: 
- * Version: 1.251120.10
+ * Version: 1.260330.11
  * =======================================================================================
  *  Date                Author                  Description
  *  08 Apr 2024         Huy Pham                Init & create file
@@ -584,6 +584,76 @@ function(search) {
 		return objResDataSource;
 	}
 
+	const getAvailableFilters = (_options) =>{
+		let options = {id: ""};
+		if(typeof(_options) == "string"){
+			options.id = _options
+		}
+		else if(typeof(_options) == "object"){
+			if(!!_options.id){
+				options.id = _options.id;
+			}
+			if(!!_options.type){
+				options.type = _options.type;
+			}
+		}
+
+        let resultSearch = search.load(options);
+        let columns = resultSearch.columns;
+
+        let objResult = {};
+
+        for(let i = 0; i < columns.length; i++){
+            let column = columns[i];
+            let jsonColumn = JSON.parse(JSON.stringify(column));
+
+            let filter = {
+                name: jsonColumn.name,
+            };
+
+            if(!!jsonColumn.join){
+                filter.join = jsonColumn.join;
+            }
+            else if(!!jsonColumn.formula){
+                filter.formula = jsonColumn.formula;
+            }
+
+            if(!!jsonColumn.summarytype && !jsonColumn.summary){
+                filter.summary = jsonColumn.summarytype;
+            }
+
+            if(jsonColumn.type == "select"){
+                filter.operator = "anyof";
+
+                if(["subsidiarynohierarchy", "locationnohierarchy"].includes(jsonColumn.name)){
+                    filter.name = filter.name.replace("nohierarchy", "");
+                }
+
+            }
+            else if(jsonColumn.type == "text"){
+                filter.operator = "contains";
+            }
+            else if(["float", "currency"].includes(jsonColumn.type)){
+                filter.operator = "equalto";
+            }
+            else if(["date"].includes(jsonColumn.type)){
+                filter.operator = "on";
+            }
+			else if(["checkbox"].includes(jsonColumn.type)){
+                filter.operator = "is";
+            }
+
+            objResult[jsonColumn.label] = {
+                index: i,
+                type: jsonColumn.type,
+                filter: filter,
+                //column: jsonColumn,
+            }
+        }
+
+        return objResult;
+    }
+
     return {
 		ID,
 		TYPE: "",
@@ -607,7 +677,8 @@ function(search) {
 		getDataSource,
 		getDataSourceFetchPage,
 		getDataSource_Mixed,
-		getDataSourceFetchPage_Mixed
+		getDataSourceFetchPage_Mixed,
+		getAvailableFilters,
     };
     
 });

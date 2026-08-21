@@ -374,13 +374,12 @@ define(['N/format', 'N/runtime', 'N/search', 'N/ui/message', 'N/ui/serverWidget'
             sublist.addField({id: 'custpage_unit_text', type: serverWidget.FieldType.TEXT, label: 'Units'});
             sublist.addField({id: 'custpage_remaining', type: serverWidget.FieldType.FLOAT, label: 'Remaining Quantity'});
             addEditableSublistField(sublist, 'custpage_quantity', serverWidget.FieldType.FLOAT, 'Quantity');
-            sublist.addField({id: 'custpage_rate', type: serverWidget.FieldType.FLOAT, label: 'Rate'});
-            // addEditableSublistField(sublist, 'custpage_rate', serverWidget.FieldType.FLOAT, 'Rate');
+            addEditableSublistField(sublist, 'custpage_rate', serverWidget.FieldType.FLOAT, 'Rate');
             addEditableSublistField(sublist, 'custpage_taxcode', serverWidget.FieldType.SELECT, 'Tax Code', 'salestaxitem');
-            sublist.addField({id: 'custpage_taxrate', type: serverWidget.FieldType.PERCENT, label: 'Tax Rate'});
-            sublist.addField({id: 'custpage_amount', type: serverWidget.FieldType.FLOAT, label: 'Amount'});
-            sublist.addField({id: 'custpage_taxamount', type: serverWidget.FieldType.FLOAT, label: 'Tax Amount'});
-            sublist.addField({id: 'custpage_grossamount', type: serverWidget.FieldType.FLOAT, label: 'Gross Amount'});
+            addEditableSublistField(sublist, 'custpage_taxrate', serverWidget.FieldType.PERCENT, 'Tax Rate');
+            addEditableSublistField(sublist, 'custpage_amount', serverWidget.FieldType.FLOAT, 'Amount');
+            addEditableSublistField(sublist, 'custpage_taxamount', serverWidget.FieldType.FLOAT, 'Tax Amount');
+            addEditableSublistField(sublist, 'custpage_grossamount', serverWidget.FieldType.FLOAT, 'Gross Amount');
             if (createdFrom === libCreatePo.CREATED_FROM.PR) {
                 addEditableSublistField(sublist, 'custpage_expecteddate', serverWidget.FieldType.DATE, 'Expected Receipt Date');
             }

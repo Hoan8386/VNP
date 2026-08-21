@@ -1,6 +1,6 @@
 /**
  * Nội dung: 
- * Version: 1.250812.2
+ * Version: 1.260324.6
  * =======================================================================================
  *  Date                Author                  Description
  *  19 Apr 2024         Huy Pham                Init & create file
@@ -89,11 +89,40 @@ function(record,
             }else{
                 objRes[_propEle] = 0;
                 //totalDiff = totalDiff - objRes[_propEle]
-                totalDiff = bigJs(totalDiff).minus(bigJs(objRes[_propEle])) * 1;
+                totalDiff = tempValue;//bigJs(totalDiff).minus(bigJs(objRes[_propEle])) * 1;
             }
         }
 
         return _arrResult;
+    }
+
+    const getDataOfSublist = (_curRec, _sublistId, _fields) => {
+        let fields = _fields || [];
+        let arrResult = [];
+
+        let sizeSublist = _curRec.getLineCount(_sublistId) || 0;
+
+        for(let i = 0; i < sizeSublist; i++){
+            let objLine = {
+                indexLine: i,
+                id: _curRec.getSublistValue(_sublistId, "id", i),
+            };
+
+            fields.forEach(fieldId => {
+                objLine[fieldId] = _curRec.getSublistValue(_sublistId, fieldId, i);
+
+                let display = _curRec.getSublistText(_sublistId, fieldId, i);
+
+                if(display != undefined && display != objLine[fieldId]){
+                    objLine[fieldId + "_display"] = display;
+                }
+            });
+
+            arrResult.push(objLine);
+
+        }
+
+        return arrResult;
     }
 
 	const initLoadField = (_field, _lookup, _hasNull) =>{
@@ -272,6 +301,10 @@ function(record,
         let valueSearch = (_lookup.keySearch||"").toString().toLowerCase();
         if(!valueSearch) return _lookup.data;
 
+        if(valueSearch.indexOf("%") == 0){
+            valueSearch = valueSearch.substring(1);
+        }
+
         let displayExpr = _lookup.displayExpr;
         let arrDatatOrg = _lookup.data;
 
@@ -418,7 +451,7 @@ function(record,
         `;
 
         return `
-        <div id="popup_outerdiv" style="heiht: 100%; width: 100%;" scv-fieldid="${_fieldId}" scv-clearoption="${_clearOption ? "T" : "F"}">
+        <div id="popup_outerdiv" style="heiht: 100%; width: 100%;" scv-fieldid="${_fieldId}" scv-clearoption="${_clearOption ? "T" : "F"}" class="popupouter" bismultibutton="T" blistonly="F" bmultiselect="F" bpositionwithmachine="T" bshowquantities="F">
             <table cellpadding="0" cellspacing="0" role="presentation" style="width: 100%; height: 100%">
                 <tbody>
                     <tr>
@@ -500,7 +533,7 @@ function(record,
                                 <input type="text" id="inputSearchId" class="input uir-input-text" placeholder="Type &amp; tab..." value="${keySearch}" onkeydown="" style="width: 100%">
                             </td>
                             <td>
-                                <table id="tbl_Search" cellpadding="0" cellspacing="0" border="0" class="uir-button" style="margin-right:6px;cursor:hand;" role="presentation">
+                                <table id="tbl_Search" cellpadding="0" cellspacing="0" border="0" class="uir-button" style="margin:2px 6px 2px 6px;cursor:hand;" role="presentation">
                                     <tbody>
                                         <tr id="tr_Search" class="tabBnt">
                                             <td id="tdleftcap_Search"><img src="/images/nav/ns_x.gif" class="bntLT" border="0" height="50%" width="10" alt="">
@@ -796,6 +829,18 @@ function(record,
             }
         });
 
+        //Trường hợp source/list có value vượt max entry dropdown
+        if(!currentDropdown){
+            let inputFieldId = _sublistId + "_" + fieldName + "_display";
+            if(jQuery("#" + inputFieldId).length > 0){
+                currentDropdown = {
+                    name: fieldName,
+                    nameC: inputFieldId,
+                    _scvCustomDropdown: true
+                };
+            }
+        }
+
         return currentDropdown;
     }
 
@@ -818,6 +863,9 @@ function(record,
         constDataStore.setDataStore(_sublistId + "_" + _fieldId, _lookup);
 
         let inpt_nameC = "inpt_" + currentDropdown.nameC;
+        if(currentDropdown._scvCustomDropdown){
+            inpt_nameC = currentDropdown.nameC;
+        }
 
         if(_lookup.width > 0){
             jQuery("#" + inpt_nameC).width(_lookup.width);
@@ -835,15 +883,30 @@ function(record,
     
         jQuery(`.ddarrowSpan[data-input-id="${inpt_nameC}"]`).removeClass("uir-field-dropdown-arrow");
 
-        jQuery("#" + inpt_nameC).off("click");
-        jQuery("#" + inpt_nameC).on("click", function(event){
-            clickQuickFindSublistFieldSelect(_curRec, _sublistId, _fieldId, _line, _lookup);
-        });
+        if(currentDropdown._scvCustomDropdown){
+            let btnActionFs = "parent_actionbuttons_" + _sublistId + "_" + _fieldId +"_fs";
 
-        jQuery(`.ddarrowSpan[data-input-id="${inpt_nameC}"]`).off("click");
-        jQuery(`.ddarrowSpan[data-input-id="${inpt_nameC}"]`).on("click", function(event){
-            clickQuickFindSublistFieldSelect(_curRec, _sublistId, _fieldId, _line, _lookup);
-        });
+            jQuery("#" + btnActionFs + " a").off("click");
+            jQuery("#" + btnActionFs + " a").on("click", function(event){
+                clickQuickFindSublistFieldSelect(_curRec, _sublistId, _fieldId, _line, _lookup);
+            });
+
+            jQuery("#" + btnActionFs + " span").off("click");
+            jQuery("#" + btnActionFs + " span").on("click", function(event){
+                clickQuickFindSublistFieldSelect(_curRec, _sublistId, _fieldId, _line, _lookup);
+            });
+        }
+        else{
+            jQuery("#" + inpt_nameC).off("click");
+            jQuery("#" + inpt_nameC).on("click", function(event){
+                clickQuickFindSublistFieldSelect(_curRec, _sublistId, _fieldId, _line, _lookup);
+            });
+
+            jQuery(`.ddarrowSpan[data-input-id="${inpt_nameC}"]`).off("click");
+            jQuery(`.ddarrowSpan[data-input-id="${inpt_nameC}"]`).on("click", function(event){
+                clickQuickFindSublistFieldSelect(_curRec, _sublistId, _fieldId, _line, _lookup);
+            });
+        }
     }
 
     const clickQuickFindSublistFieldSelect = (_curRec, _sublistId, _fieldId, _line, _lookup) =>{
@@ -1133,6 +1196,7 @@ function(record,
 		saveCurrentRecord,
         getTotalOfFieldsSublist,
         recalcSyncBalanaceAllocation,
+        getDataOfSublist,
 		initLoadField,
         initLoadFieldServer,
         initLoadFieldClient,

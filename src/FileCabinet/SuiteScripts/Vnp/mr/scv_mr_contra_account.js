@@ -195,8 +195,42 @@ define(['N/format', 'N/query', 'N/record', 'N/runtime', 'N/search', '../lib/scv_
 		const insertContra = (transid, transtype) => {
 			let results = [], arrCol = null, pageinfo = null, vnone = '-None-', splice = null, isnotgetdisplay = true;
 			//let list_segid = ['cseg_scv_sc', 'cseg_scv_sg_proj', 'cseg_scv_projects', 'cseg_scv_cus_group', 'cseg_scv_kmcp'];//'cseg_scv_sc', 'cseg_scv_sg_proj', 'cseg_scv_projects', 'cseg_scv_cus_group', 'cseg_scv_kmcp',
-			let col_doituong = {name: 'formulatext', label: 'doituong', formula: "Case when {type} like 'Expense Report' then {custbody_scv_emp_number.custrecord_scv_emp_employee} when {account} like '133%' or {account} like '333%'  then COALESCE({customermain.entityid}, {vendor.entityid},{vendorline.entityid},{entity},{custbody_scv_emp_number.custrecord_scv_emp_employee})  else COALESCE({vendorline.entityid},{vendor.entityid},{customer.entityid},{customermain.entityid},{custbody_scv_emp_number.custrecord_scv_emp_employee}) end"};
-			let col_entity_id = {name: 'formulatext', label: 'entity_id', formula: "Case when {type} like 'Expense Report' then {custbody_scv_emp_number.custrecord_scv_emp_employee.id} when {account} like '133%' or {account} like '333%'  then COALESCE({customermain.internalid}, {vendor.internalid},{vendorline.internalid},{entity.id},{custbody_scv_emp_number.custrecord_scv_emp_employee.id})  else COALESCE({vendorline.internalid},{vendor.internalid},{customer.internalid},{customermain.internalid},{custbody_scv_emp_number.custrecord_scv_emp_employee.id}) end"}
+			let col_doituong = {name: 'formulatext', label: 'doituong', formula: `CASE
+					WHEN {type} LIKE 'Expense Report'
+						THEN NULL
+					WHEN {account} LIKE '133%'
+						 OR {account} LIKE '333%'
+						THEN COALESCE(
+							{customermain.entityid},
+							{vendor.entityid},
+							{vendorline.entityid},
+							{entity}
+						)
+					ELSE COALESCE(
+						{vendorline.entityid},
+						{vendor.entityid},
+						{customer.entityid},
+						{customermain.entityid}
+					)
+				END`};
+			let col_entity_id = {name: 'formulatext', label: 'entity_id', formula: `CASE
+					WHEN {type} LIKE 'Expense Report'
+						THEN NULL
+					WHEN {account} LIKE '133%'
+						 OR {account} LIKE '333%'
+						THEN COALESCE(
+							{customermain.internalid},
+							{vendor.internalid},
+							{vendorline.internalid},
+							{entity.id}
+						)
+					ELSE COALESCE(
+						{vendorline.internalid},
+						{vendor.internalid},
+						{customer.internalid},
+						{customermain.internalid}
+					)
+				END`};
 			let columns_add = ['tranid', 'currency'
 				, 'debitfxamount', 'creditfxamount', 'exchangerate', 'trandate', 'postingperiod', 'memomain', 'line', 'amount', 'fxamount', 'accountmain', 'createdfrom', 'custbody_scv_doc_number'
 				,{name: 'custrecord_scv_opposite_account', join: 'account'}, 'transactionnumber', 'custbody_scv_invoice_number', 'custbody_scv_invoice_date', 'custbody_scv_tax_report'

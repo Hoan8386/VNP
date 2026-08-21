@@ -3,9 +3,9 @@
  * @NScriptType UserEventScript
  * @NModuleScope SameAccount
  */
-define(['N/record', 'N/runtime', 'N/search', '../lib/scv_lib_function.js'],
+define(['N/record', 'N/runtime', 'N/search', '../lib/scv_lib_function.js', '../lib/scv_lib_debitloan.js'],
 
-    (record, runtime, search, libFunc) => {
+    (record, runtime, search, libFunc, libLoa) => {
 
         const searchRelatedTran = (id, sType) => {
             let idRelatedTran = null;
@@ -571,11 +571,13 @@ define(['N/record', 'N/runtime', 'N/search', '../lib/scv_lib_function.js'],
                         let form = scriptContext.form;
                         let principal = param.principal;
                         let readLoa = record.load({type: rectype, id: trid});
-                        let newFields = ['entity', 'subsidiary', 'currency'];
+                        // Customer Payment dùng field id 'customer' cho người mua, khác với 'entity' của các loại chứng từ còn lại.
+                        let entityFieldId = (newRecrodType === record.Type.CUSTOMER_PAYMENT) ? 'customer' : 'entity';
+                        let newFields = [entityFieldId, 'subsidiary', 'currency'];
                         let readFields = ['custrecord_scv_loa_entity', 'custrecord_scv_loa_subsidiary', 'custrecord_scv_loa_currency'];
                         libFunc.setValueData(newRecord, ['custbody_scv_loa'], [trid]);
                         libFunc.setValue(newRecord, readLoa, newFields, readFields);
-                        libFunc.setDisableFields(form, ['entity', 'subsidiary', 'custbody_scv_loa']);//'currency',
+                        libFunc.setDisableFields(form, [entityFieldId, 'subsidiary', 'custbody_scv_loa']);//'currency',
                         if (newRecrodType === record.Type.VENDOR_BILL) {
                             if (principal === true || principal === 'true') {
                                 libFunc.setValue(newRecord, readLoa, ['trandate', 'duedate'], ['custrecord_scv_loa_start_date', 'custrecord_scv_loa_end_date']);
@@ -591,6 +593,26 @@ define(['N/record', 'N/runtime', 'N/search', '../lib/scv_lib_function.js'],
                                 libFunc.setDisableFields(form, ['trandate', 'duedate']);
                             } else {
                                 libFunc.setValueData(newRecord, ['account'], [getItemFlNumber('13881101')]);//13881101
+                            }
+                        } else if (newRecrodType === record.Type.VENDOR_PAYMENT) {
+                            // FDD 2.1.2 - Make Payment: redirect sang Bill Payment
+                            libFunc.setValueData(newRecord, ['apacct'], [readLoa.getValue(libLoa.LOA_FIELD.ACCOUNT_DEBITLOAN)]);
+                            libFunc.setValue(newRecord, readLoa, ['exchangerate'], [libLoa.LOA_FIELD.EXCHANGE_RATE]);
+                            libFunc.setValueData(newRecord, ['memo', 'trandate'], [libLoa.buildMemo(readLoa, 'Thanh toán khoản vay'), new Date()]);
+                            libFunc.setDisableFields(form, ['apacct']);
+                            let billId = libLoa.findLatestRelatedTransaction(trid, ['VendBill']);
+                            if (billId) {
+                                libLoa.tickApplyLine(newRecord, billId);
+                            }
+                        } else if (newRecrodType === record.Type.CUSTOMER_PAYMENT) {
+                            // FDD 2.2.2 - Accept Payment: redirect sang Customer Payment
+                            libFunc.setValueData(newRecord, ['aracct'], [readLoa.getValue(libLoa.LOA_FIELD.ACCOUNT_DEBITLOAN)]);
+                            libFunc.setValue(newRecord, readLoa, ['exchangerate'], [libLoa.LOA_FIELD.EXCHANGE_RATE]);
+                            libFunc.setValueData(newRecord, ['memo', 'trandate'], [libLoa.buildMemo(readLoa, 'Thu nợ gốc'), new Date()]);
+                            libFunc.setDisableFields(form, ['aracct']);
+                            let invoiceId = libLoa.findLatestRelatedTransaction(trid, ['Invoice']);
+                            if (invoiceId) {
+                                libLoa.tickApplyLine(newRecord, invoiceId);
                             }
                         }
                     }
@@ -729,6 +751,13 @@ define(['N/record', 'N/runtime', 'N/search', '../lib/scv_lib_function.js'],
                 }
 
                 updateLoa(loa);
+
+                // FDD 2.1.2 / 2.2.2 - ghi ngược Bill Payment/Customer Payment vừa tạo về custrecord_scv_lc_po trên Debit/Loan Agreement
+                if (tgType === 'create' && (recType === record.Type.VENDOR_PAYMENT || recType === record.Type.CUSTOMER_PAYMENT) && libFunc.isContainValue(loa)) {
+                    let loaEdit = record.load({type: libLoa.RECORD_TYPE.DEBIT_LOAN_AGREEMENT, id: loa});
+                    libLoa.appendMultiSelect(loaEdit, libLoa.LOA_FIELD.RELATED_TRANSACTION, newRecord.id);
+                    loaEdit.save({enableSourcing: false, ignoreMandatoryFields: true});
+                }
 
                 if (tgType === 'edit' && recType !== 'customrecord_scv_emp' && recType !== 'customrecord_scv_loa') {
                     let oldRecord = scriptContext.oldRecord;

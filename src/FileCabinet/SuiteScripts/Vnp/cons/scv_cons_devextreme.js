@@ -34,7 +34,7 @@ function(query) {
 			}, */
 			{
 				NAME: "bootstrap-icons.css",
-				URL: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css", 
+                URL: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css",
 				PATH: ""
 			},
 			/* {
@@ -342,21 +342,6 @@ function(query) {
 		return _options;
 	}
 
-	const defaultOptionsFileManager = (_options = {}) =>{
-		parseFuncToString(_options);
-
-		_options.permissions = _options.permissions ?? {
-			create: false, copy: false, move: false,
-			rename: false, upload: false, download: true,
-			delete: false,
-		};
-
-		_options.itemView = _options.itemView ?? {details: {columns: []}};
-		_options.itemView.details = _options.itemView.details ?? {columns: []};
-
-		return _options;
-	}
-
 	const getInfoDefaultModul = (_dxType, _options = {}, _arrModulImport = []) =>{
 		let options = {..._options};
 		let arrModulImport = _arrModulImport;
@@ -624,38 +609,6 @@ function(query) {
 		};
 	}
 
-	const getTemplateFileManager = (_dxId, _optionsFileManager) =>{
-		let libContents = getLibaryIncludes();
-
-		let options = defaultOptionsFileManager({..._optionsFileManager});
-		let label = options.label;
-
-		deleteProperties(options);
-
-		let dxId = _dxId||"dxFileManager";
-
-		let sourceData = JSON.stringify(options.source?.store ?? []);
-		
-		delete options.source;
-
-		options.fileSystemProvider = [];
-
-		if(_optionsFileManager.columns?.length > 0){
-			options.itemView.details.columns = _optionsFileManager.columns;
-		}
-
-		options = JSON.stringify(options);
-
-		let scriptJSON = getScriptJSON(dxId, options, sourceData);
-		
-		return {
-			libaryLink: libContents,
-			scriptJSON: scriptJSON,
-			scriptInit: `_scvDx.initFileManagerRender("${dxId}", "${label}");`,
-			html: `<div id="${dxId}"></div>`
-		};
-	}
-
 	const createFormMobile = () =>{
 		let formMobile = RECORDS.formMobile;
 		
@@ -734,7 +687,7 @@ function(query) {
 			let contents = ``;
 
 			if(this.buttons.length > 0){
-				contents += `<div class="row" style="text-align: left">`;
+				contents += `<div class="row" style="text-align: right">`;
 				contents += `<div class="col-xl-12 col-md-12 col-12  p-2">`;
 
 				this.buttons.forEach((objRes) => {
@@ -810,15 +763,16 @@ function(query) {
 				buttons: this.buttons,
 				fields: this.fields,
 				grids: this.grids,
-			}, {
-				isFormMobile: true
-			});
+			}, {});
 
-			return `
-				${this.generateHtmlHead()}
-				${scriptJSON}
-                <div class="container" id="scvBodyFormMobileId" >${this.generateHtmlBody()}</div>
-            `
+			return `<html>
+                <head>
+					${this.generateHtmlHead()}
+					${scriptJSON}
+				</head>
+				</style>
+                <body><div class="container" >${this.generateHtmlBody()}</div></body>
+            </html>`
 		};
 
 		return formMobile;
@@ -832,16 +786,11 @@ function(query) {
 		initModulServer,
 		setSuiteType,
 		getLibaryIncludes,
-		defaultOptionsGrid,
-		defaultOptionsTreeGrid,
-		defaultOptionsPivotGrid,
-		defaultOptionsTabs,
 		getTemplateGrid,
 		getTemplateContentWithTab,
 		getTemplateTreeGrid,
 		getTemplateSplitter,
 		getTemplatePivotGrid,
-		getTemplateFileManager,
 
 		createFormMobile
     };

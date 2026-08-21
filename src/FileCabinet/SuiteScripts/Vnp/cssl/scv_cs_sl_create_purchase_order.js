@@ -30,6 +30,7 @@ define(['N/currentRecord', 'N/https', 'N/url', 'N/ui/message', 'N/search', 'N/ui
 
         function pageInit(scriptContext) {
             toggleCreatedFromFields(scriptContext.currentRecord);
+            toggleRateField(scriptContext.currentRecord);
             return true;
         }
 
@@ -38,6 +39,7 @@ define(['N/currentRecord', 'N/https', 'N/url', 'N/ui/message', 'N/search', 'N/ui
                 const rec = scriptContext.currentRecord;
                 if (scriptContext.fieldId === FIELD.CREATED_FROM) {
                     toggleCreatedFromFields(rec);
+                    toggleRateField(rec);
                     return;
                 }
                 if (scriptContext.fieldId === FIELD.SUBSIDIARY) {
@@ -45,10 +47,15 @@ define(['N/currentRecord', 'N/https', 'N/url', 'N/ui/message', 'N/search', 'N/ui
                     return;
                 }
                 if (scriptContext.fieldId === FIELD.PURCHASE_CONTRACT) {
-                    setVendorFromPurchaseContract(rec);
+                    setDefaultsFromPurchaseContract(rec);
                     return;
                 }
                 if (scriptContext.sublistId === SUBLIST) {
+                    if (scriptContext.fieldId === 'custpage_taxcode') {
+                        setTaxRateFromTaxCode(rec);
+                        recalcCurrentLine(rec);
+                        return;
+                    }
                     if (['custpage_quantity', 'custpage_rate'].indexOf(scriptContext.fieldId) !== -1) {
                         recalcCurrentLine(rec);
                     }
@@ -77,34 +84,70 @@ define(['N/currentRecord', 'N/https', 'N/url', 'N/ui/message', 'N/search', 'N/ui
             return true;
         }
 
+        function toggleRateField(rec) {
+            const isDisabled = rec.getValue({fieldId: FIELD.CREATED_FROM}) === CREATED_FROM.PC;
+            const lineCount = rec.getLineCount({sublistId: SUBLIST}) || 0;
+            for (let i = 0; i < lineCount; i++) {
+                setSublistFieldDisabled(rec, 'custpage_rate', i, isDisabled);
+            }
+        }
+
+        function setSublistFieldDisabled(rec, fieldId, line, isDisabled) {
+            try {
+                const field = rec.getSublistField({sublistId: SUBLIST, fieldId, line});
+                if (field) field.isDisabled = isDisabled;
+            } catch (e) {
+                console.log('Cannot toggle sublist field disabled', {fieldId, line, isDisabled, error: e});
+            }
+        }
+
         function setFieldDisplay(rec, fieldId, isDisplay) {
             const field = rec.getField({fieldId});
             if (field) field.isDisplay = isDisplay;
         }
 
-        function setVendorFromPurchaseContract(rec) {
+        function setDefaultsFromPurchaseContract(rec) {
             const pcId = rec.getValue({fieldId: FIELD.PURCHASE_CONTRACT});
             if (!pcId) return;
+            const defaults = getPurchaseContractDefaults(pcId);
+            setSelectDefault(rec, FIELD.VENDOR, defaults.vendor);
+            setSelectDefault(rec, FIELD.LOCATION, defaults.location);
+        }
+
+        function getPurchaseContractDefaults(pcId) {
             try {
                 const lookup = search.lookupFields({
                     type: 'custompurchase_scv_purchase_contract',
                     id: pcId,
-                    columns: ['entity']
+                    columns: ['entity', 'location']
                 });
-                const vendorInfo = lookup.entity && lookup.entity[0];
-                if (!vendorInfo || !vendorInfo.value) return;
-                const field = rec.getField({fieldId: FIELD.VENDOR});
-                if (field) {
-                    field.insertSelectOption({
-                        value: vendorInfo.value,
-                        text: vendorInfo.text || vendorInfo.value,
-                        isSelected: true
-                    });
-                } else {
-                    rec.setValue({fieldId: FIELD.VENDOR, value: vendorInfo.value, ignoreFieldChange: true});
-                }
+                return {
+                    vendor: lookup.entity && lookup.entity[0],
+                    location: lookup.location && lookup.location[0]
+                };
             } catch (e) {
-                console.log('Cannot set vendor from purchase contract', e);
+                console.log('Cannot get defaults from purchase contract', e);
+                return {};
+            }
+        }
+
+        function setSelectDefault(rec, fieldId, option) {
+            if (!option || !option.value) return;
+            try {
+                rec.setValue({fieldId, value: option.value, ignoreFieldChange: true});
+                return;
+            } catch (e) {
+                console.log('Cannot set select default by value', {fieldId, option, error: e});
+            }
+            const field = rec.getField({fieldId});
+            if (field) {
+                field.insertSelectOption({
+                    value: option.value,
+                    text: option.text || option.value,
+                    isSelected: true
+                });
+            } else {
+                rec.setValue({fieldId, value: option.value, ignoreFieldChange: true});
             }
         }
 
@@ -120,20 +163,34 @@ define(['N/currentRecord', 'N/https', 'N/url', 'N/ui/message', 'N/search', 'N/ui
         }
 
         function getParams(rec) {
-            return {
-                custpage_created_from: rec.getValue(FIELD.CREATED_FROM),
-                custpage_subsidiary: rec.getValue(FIELD.SUBSIDIARY),
-                custpage_from_date: rec.getText(FIELD.FROM_DATE),
-                custpage_to_date: rec.getText(FIELD.TO_DATE),
-                custpage_order_type: rec.getValue(FIELD.ORDER_TYPE),
-                custpage_purchase_contract: rec.getValue(FIELD.PURCHASE_CONTRACT),
-                custpage_purchase_requisition: rec.getValue(FIELD.PURCHASE_REQUISITION),
-                custpage_date: rec.getText(FIELD.DATE),
-                custpage_location: rec.getValue(FIELD.LOCATION),
-                custpage_vendor: rec.getValue(FIELD.VENDOR),
-                custpage_memo: rec.getValue(FIELD.MEMO),
+            const params = {
+                custpage_created_from: rec.getValue({fieldId: FIELD.CREATED_FROM}),
+                custpage_subsidiary: rec.getValue({fieldId: FIELD.SUBSIDIARY}),
+                custpage_from_date: rec.getText({fieldId: FIELD.FROM_DATE}),
+                custpage_to_date: rec.getText({fieldId: FIELD.TO_DATE}),
+                custpage_order_type: rec.getValue({fieldId: FIELD.ORDER_TYPE}),
+                custpage_purchase_contract: rec.getValue({fieldId: FIELD.PURCHASE_CONTRACT}),
+                custpage_purchase_requisition: rec.getValue({fieldId: FIELD.PURCHASE_REQUISITION}),
+                custpage_date: rec.getText({fieldId: FIELD.DATE}),
+                custpage_location: rec.getValue({fieldId: FIELD.LOCATION}),
+                custpage_vendor: rec.getValue({fieldId: FIELD.VENDOR}),
+                custpage_memo: rec.getValue({fieldId: FIELD.MEMO}),
                 custpage_is_search: 'T'
             };
+            applyPurchaseContractDefaultParams(params);
+            return params;
+        }
+
+        function applyPurchaseContractDefaultParams(params) {
+            if (params.custpage_created_from !== CREATED_FROM.PC || !params.custpage_purchase_contract) return;
+            if (params.custpage_location && params.custpage_vendor) return;
+            const defaults = getPurchaseContractDefaults(params.custpage_purchase_contract);
+            if (!params.custpage_location && defaults.location && defaults.location.value) {
+                params.custpage_location = defaults.location.value;
+            }
+            if (!params.custpage_vendor && defaults.vendor && defaults.vendor.value) {
+                params.custpage_vendor = defaults.vendor.value;
+            }
         }
 
         function getMissingFields(params, isCreate) {
@@ -212,7 +269,7 @@ define(['N/currentRecord', 'N/https', 'N/url', 'N/ui/message', 'N/search', 'N/ui
             if (isProcessing) return;
             const rec = currentRecord.get();
             const params = getParams(rec);
-            params.custpage_is_search = rec.getValue(FIELD.IS_SEARCH);
+            params.custpage_is_search = rec.getValue({fieldId: FIELD.IS_SEARCH});
             if (showMissingFields(getMissingFields(params, true))) return;
             let lines;
             try {
@@ -305,31 +362,87 @@ define(['N/currentRecord', 'N/https', 'N/url', 'N/ui/message', 'N/search', 'N/ui
         }
 
         function recalcCurrentLine(rec) {
-            const qty = parseNumber(rec.getCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_quantity'}));
-            const remaining = getCurrentLineRemaining(rec);
+            const line = getCurrentLineData(rec);
+            let qty = parseNumber(rec.getCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_quantity'}));
+            const remaining = line ? parseNumber(line.qtyRemaining) : getCurrentLineRemaining(rec);
             if (qty > remaining) {
                 alert('Quantity cannot be greater than Remaining Quantity.');
-                rec.setCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_quantity', value: remaining, ignoreFieldChange: true});
+                qty = remaining;
+                setCurrentLineValue(rec, 'custpage_quantity', qty);
             }
-            const rate = parseNumber(rec.getCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_rate'}));
-            const taxRate = parseNumber(rec.getCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_taxrate'}));
+            const rate = getCurrentLineNumber(rec, 'custpage_rate', line && line.rate);
+            const taxRate = getCurrentLineNumber(rec, 'custpage_taxrate', line && line.taxRate);
             const amount = qty * rate;
             const taxAmount = amount * (Math.abs(taxRate) <= 1 ? taxRate : taxRate / 100);
-            rec.setCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_amount', value: amount, ignoreFieldChange: true});
-            rec.setCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_taxamount', value: taxAmount, ignoreFieldChange: true});
-            rec.setCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_grossamount', value: amount + taxAmount, ignoreFieldChange: true});
+            const grossAmount = amount + taxAmount;
+            setCurrentLineValue(rec, 'custpage_amount', amount);
+            setCurrentLineValue(rec, 'custpage_taxamount', taxAmount);
+            setCurrentLineValue(rec, 'custpage_grossamount', grossAmount);
+            updateCurrentLineJson(rec, {
+                quantity: qty,
+                rate: rate,
+                taxRate: taxRate,
+                amount: amount,
+                taxAmount: taxAmount,
+                grossAmount: grossAmount
+            });
+        }
+
+        function setTaxRateFromTaxCode(rec) {
+            const taxCodeId = rec.getCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_taxcode'});
+            const taxRate = getTaxRateFromTaxCode(taxCodeId);
+            setCurrentLineValue(rec, 'custpage_taxrate', taxRate);
+            updateCurrentLineJson(rec, {
+                taxCode: taxCodeId || '',
+                taxCodeText: rec.getCurrentSublistText({sublistId: SUBLIST, fieldId: 'custpage_taxcode'}) || '',
+                taxRate: taxRate
+            });
+        }
+
+        function getTaxRateFromTaxCode(taxCodeId) {
+            if (!taxCodeId) return 0;
+            try {
+                const lkTax = search.lookupFields({type: 'salestaxitem', id: taxCodeId, columns: ['rate']});
+                return parseNumber(lkTax.rate);
+            } catch (e) {
+                console.log('Cannot get tax rate from tax code', {taxCodeId, error: e});
+                return 0;
+            }
+        }
+
+        function getCurrentLineNumber(rec, fieldId, fallback) {
+            const value = rec.getCurrentSublistValue({sublistId: SUBLIST, fieldId});
+            if (value !== null && value !== undefined && value !== '') return parseNumber(value);
+            return parseNumber(fallback);
+        }
+
+        function getCurrentLineData(rec) {
+            const lineJson = rec.getCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_line_json'});
+            if (!lineJson) return null;
+            try {
+                return JSON.parse(lineJson);
+            } catch (e) {
+                console.log('Cannot parse current line data', e);
+                return null;
+            }
+        }
+
+        function setCurrentLineValue(rec, fieldId, value) {
+            rec.setCurrentSublistValue({sublistId: SUBLIST, fieldId, value, ignoreFieldChange: true});
+        }
+
+        function updateCurrentLineJson(rec, values) {
+            const line = getCurrentLineData(rec);
+            if (!line) return;
+            Object.keys(values).forEach((key) => {
+                line[key] = values[key];
+            });
+            setCurrentLineValue(rec, 'custpage_line_json', JSON.stringify(line));
         }
 
         function getCurrentLineRemaining(rec) {
-            const lineJson = rec.getCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_line_json'});
-            if (lineJson) {
-                try {
-                    const line = JSON.parse(lineJson);
-                    return parseNumber(line.qtyRemaining);
-                } catch (e) {
-                    console.log('Cannot parse current line data', e);
-                }
-            }
+            const line = getCurrentLineData(rec);
+            if (line) return parseNumber(line.qtyRemaining);
             return parseNumber(rec.getCurrentSublistValue({sublistId: SUBLIST, fieldId: 'custpage_remaining'}));
         }
 

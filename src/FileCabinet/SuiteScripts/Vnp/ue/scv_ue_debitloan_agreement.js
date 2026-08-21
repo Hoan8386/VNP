@@ -1,9 +1,10 @@
 /**
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
+ * Nội dung: Các nút thao tác trên Debit/Loan Agreement (FDD 14/08/2026 - Tạo chứng từ hạch toán từ Debit/Loan Agreement)
  */
-define(['N/record', 'N/url'],
-    (record, url) => {
+define(['N/record', 'N/url', '../lib/scv_lib_debitloan.js'],
+    (record, url, libLoa) => {
         /**
          * Defines the function definition that is executed before record is loaded.
          * @param {Object} scriptContext
@@ -15,7 +16,7 @@ define(['N/record', 'N/url'],
          */
 
         const RecordType = {
-            DEBIT_LOAN_AGREEMENT: "customrecord_scv_loa",
+            DEBIT_LOAN_AGREEMENT: libLoa.RECORD_TYPE.DEBIT_LOAN_AGREEMENT,
             PAYMENT_REQUEST: "customrecord_scv_payment_request",
             PAYMENT_REQUEST_DETAIL: "customrecord_scv_payment_detail",
             EMPLOYEE_PREPAYMENT: "customrecord_scv_emp",
@@ -23,84 +24,44 @@ define(['N/record', 'N/url'],
             BENEFICIARY: "customrecord_scv_beb", // Thông tin người thụ hưởng
         }
 
-        const TypeLoan = {
-            DI_VAY: '5',
-            TIET_KIEM: '8',
-            CHO_VAY: '2'
-        }
-
-        const Action = {
-            Create: {
-                CHECK: "create_check",
-                INVOICE: "create_invoice",
-                CUSTOMER_PAYMENT: "create_customerpayment"
-            }
-        }
+        const TypeLoan = libLoa.LOA_TYPE;
 
         const beforeLoad = (scriptContext) => {
             try {
                 let form = scriptContext.form;
                 let newRecord = scriptContext.newRecord;
-                let link = url.resolveScript({
-                    scriptId: 'customscript_scv_sl_debitloan_agreement',
-                    deploymentId: 'customdeploy_scv_sl_debitloan_agreement',
-                    params: {
-                        recid: newRecord.id
-                    }
-                });
-                /*form.addButton({
-                    id: 'custpage_deposit',
-                    label: 'Deposit',
-                    functionName: `window.open("${link}&buttontype=deposit")`
-                });
-                form.addButton({
-                    id: 'custpage_payment',
-                    label: 'Payment Vendor',
-                    functionName: `window.open("${link}&buttontype=paymentvendor")`
-                });*/
-
 
                 const typeRecord = newRecord.type;
+                if (typeRecord !== RecordType.DEBIT_LOAN_AGREEMENT) return;
+
                 const loa_type = newRecord.getValue("custrecord_scv_loa_type");
                 const priAmt = newRecord.getValue("custrecord_scv_loa_principal_amount");
                 const priPaidAmt = newRecord.getValue("custrecord_scv_loa_principal_paid_amount");
                 const loaAmt = newRecord.getValue("custrecord_scv_loa_amount");
-                const isDisplayCusPay = typeRecord === 'customrecord_scv_loa' && [TypeLoan.CHO_VAY, TypeLoan.TIET_KIEM].indexOf(loa_type) !== -1 && priAmt !== 0 && priPaidAmt < loaAmt;
-                const isDisplayBtnInvAndCheck = typeRecord === 'customrecord_scv_loa' && [TypeLoan.CHO_VAY, TypeLoan.TIET_KIEM].indexOf(loa_type) !== -1 && priAmt < loaAmt;
-                if (isDisplayCusPay) {
-                    createCustomerPayment(form, newRecord);
-                }
 
-                if (isDisplayBtnInvAndCheck) {
-                    createInvoiceCheck(form, newRecord, link);
-                }
-                const isCreateMakeDeposit = [TypeLoan.CHO_VAY, TypeLoan.TIET_KIEM].indexOf(loa_type) !== -1 && !!priAmt;
-                if (isCreateMakeDeposit) {
-                    addButtonMakeDeposit(form, newRecord);
-                }
-                const isCreateCheck = [TypeLoan.DI_VAY].indexOf(loa_type) !== -1 && !!priAmt;
-                if (isCreateCheck) {
-                    addButtonCheck(form, newRecord);
-                }
-
-                // Go to Suitelet: Generate Principal and Interest,
+                // FDD 2.1 - TH Đi vay
                 if (TypeLoan.DI_VAY === loa_type) {
-                    if (priAmt < loaAmt) {
-                        form.addButton({
-                            id: 'custpage_acceptpayment',
-                            label: 'Accept Payment Loan',
-                            functionName: `window.open("${link}&buttontype=acceptpaymentloan")`
-                        });
+                    // 2.1.1 Enter Loan Principal: tạo đồng thời Bill + Deposit
+                    if (loaAmt > priAmt) {
+                        addButtonEnterLoanPrincipal(form, newRecord);
                     }
-
-                    if (priAmt > priPaidAmt) {
-                        form.addButton({
-                            id: 'custpage_payment',
-                            label: 'Make Payment',
-                            functionName: `window.open("${link}&buttontype=payment")`
-                        });
+                    // 2.1.2 Make Payment: redirect sang Bill Payment
+                    if (priPaidAmt < loaAmt) {
+                        addButtonMakePayment(form, newRecord);
                     }
                     addBtnGoToGeneratePrincipalAndInterest(form, newRecord.id);
+                }
+
+                // FDD 2.2 - TH Cho vay, tiết kiệm
+                if ([TypeLoan.CHO_VAY, TypeLoan.TIET_KIEM].indexOf(loa_type) !== -1) {
+                    // 2.2.1 Enter Deposit Principal: tạo đồng thời Invoice + Check
+                    if (loaAmt > priAmt) {
+                        addButtonEnterDepositPrincipal(form, newRecord);
+                    }
+                    // 2.2.2 Accept Payment: redirect sang Customer Payment
+                    if (priPaidAmt < loaAmt) {
+                        addButtonAcceptPayment(form, newRecord);
+                    }
                 }
 
             } catch (e) {
@@ -132,64 +93,67 @@ define(['N/record', 'N/url'],
 
         }
 
-        const addButtonCheck = (form, newRecord) => {
-            const urlDeposit = url.resolveRecord({
-                recordType: record.Type.CHECK,
-                recordId: null,
-                isEditMode: true,
-                params: {
-                    rectype: newRecord.type,
-                    recid: newRecord.id
-                }
+        // FDD 2.1.1 - nút "Enter Loan Principal": gọi Suitelet tạo đồng thời Bill + Deposit
+        const addButtonEnterLoanPrincipal = (form, newRecord) => {
+            const link = url.resolveScript({
+                scriptId: 'customscript_scv_sl_debitloan_agreement',
+                deploymentId: 'customdeploy_scv_sl_debitloan_agreement',
+                params: {recid: newRecord.id, action: libLoa.SL_ACTION.ENTER_LOAN_PRINCIPAL}
             });
             form.addButton({
-                id: 'custpage_writecheck',
-                label: 'Write Check',
-                functionName: `window.open("${urlDeposit}&buttontype=makecheck")`
+                id: 'custpage_enter_loan_principal',
+                label: 'Enter Loan Principal',
+                functionName: `window.location.replace("${link}")`
             });
         }
 
-        const addButtonMakeDeposit = (form, newRecord) => {
-            const urlDeposit = url.resolveRecord({
-                recordType: record.Type.DEPOSIT,
-                recordId: null,
-                isEditMode: true,
-                params: {
-                    rectype: newRecord.type,
-                    recid: newRecord.id
-                }
+        // FDD 2.2.1 - nút "Enter Deposit Principal": gọi Suitelet tạo đồng thời Invoice + Check
+        const addButtonEnterDepositPrincipal = (form, newRecord) => {
+            const link = url.resolveScript({
+                scriptId: 'customscript_scv_sl_debitloan_agreement',
+                deploymentId: 'customdeploy_scv_sl_debitloan_agreement',
+                params: {recid: newRecord.id, action: libLoa.SL_ACTION.ENTER_DEPOSIT_PRINCIPAL}
             });
             form.addButton({
-                id: 'custpage_deposit',
-                label: 'Make Deposit',
-                functionName: `window.open("${urlDeposit}&buttontype=makedeposit")`
+                id: 'custpage_enter_deposit_principal',
+                label: 'Enter Deposit Principal',
+                functionName: `window.location.replace("${link}")`
             });
         }
 
-        const createInvoiceCheck = (form, newRecord, link) => {
-            form.addButton({
-                id: 'custpage_scv_invoice',
-                label: 'Create Invoice, Write check',
-                functionName: `window.open("${link}&buttontype=createinvoiceandwritecheck")`
-            });
-        }
-
-        const createCustomerPayment = (form, newRecord) => {
-            let urlCustomerPayment = url.resolveRecord({
-                recordType: "customerpayment",
+        // FDD 2.1.2 - nút "Make Payment": redirect sang Bill Payment, kế thừa thông tin qua createdfromid/createdrectype
+        const addButtonMakePayment = (form, newRecord) => {
+            const urlPayment = url.resolveRecord({
+                recordType: record.Type.VENDOR_PAYMENT,
                 recordId: null,
                 isEditMode: true,
                 params: {
-                    sourcerecord: RecordType.DEBIT_LOAN_AGREEMENT,
-                    sourcerecordid: newRecord.id,
-                    function: Action.Create.CUSTOMER_PAYMENT,
+                    createdfromid: newRecord.id,
+                    createdrectype: RecordType.DEBIT_LOAN_AGREEMENT
                 }
             });
-
             form.addButton({
-                id: 'custpage_scv_customerpayment',
-                label: 'Create Customer payment',
-                functionName: `window.open("${urlCustomerPayment}")`
+                id: 'custpage_make_payment',
+                label: 'Make Payment',
+                functionName: `window.location.replace("${urlPayment}")`
+            });
+        }
+
+        // FDD 2.2.2 - nút "Accept Payment": redirect sang Customer Payment, kế thừa thông tin qua createdfromid/createdrectype
+        const addButtonAcceptPayment = (form, newRecord) => {
+            const urlPayment = url.resolveRecord({
+                recordType: record.Type.CUSTOMER_PAYMENT,
+                recordId: null,
+                isEditMode: true,
+                params: {
+                    createdfromid: newRecord.id,
+                    createdrectype: RecordType.DEBIT_LOAN_AGREEMENT
+                }
+            });
+            form.addButton({
+                id: 'custpage_accept_payment',
+                label: 'Accept Payment',
+                functionName: `window.location.replace("${urlPayment}")`
             });
         }
 

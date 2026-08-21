@@ -294,10 +294,12 @@ define(['N/search',
 			],
 			columns: [
                 "tranid",
+                "location",
                 "taxcode",
                 "custcol_scv_origin_line_num",
                 "custcol_scv_rate_custom",
                 "custcol_scv_rate_tt",
+                
             ]
 		});
 
@@ -314,7 +316,8 @@ define(['N/search',
             custrecord_scv_inb_rate_cus = objRes.custcol_scv_rate_custom * 1;
         }
 
-        curRec.setValue('custrecord_scv_inb_po', poId)
+        curRec.setValue('custrecord_scv_inb_po', poId);
+        curRec.setValue('custrecord_scv_ibs_location', objRes.location);
         curRec.setCurrentSublistValue(sublistId, "custrecord_inb_tax_code", objRes.taxcode);
         curRec.setCurrentSublistValue(sublistId, "custrecord_scv_original_line_id", objRes.custcol_scv_origin_line_num);
         curRec.setCurrentSublistValue(sublistId, "custrecord_scv_inb_rate_cus", custrecord_scv_inb_rate_cus);

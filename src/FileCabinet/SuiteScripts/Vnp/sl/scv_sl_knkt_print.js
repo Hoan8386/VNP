@@ -34,7 +34,7 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
                 ) AS thoi_han_phan_hoi,
                 kq.id                                                   AS kq_id,
                 kq.custrecord_scv_kqkn_tinhhinhthuchien               AS tinh_hinh_thuc_hien,
-                kq.custrecord_scv_kqkn_ketquathuchien                 AS ket_qua_thuc_hien,
+                BUILTIN.DF(kq.custrecord_scv_kqkn_ketquathuchien)     AS ket_qua_thuc_hien,
                 TO_CHAR(
                     kq.custrecord_scv_kqkn_ngaythuchien,
                     'DD/MM/YYYY'
@@ -180,8 +180,8 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
             // TODO(BA-Q5): Confirm that custrecord_scv_xlkn_subs is the intended company field.
             // TODO(BA-Q6): Confirm that inactive child records must be excluded.
             // TODO(BA-Q7): Confirm that internal-id ascending is the intended child sequence.
-            // TODO(BA-Q8): Xác nhận "Cập nhật đến" = ngày thực hiện lớn nhất
-            // toàn báo cáo.
+            // BA-Q8 đã chốt 18/08/2026: "Cập nhật đến" = ngày thực hiện lớn nhất
+            // toàn báo cáo. Đúng như đang chạy.
             // TODO(BA-Q10): Mockup vẫn để "Ngày … tháng … năm 2026" nhưng FDD ghi Current Date —
             // hiện điền đủ ngày/tháng/năm; nếu BA muốn giữ dấu chấm thì sửa lại 1 dòng trong XML.
             // TODO(BA-Q11): Xác nhận custrecord_scv_kqkn_ngaythuchien là kiểu Date
@@ -362,9 +362,9 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
                     khuyenNghiById: new Map(),
                     ngayThucHien: '',
                     ngayThucHienSort: '',
-                    // TODO(BA-Q17): Header cột trái đang lấy ngày lớn nhất trong tập
-                    // giá trị được xếp vào cột trái, không phải ngày lớn thứ nhì của
-                    // cả phát hiện; xác nhận với BA.
+                    // BA-Q17 đã chốt 18/08/2026: header cột trái lấy ngày lớn nhất
+                    // trong tập giá trị được xếp vào cột trái, KHÔNG phải ngày lớn
+                    // thứ nhì của cả phát hiện. Đúng như đang chạy.
                     truoc: {ngayThucHien: '', ngayThucHienSort: ''}
                 };
                 phatHienById.set(row.ph_id, phatHienEntry);
@@ -404,8 +404,9 @@ define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pd
                 );
 
                 if (row.kq_id !== null && row.kq_id !== undefined) {
-                    // TODO(BA-Q9): Xác nhận header cột 4 lấy ngày thực hiện lớn nhất
-                    // trong từng phát hiện, và khi không có kết quả nào thì in dấu "…".
+                    // BA-Q9 đã chốt 18/08/2026: header nhóm lấy ngày thực hiện lớn
+                    // nhất trong TỪNG phát hiện. Đúng như đang chạy.
+                    // Dấu fallback khi thiếu ngày: xem BA-Q22 trong template.
                     addKetQua(khuyenNghiEntry, row);
                 }
             });
