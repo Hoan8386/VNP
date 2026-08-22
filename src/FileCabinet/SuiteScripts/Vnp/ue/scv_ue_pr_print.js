@@ -2,9 +2,15 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
-define(['N/url', '../common/scv_common_ui'], (url, comUI) => {
+define([
+    'N/url',
+    '../common/scv_common_ui'
+], (
+    url,
+    comUI
+) => {
     // Payment Request PDF button configuration.
-    const MauIn = {
+    const PRINT_CONFIG = {
         DNTU: {
             types: [4],
             buttonId: 'custpage_scv_btn_dntu_pdf',
@@ -34,7 +40,7 @@ define(['N/url', '../common/scv_common_ui'], (url, comUI) => {
         const paymentType = Number(scriptContext.newRecord.getValue({
             fieldId: 'custrecord_scv_payment_type'
         }));
-        const mauIn = Object.values(MauIn).find((item) => item.types.includes(paymentType));
+        const mauIn = Object.values(PRINT_CONFIG).find((printConfig) => printConfig.types.includes(paymentType));
         if (!mauIn) {
             return;
         }

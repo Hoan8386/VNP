@@ -3,7 +3,13 @@
  * @NScriptType UserEventScript
  */
 // Adds the PDF print button for the custom purchase requisition.
-define(['N/log', 'N/url', '../common/scv_common_ui'], (log, url, comUI) => {
+define([
+    'N/log', 'N/url',
+    '../common/scv_common_ui'
+], (
+    log, url,
+    comUI
+) => {
     const BUTTON_LABEL = 'Phiếu ĐN mua VT-HH-TB'; // TODO(BA-Q1): chốt tên button.
 
     /**
@@ -49,13 +55,13 @@ define(['N/log', 'N/url', '../common/scv_common_ui'], (log, url, comUI) => {
                 }
             });
             comUI.addIconToButton(scriptContext.form, 'custpage_scv_field_icons_pdnmvt');
-        } catch (e) {
+        } catch (error) {
             log.error({
                 title: 'PDNMVT beforeLoad failed',
                 details: {
-                    name: e.name,
-                    message: e.message,
-                    stack: e.stack
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
                 }
             });
         }

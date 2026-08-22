@@ -70,8 +70,8 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search', 'N/redirect',
         let hasOrderNumber= !!params?.custpage_ordernumber;
         let arrINB = getDataINB03(params);
         let arrITF = getDataITF04(params);
-        if (!params.custpage_inboundshipment && arrINB.length == 1) params.custpage_inboundshipment = arrINB[0].id;
-        if (!params.custpage_itemfulfillment && arrITF.length == 1) params.custpage_itemfulfillment = arrITF[0].id;
+        if (!('custpage_inboundshipment' in params) && arrINB.length == 1) params.custpage_inboundshipment = arrINB[0].id;
+        if (!('custpage_itemfulfillment' in params) && arrITF.length == 1) params.custpage_itemfulfillment = arrITF[0].id;
 
         constForm.createForm('Receive Order', '../cssl/scv_cs_sl_receiveorder.js');
 
@@ -317,7 +317,10 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search', 'N/redirect',
                 objResponse.recUrl = '/app/accounting/bulkprocessing/bulkprocessingstatus.nl?bulkproctype=RECEIVEINBOUNDSHIPMENT&BulkProcSubmission_CREATEDDATE=TODAY&whence=';
             }
             else if (objReqBody.custpage_itemfulfillment) {
-                objResponse.recId = commonReceiveorder.createItemReceiptCase3(objReqBody, objReqBody.arrLines);
+                let arrSS2 = cSearchReceiveorder02.getDataSource(objReqBody);
+                objResponse.recId = commonReceiveorder.createItemReceiptCase3(objReqBody, objReqBody.arrLines, arrSS2);
+                log.error('createItemReceiptCase3', objResponse.recId);
+
                 let itemReceiptLkf = search.lookupFields({
                     type: search.Type.ITEM_RECEIPT,
                     id: objResponse.recId,
@@ -332,6 +335,8 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search', 'N/redirect',
             else {
                 let arrSS2 = cSearchReceiveorder02.getDataSource(objReqBody);
                 objResponse.recId = commonReceiveorder.createItemReceiptCase2(objReqBody, objReqBody.arrLines, arrSS2);
+                log.error('createItemReceiptCase3', objResponse.recId);
+                
                 let itemReceiptLkf = search.lookupFields({
                     type: search.Type.ITEM_RECEIPT,
                     id: objResponse.recId,

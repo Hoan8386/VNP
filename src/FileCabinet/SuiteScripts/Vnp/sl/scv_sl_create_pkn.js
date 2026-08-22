@@ -17,6 +17,7 @@ define(['N/runtime', 'N/url',
     '../cons/scv_cons_search_tcn_data.js',
     '../cons/scv_cons_search_item_tck.js',
     '../cons/scv_cons_search_tcn_hanghoa.js',
+    '../cons/scv_cons_search_inb_to_pkn.js',
 ], (
     runtime, url,
     commonCreatePkn,
@@ -27,6 +28,7 @@ define(['N/runtime', 'N/url',
     constSearchTcnData,
     constSearchItemTck,
     constSearchTcnHangHoa,
+    constSearchInbToItr,
 ) => {
     const CurrentScript = {
         ID: 'customscript_scv_sl_create_pkn',
@@ -59,6 +61,9 @@ define(['N/runtime', 'N/url',
                 case 'tcn_hanghoa_05':
                     objResponse.data = constSearchTcnHangHoa.getDataSourceFetchPage(params);
                     break;
+                case 'inb_to_pkn_06':
+                    objResponse.data = constSearchInbToItr.getDataSourceFetchPage(params);
+                    break;
                 case 'onSubmitCreatePkn':
                     objResponse.data = onSubmitCreatePkn(params);
                     break;
@@ -70,11 +75,12 @@ define(['N/runtime', 'N/url',
     };
 
     const onCreateFormUI = (params) => {
-        let hasCreatedFrom = !!params?.custpage_createdfrom;
+        let isInboundShipment = !!params?.custpage_inboundshipment;
+        let hasSource = isInboundShipment || !!params?.custpage_createdfrom;
 
         constForm.createForm('Tạo Phiếu kiểm nhận', '../cssl/scv_cs_sl_create_pkn.js');
 
-        constForm.addPageLink([constSearchTranToPkn.ID, constSearchTotalQtyPkn.ID, constSearchTcnData.ID, constSearchItemTck.ID, constSearchTcnHangHoa.ID], true);
+        constForm.addPageLink([constSearchTranToPkn.ID, constSearchTotalQtyPkn.ID, constSearchTcnData.ID, constSearchItemTck.ID, constSearchTcnHangHoa.ID, constSearchInbToItr.ID], true);
 
         constForm.addButton({
             id: 'custpage_btn_submit',
@@ -90,16 +96,30 @@ define(['N/runtime', 'N/url',
         
         let mainGrp = constForm.addFieldGroup({ id: "fieldgrp_main", label: "Main" });
         
-        constForm.addField({
-            id: "custpage_createdfrom",
-            label: "Created From",
-            type: "select",
-            source: "transaction",
-            container: mainGrp.id,
-        }, true, {
-            defaultValue: params?.custpage_createdfrom,
-            displayType: hasCreatedFrom ? 'disabled' : null,
-        });
+        if (isInboundShipment) {
+            constForm.addField({
+                id: "custpage_inboundshipment",
+                label: "Inbound Shipment",
+                type: "select",
+                source: "inboundShipment",
+                container: mainGrp.id,
+            }, true, {
+                defaultValue: params?.custpage_inboundshipment,
+                displayType: hasSource ? 'disabled' : null,
+            });
+        }
+        else {
+            constForm.addField({
+                id: "custpage_createdfrom",
+                label: "Created From",
+                type: "select",
+                source: "transaction",
+                container: mainGrp.id,
+            }, true, {
+                defaultValue: params?.custpage_createdfrom,
+                displayType: hasSource ? 'disabled' : null,
+            });
+        }
 
         let ttcGrp = constForm.addFieldGroup({ id: "fieldgrp_ttc", label: "Thông tin chung" });
         

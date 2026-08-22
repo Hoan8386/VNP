@@ -3,17 +3,43 @@
  * @NScriptType Suitelet
  */
 define([
-    'N/render',
-    'N/record',
-    'N/query',
+    'N/render', 'N/record', 'N/query',
     '../lib/scv_lib_pdf.js',
     '../lib/scv_lib_print_format.js',
     '../common/scv_common_print_lookup.js',
     '../cons/scv_cons_print.js'
-], (render, record, query, libPdf, libPrintFormat, printLookup, consPrint) => {
+], (
+    render, record, query,
+    libPdf, libPrintFormat, printLookup, consPrint
+) => {
     const UrlParameter = consPrint.UrlParameter;
     const Template = consPrint.Template;
     const Ddh = consPrint.Ddh;
+
+    const onRequest = (scriptContext) => {
+        const params = scriptContext.request.parameters;
+        if (!params[UrlParameter.RECORD_ID]) {
+            throw new Error('Missing purchase order record id.');
+        }
+
+        const pdfFile = renderRecordToPdfWithTemplate(
+            params[UrlParameter.RECORD_ID],
+            params[UrlParameter.RECORD_TYPE] || Ddh.DEFAULT_RECORD_TYPE,
+            params[UrlParameter.PRINT_FILE]
+        );
+        scriptContext.response.writeFile({file: pdfFile, isInline: true});
+    };
+
+    const renderRecordToPdfWithTemplate = (recordId, recordType, printFile) => {
+        const renderer = libPdf.renderTemplateWithXml(printFile || Ddh.PRINT_FILE);
+        const rec = addDefaultRecordRender(
+            renderer,
+            recordType || Ddh.DEFAULT_RECORD_TYPE,
+            recordId
+        );
+        printDdh(rec, renderer, recordId);
+        return renderer.renderAsPdf();
+    };
 
     const addDefaultRecordRender = (renderer, recordType, recordId) => {
         const rec = record.load({
@@ -25,7 +51,44 @@ define([
         return rec;
     };
 
-    const xmlText = (value) => libPdf.formatDataXML(libPrintFormat.asText(value));
+    const printDdh = (rec, renderer, recordId) => {
+        const dataJson = getDataDdh(rec, recordId);
+        renderer.addCustomDataSource({
+            format: render.DataSource.OBJECT,
+            alias: Template.DATA_ALIAS,
+            data: dataJson
+        });
+    };
+
+    const getDataDdh = (rec) => {
+        const subsidiaryInfo = printLookup.getSubsidiaryInfo(
+            rec.getValue({fieldId: Ddh.FIELD.SUBSIDIARY})
+        );
+        const vendorInfo = getVendorInfo(rec.getValue({fieldId: Ddh.FIELD.ENTITY}));
+        const fallbackVendorName = rec.getText({fieldId: Ddh.FIELD.ENTITY});
+        const currency = getCurrency(
+            rec.getValue({fieldId: Ddh.FIELD.CURRENCY}),
+            rec.getText({fieldId: Ddh.FIELD.CURRENCY})
+        );
+        const lineData = getLineDataDdh(rec);
+
+        return {
+            legalname: xmlText(subsidiaryInfo.legalname),
+            mainaddress_text: xmlText(subsidiaryInfo.mainaddress_text),
+            tranid: xmlText(rec.getValue({fieldId: Ddh.FIELD.TRANSACTION_ID})),
+            vendorName: xmlText(vendorInfo.legalname || fallbackVendorName),
+            // Keep the legacy BA-Q2 priority until the address rule is decided.
+            vendorAddress: xmlText(
+                vendorInfo.addr1 || rec.getValue({fieldId: Ddh.FIELD.BILL_ADDRESS})
+            ),
+            vendorPhone: xmlText(vendorInfo.phoneno),
+            currency: xmlText(currency),
+            lines: lineData.lines,
+            cong: lineData.cong,
+            vat: lineData.vat,
+            tong: lineData.tong
+        };
+    };
 
     const getVendorInfo = (vendorId) => {
         if (!vendorId) {
@@ -77,66 +140,6 @@ define([
             return (fallback || Ddh.DEFAULT_CURRENCY).toUpperCase();
         }
     };
-
-    const getItemInfo = (itemId, itemInfoById) => {
-        const itemKey = libPrintFormat.asText(itemId);
-        if (!itemKey) {
-            return {upccode: Ddh.EMPTY, displayName: Ddh.EMPTY};
-        }
-        if (itemInfoById[itemKey]) {
-            return itemInfoById[itemKey];
-        }
-
-        try {
-            const rows = query.runSuiteQL({
-                query: Ddh.ITEM_QUERY,
-                params: [itemId]
-            }).asMappedResults();
-            const row = rows[0] || {};
-            itemInfoById[itemKey] = {
-                upccode: libPrintFormat.asText(row.upccode),
-                displayName: libPrintFormat.asText(row.displayname)
-            };
-        } catch (error) {
-            log.error({
-                title: 'getItemInfo',
-                details: {itemId, query: Ddh.ITEM_QUERY, error}
-            });
-            itemInfoById[itemKey] = {upccode: Ddh.EMPTY, displayName: Ddh.EMPTY};
-        }
-
-        return itemInfoById[itemKey];
-    };
-
-    const formatRate = (value) => {
-        const parts = libPrintFormat.asNumber(value)
-            .toFixed(Ddh.RATE_DECIMAL_PLACES)
-            .split(Ddh.DECIMAL_SEPARATOR);
-        parts[1] = parts[1].replace(/0+$/, '').padEnd(2, '0');
-        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, Ddh.THOUSANDS_SEPARATOR);
-        return parts.join(Ddh.DECIMAL_SEPARATOR);
-    };
-
-    const formatMoney = (value, decimalPlaces) => {
-        const parts = libPrintFormat.asNumber(value)
-            .toFixed(decimalPlaces)
-            .split(Ddh.DECIMAL_SEPARATOR);
-        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, Ddh.THOUSANDS_SEPARATOR);
-        return decimalPlaces > 0
-            ? parts.join(Ddh.DECIMAL_SEPARATOR)
-            : parts[0];
-    };
-
-    const formatQuantity = (value) => {
-        const formattedValue = libPrintFormat.asNumber(value)
-            .toFixed(Ddh.QUANTITY_DECIMAL_PLACES)
-            .replace(/\.?0+$/, '');
-        const parts = formattedValue.split(Ddh.DECIMAL_SEPARATOR);
-        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, Ddh.THOUSANDS_SEPARATOR);
-        return parts.join(Ddh.DECIMAL_SEPARATOR);
-    };
-
-    const hasValue = (value) => value !== null && value !== undefined && value !== Ddh.EMPTY;
 
     const getLineDataDdh = (rec) => {
         const itemInfoById = Object.create(null);
@@ -224,69 +227,67 @@ define([
         };
     };
 
-    const getDataDdh = (rec) => {
-        const subsidiaryInfo = printLookup.getSubsidiaryInfo(
-            rec.getValue({fieldId: Ddh.FIELD.SUBSIDIARY})
-        );
-        const vendorInfo = getVendorInfo(rec.getValue({fieldId: Ddh.FIELD.ENTITY}));
-        const fallbackVendorName = rec.getText({fieldId: Ddh.FIELD.ENTITY});
-        const currency = getCurrency(
-            rec.getValue({fieldId: Ddh.FIELD.CURRENCY}),
-            rec.getText({fieldId: Ddh.FIELD.CURRENCY})
-        );
-        const lineData = getLineDataDdh(rec);
-
-        return {
-            legalname: xmlText(subsidiaryInfo.legalname),
-            mainaddress_text: xmlText(subsidiaryInfo.mainaddress_text),
-            tranid: xmlText(rec.getValue({fieldId: Ddh.FIELD.TRANSACTION_ID})),
-            vendorName: xmlText(vendorInfo.legalname || fallbackVendorName),
-            // Keep the legacy BA-Q2 priority until the address rule is decided.
-            vendorAddress: xmlText(
-                vendorInfo.addr1 || rec.getValue({fieldId: Ddh.FIELD.BILL_ADDRESS})
-            ),
-            vendorPhone: xmlText(vendorInfo.phoneno),
-            currency: xmlText(currency),
-            lines: lineData.lines,
-            cong: lineData.cong,
-            vat: lineData.vat,
-            tong: lineData.tong
-        };
-    };
-
-    const printDdh = (rec, renderer, recordId) => {
-        const dataJson = getDataDdh(rec, recordId);
-        renderer.addCustomDataSource({
-            format: render.DataSource.OBJECT,
-            alias: Template.DATA_ALIAS,
-            data: dataJson
-        });
-    };
-
-    const renderRecordToPdfWithTemplate = (recordId, recordType, printFile) => {
-        const renderer = libPdf.renderTemplateWithXml(printFile || Ddh.PRINT_FILE);
-        const rec = addDefaultRecordRender(
-            renderer,
-            recordType || Ddh.DEFAULT_RECORD_TYPE,
-            recordId
-        );
-        printDdh(rec, renderer, recordId);
-        return renderer.renderAsPdf();
-    };
-
-    const onRequest = (scriptContext) => {
-        const params = scriptContext.request.parameters;
-        if (!params[UrlParameter.RECORD_ID]) {
-            throw new Error('Missing purchase order record id.');
+    const getItemInfo = (itemId, itemInfoById) => {
+        const itemKey = libPrintFormat.asText(itemId);
+        if (!itemKey) {
+            return {upccode: Ddh.EMPTY, displayName: Ddh.EMPTY};
+        }
+        if (itemInfoById[itemKey]) {
+            return itemInfoById[itemKey];
         }
 
-        const pdfFile = renderRecordToPdfWithTemplate(
-            params[UrlParameter.RECORD_ID],
-            params[UrlParameter.RECORD_TYPE] || Ddh.DEFAULT_RECORD_TYPE,
-            params[UrlParameter.PRINT_FILE]
-        );
-        scriptContext.response.writeFile({file: pdfFile, isInline: true});
+        try {
+            const rows = query.runSuiteQL({
+                query: Ddh.ITEM_QUERY,
+                params: [itemId]
+            }).asMappedResults();
+            const row = rows[0] || {};
+            itemInfoById[itemKey] = {
+                upccode: libPrintFormat.asText(row.upccode),
+                displayName: libPrintFormat.asText(row.displayname)
+            };
+        } catch (error) {
+            log.error({
+                title: 'getItemInfo',
+                details: {itemId, query: Ddh.ITEM_QUERY, error}
+            });
+            itemInfoById[itemKey] = {upccode: Ddh.EMPTY, displayName: Ddh.EMPTY};
+        }
+
+        return itemInfoById[itemKey];
     };
+
+    const xmlText = (value) => libPdf.formatDataXML(libPrintFormat.asText(value));
+
+    const formatRate = (value) => {
+        const parts = libPrintFormat.asNumber(value)
+            .toFixed(Ddh.RATE_DECIMAL_PLACES)
+            .split(Ddh.DECIMAL_SEPARATOR);
+        parts[1] = parts[1].replace(/0+$/, '').padEnd(2, '0');
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, Ddh.THOUSANDS_SEPARATOR);
+        return parts.join(Ddh.DECIMAL_SEPARATOR);
+    };
+
+    const formatMoney = (value, decimalPlaces) => {
+        const parts = libPrintFormat.asNumber(value)
+            .toFixed(decimalPlaces)
+            .split(Ddh.DECIMAL_SEPARATOR);
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, Ddh.THOUSANDS_SEPARATOR);
+        return decimalPlaces > 0
+            ? parts.join(Ddh.DECIMAL_SEPARATOR)
+            : parts[0];
+    };
+
+    const formatQuantity = (value) => {
+        const formattedValue = libPrintFormat.asNumber(value)
+            .toFixed(Ddh.QUANTITY_DECIMAL_PLACES)
+            .replace(/\.?0+$/, '');
+        const parts = formattedValue.split(Ddh.DECIMAL_SEPARATOR);
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, Ddh.THOUSANDS_SEPARATOR);
+        return parts.join(Ddh.DECIMAL_SEPARATOR);
+    };
+
+    const hasValue = (value) => value !== null && value !== undefined && value !== Ddh.EMPTY;
 
     return {onRequest, renderRecordToPdfWithTemplate};
 });

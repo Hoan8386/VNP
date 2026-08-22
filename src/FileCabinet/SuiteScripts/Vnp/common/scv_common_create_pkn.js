@@ -7,10 +7,12 @@
  */
 define(['N/format', 'N/record', 'N/url',
     '../lib/scv_lib_function.js',
-    '../cons/scv_cons_specificationunit.js'
+    '../cons/scv_cons_specificationunit.js',
+    '../cons/scv_cons_search_inb_to_pkn.js',
 ], (format, record, url,
     lbf,
-    constSpecificationUnit
+    constSpecificationUnit,
+    constSearchInbToPkn,
 ) => {
     const getColumnsTcn = () => {
         let columns = [
@@ -35,7 +37,19 @@ define(['N/format', 'N/record', 'N/url',
     };
 
     const getDataResult = (params, dataInput) => {
-        let { arrTranToPkn01 = [], arrTotalQtyPkn02 = [], arrTcnData03 = [], arrItemTck04 = [], arrTcnHangHoa05 = [] } = dataInput;
+        let { arrTranToPkn01 = [], arrTotalQtyPkn02 = [], arrTcnData03 = [],
+            arrItemTck04 = [], arrTcnHangHoa05 = [], arrInbToPkn06 = []
+        } = dataInput;
+
+        let arrSource = [];
+        if (params.custpage_inboundshipment) {
+            arrSource = arrInbToPkn06.map(e => ({...e, unitid: e.unit, unit: e.unit_display}));
+            arrTotalQtyPkn02 = arrTotalQtyPkn02.map(e => ({...e, sourceid: e.inboundshipmentid}));
+        }
+        else {
+            arrSource = arrTranToPkn01;
+            arrTotalQtyPkn02 = arrTotalQtyPkn02.map(e => ({...e, sourceid: e.createdfromid}));
+        }
 
         let arrTCN_NH = arrTcnHangHoa05.map(objTcn => ({ tieuchinhan: objTcn.id }));
 
@@ -44,32 +58,32 @@ define(['N/format', 'N/record', 'N/url',
             arrTcn: []
         };
 
-        arrTranToPkn01.forEach(objSS01 => {
-            let objSS02 = arrTotalQtyPkn02.find(e => e.item == objSS01.item && e.createdfrom == objSS01.createdfrom && e.originallineid == objSS01.originallineid) || {
+        arrSource.forEach(objSource => {
+            let objSS02 = arrTotalQtyPkn02.find(e => e.item == objSource.item && e.sourceid == objSource.createdfrom && e.originallineid == objSource.originallineid) || {
                 quantity: 0
             };
 
-            let remaningquantity = objSS01.quantityorder - objSS02.quantity*1
+            let remaningquantity = objSource.quantityorder - objSS02.quantity*1
             if (remaningquantity == 0) return;
 
-            let arrTCK_KH = arrItemTck04.filter(objTck => objTck.itemid == objSS01.item);
+            let arrTCK_KH = arrItemTck04.filter(objTck => objTck.itemid == objSource.item);
             arrTCK_KH = arrTCK_KH.map(objTck => ({ tieuchikiem: objTck.tieuchikiem, gtkc: objTck.gtkc }));
 
             let objChiTiet = {
-                subsidiary: objSS01.subsidiary,
-                entity: objSS01.entity,
-                location: objSS01.location,
-                item: objSS01.item,
-                unitid: objSS01.unitid,
-                originallineid: objSS01.originallineid,
+                subsidiary: objSource.subsidiary,
+                entity: objSource.entity,
+                location: objSource.location,
+                item: objSource.item,
+                unitid: objSource.unitid,
+                originallineid: objSource.originallineid,
                 arrTCK_KH: arrTCK_KH,
                 arrTCN_NH: arrTCN_NH,
             };
 
             objChiTiet.is_check = false;
-            objChiTiet.custpage_col_item = objSS01.item_display;
-            objChiTiet.custpage_col_description = objSS01.description;
-            objChiTiet.custpage_col_units = objSS01.unit;
+            objChiTiet.custpage_col_item = objSource.item_display;
+            objChiTiet.custpage_col_description = objSource.description;
+            objChiTiet.custpage_col_units = objSource.unit;
             objChiTiet.custpage_col_remaningquantity = remaningquantity;
             objChiTiet.custpage_col_quantity = remaningquantity;
 
@@ -107,6 +121,7 @@ define(['N/format', 'N/record', 'N/url',
         lbf.setValueData(pknRec, [
             "custrecord_scv_insp_h_sub",
             "custrecord_scv_insp_h_createdfrom",
+            "custrecord_scv_insp_h_inb",
             "custrecord_scv_insp_h_entity",
             "custrecord_scv_insp_h_invoiceserial",
             "custrecord_scv_insp_h_invoicenumber",
@@ -119,6 +134,7 @@ define(['N/format', 'N/record', 'N/url',
         ], [
             objReqBody.subsidiary,
             objReqBody.custpage_createdfrom,
+            objReqBody.custpage_inboundshipment,
             objReqBody.entity,
             objReqBody.custpage_invoiceserial,
             objReqBody.custpage_invoicenumber,
@@ -206,22 +222,39 @@ define(['N/format', 'N/record', 'N/url',
 
     const addButtonCreatePkn = (scriptContext) => {
         let newRecord = scriptContext.newRecord;
+        let recordType = newRecord.type;
         let statusRef = newRecord.getValue({fieldId: 'statusRef'});
+        let suiteletParams = {
+            custpage_createdfrom: newRecord.id,
+        };
+
+        if (recordType == 'inboundshipment') {
+            statusRef = newRecord.getValue({fieldId: 'shipmentstatus'});
+            suiteletParams = {
+                custpage_inboundshipment: newRecord.id,
+            };
+        }
+
         let allowedStatusByType = {
             purchaseorder: ['pendingReceipt', 'partiallyBilled', 'pendingBillPartReceived', 'partiallyReceived'],
             returnauthorization: ['pendingReceipt'],
             transferorder: ['pendingReceipt'],
+            inboundshipment: ['inTransit', 'partiallyReceived', 'received'],
         };
 
-        if (!allowedStatusByType[newRecord.type]?.includes(statusRef)) return;
+        let allowedStatus = allowedStatusByType[recordType] || [];
+        if (!allowedStatus.includes(statusRef)) return;
+
+        if (recordType == 'purchaseorder') {
+            let arrInbToPkn = constSearchInbToPkn.getDataSource({custpage_purchaseorder: newRecord.id});
+            if (arrInbToPkn.length > 0) return;
+        }
 
         let suiteletUrl = url.resolveScript({
             scriptId: 'customscript_scv_sl_create_pkn',
             deploymentId: 'customdeploy_scv_sl_create_pkn',
             returnExternalUrl: false,
-            params: {
-                custpage_createdfrom: newRecord.id,
-            }
+            params: suiteletParams,
         });
 
         scriptContext.form.addButton({

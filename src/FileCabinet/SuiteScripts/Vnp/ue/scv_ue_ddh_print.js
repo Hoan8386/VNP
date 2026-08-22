@@ -2,21 +2,26 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
-define(['N/url', '../common/scv_common_ui'],
-    (url, comUI) => {
+define([
+    'N/url',
+    '../common/scv_common_ui'
+], (
+    url,
+    comUI
+) => {
         const beforeLoad = (scriptContext) => {
             if (scriptContext.type === scriptContext.UserEventType.VIEW) {
-                let newRecord = scriptContext.newRecord;
-                let recid = newRecord.id;
-                let rectype = newRecord.type;
+                let purchaseOrder = scriptContext.newRecord;
+                let purchaseOrderId = purchaseOrder.id;
+                let purchaseOrderType = purchaseOrder.type;
 
                 let urlSl = url.resolveScript({
                     scriptId: 'customscript_scv_sl_ddh_print',
                     deploymentId: 'customdeploy_scv_sl_ddh_print',
                     returnExternalUrl: false,
                     params: {
-                        recid,
-                        rectype,
+                        recid: purchaseOrderId,
+                        rectype: purchaseOrderType,
                         printfile: 'scv_render_ddh_pdf'
                     }
                 });

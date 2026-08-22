@@ -3,7 +3,7 @@
  * Key:
  * =======================================================================================
  *  Date                Author                  Description
- *  12 Aug 2026         Khanh Tran              Init, create file.
+ *  21 Aug 2026         Khanh Tran              Init, create file.
  */
 define(['N/search',
     '../cons/scv_cons_search.js',
@@ -11,8 +11,8 @@ define(['N/search',
     search,
     constSearch,
 ) => {
-    const ID = 'customsearch_scv_total_qty_pkn';
-    const TYPE = 'customrecord_scv_inspection_header';
+    const ID = 'customsearch_scv_inb_to_pkn';
+    const TYPE = 'inboundshipment';
     const RECORDS = {};
 
     const getDataSource = (params) => {
@@ -31,18 +31,19 @@ define(['N/search',
         if (params.custpage_inboundshipment) {
             filters.push(
                 search.createFilter({
-                    name: "custrecord_scv_insp_h_inb", operator: "anyof", values: params.custpage_inboundshipment,
+                    name: "internalid", operator: "anyof", values: params.custpage_inboundshipment,
                 })
             );
         }
-        else if (params.custpage_createdfrom) {
+
+        if (params.custpage_purchaseorder) {
             filters.push(
                 search.createFilter({
-                    name: "custrecord_scv_insp_h_createdfrom", operator: "anyof", values: params.custpage_createdfrom,
+                    name: "custrecord_scv_inb_po", operator: "anyof", values: params.custpage_purchaseorder,
                 })
             );
         }
-        
+
         return filters;
     };
 

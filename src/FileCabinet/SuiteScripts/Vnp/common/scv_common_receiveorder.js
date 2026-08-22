@@ -72,6 +72,21 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
         return arrResult;
     };
 
+    const updateInspectionReceived = (arrInspectionIds) => {
+        arrInspectionIds.forEach(inspectionId => {
+            record.submitFields({
+                type: 'customrecord_scv_inspection_header',
+                id: inspectionId,
+                values: {
+                    custrecord_scv_insp_h_check_itr: true,
+                },
+                options: {
+                    enableSourcing: false, ignoreMandatoryFields: true,
+                },
+            });
+        });
+    };
+
     const createReceiveInboundShipment = (params, arrLines) => {
         let receiveInboundShipmentRec = record.load({
             type: 'receiveinboundshipment',
@@ -145,6 +160,7 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
         if (objSS2.invoicedate) itemReceiptRec.setValue({fieldId: 'custbody_scv_invoice_date', value: format.parse({value: objSS2.invoicedate, type: format.Type.DATE})});
 
         let sublistId = 'item';
+        let arrInspectionIds = [];
         let lineCount = itemReceiptRec.getLineCount({sublistId});
         for (let i = 0; i < lineCount; i++) {
             let originallineid = itemReceiptRec.getSublistValue({sublistId, fieldId: 'custcol_scv_origin_line_num', line: i});
@@ -153,9 +169,14 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
             itemReceiptRec.selectLine({sublistId, line: i});
 
             if (objLine) {
+                let objInspection = arrSS2.find(e => e.item == objLine.item && e.originallineid == objLine.originallineid);
                 itemReceiptRec.setCurrentSublistValue({sublistId, fieldId: 'itemreceive', value: true});
                 itemReceiptRec.setCurrentSublistValue({sublistId, fieldId: 'quantity', value: Number(objLine.quantity)});
                 itemReceiptRec.setCurrentSublistValue({sublistId, fieldId: 'custcol_scv_origin_line_num', value: objLine.originallineid});
+                if (objInspection?.id) {
+                    itemReceiptRec.setCurrentSublistValue({sublistId, fieldId: 'custcol_scv_inspection_number', value: objInspection.id});
+                    if (!arrInspectionIds.includes(objInspection.id)) arrInspectionIds.push(objInspection.id);
+                }
 
                 let inventorydetailavail = itemReceiptRec.getCurrentSublistValue({sublistId, fieldId: 'inventorydetailavail'});
                 if (inventorydetailavail === true || inventorydetailavail === 'T') {
@@ -188,10 +209,13 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
             itemReceiptRec.commitLine({sublistId});
         }
 
-        return itemReceiptRec.save({enableSourcing: false, ignoreMandatoryFields: true});
+        let itemReceiptId = itemReceiptRec.save({enableSourcing: false, ignoreMandatoryFields: true});
+        updateInspectionReceived(arrInspectionIds);
+
+        return itemReceiptId;
     };
 
-    const createItemReceiptCase3 = (params, arrLines) => {
+    const createItemReceiptCase3 = (params, arrLines, arrSS2) => {
         let tranLkf = search.lookupFields({
             type: search.Type.TRANSACTION,
             id: params.custpage_ordernumber,
@@ -212,6 +236,7 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
         if (arrLines[0].location) itemReceiptRec.setValue({fieldId: 'location', value: arrLines[0].location});
 
         let sublistId = 'item';
+        let arrInspectionIds = [];
         let lineCount = itemReceiptRec.getLineCount({sublistId});
         for (let i = 0; i < lineCount; i++) {
             let originallineid = itemReceiptRec.getSublistValue({sublistId, fieldId: 'custcol_scv_origin_line_num', line: i}) + '';
@@ -220,9 +245,14 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
             itemReceiptRec.selectLine({sublistId, line: i});
 
             if (objLine) {
+                let objInspection = arrSS2.find(e => e.item == objLine.item && e.originallineid == objLine.originallineid);
                 itemReceiptRec.setCurrentSublistValue({sublistId, fieldId: 'itemreceive', value: true});
                 itemReceiptRec.setCurrentSublistValue({sublistId, fieldId: 'quantity', value: Number(objLine.quantity)});
                 itemReceiptRec.setCurrentSublistValue({sublistId, fieldId: 'custcol_scv_origin_line_num', value: objLine.originallineid});
+                if (objInspection?.id) {
+                    itemReceiptRec.setCurrentSublistValue({sublistId, fieldId: 'custcol_scv_inspection_number', value: objInspection.id});
+                    if (!arrInspectionIds.includes(objInspection.id)) arrInspectionIds.push(objInspection.id);
+                }
 
                 let inventorydetailavail = itemReceiptRec.getCurrentSublistValue({sublistId, fieldId: 'inventorydetailavail'});
                 if (inventorydetailavail === true || inventorydetailavail === 'T') {
@@ -255,7 +285,10 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
             itemReceiptRec.commitLine({sublistId});
         }
 
-        return itemReceiptRec.save({enableSourcing: false, ignoreMandatoryFields: true});
+        let itemReceiptId = itemReceiptRec.save({enableSourcing: false, ignoreMandatoryFields: true});
+        updateInspectionReceived(arrInspectionIds);
+
+        return itemReceiptId;
     };
 
     const addButtonCreateItr = (scriptContext) => {
@@ -288,6 +321,7 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
     return {
         getColumnsResult,
         getDataResult,
+        updateInspectionReceived,
         createReceiveInboundShipment,
         createItemReceiptCase2,
         createItemReceiptCase3,

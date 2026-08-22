@@ -7,8 +7,14 @@
  *  20 Aug 2026         Khanh Tran              Kế thừa thông tin từ Inbound Shipment sang Item Receipt from ms. Thủy(https://app.clickup.com/t/86d42geh8)
  */
 define(["N/query", "N/search", "N/record", "N/url",
+    '../common/scv_common_receiveorder.js',
+
+    '../cons/scv_cons_search_pkn_inb_itr.js',
 ],
     function (query, search, record, url,
+        commonReceiveorder,
+
+        cSearchPknInbItr,
     ) {
         const _export = {};
         
@@ -20,6 +26,8 @@ define(["N/query", "N/search", "N/record", "N/url",
 
             let inboundshipment = irRec.getValue('inboundshipment');
             if (!inboundshipment) return;
+
+            let arrPknInbItr = cSearchPknInbItr.getDataSource({custpage_inboundshipment: inboundshipment});
 
             let inbRec = record.load({
                 type: 'inboundShipment', id: inboundshipment
@@ -65,20 +73,28 @@ define(["N/query", "N/search", "N/record", "N/url",
 
             let slItem = 'item';
             let lcItem = irRec.getLineCount(slItem);
+            let arrInspectionIds = [];
             for (let i = 0; i < lcItem; i++) {
                 let custcol_scv_origin_line_num = irRec.getSublistValue({ sublistId: slItem, fieldId: 'custcol_scv_origin_line_num', line: i });
                 let objItem = objIB.arrItem.find(e => e.custrecord_scv_original_line_id == custcol_scv_origin_line_num);
                 if (!objItem) continue;
                 
+                let objPKn = arrPknInbItr.find(e => e.originallineid == custcol_scv_origin_line_num) || {internalid: ''};
+                let inspectionId = objPKn.internalid;
+
                 irRec.setSublistValue({ sublistId: slItem, fieldId: 'custcol_scv_inb_importtax_code', value: objItem.custrecord_scv_inb_importtax_code, line: i });
                 irRec.setSublistValue({ sublistId: slItem, fieldId: 'custcol_scv_inb_importtax_amount', value: objItem.custrecord_scv_inb_importtax_amount, line: i });
                 irRec.setSublistValue({ sublistId: slItem, fieldId: 'custcol_scv_inb_tax_code', value: objItem.custrecord_inb_tax_code, line: i });
                 irRec.setSublistValue({ sublistId: slItem, fieldId: 'custcol_scv_inb_tax_amount', value: objItem.custrecord_scv_inb_tax_amount, line: i });
                 irRec.setSublistValue({ sublistId: slItem, fieldId: 'custcol_scv_cus_unitlandedcost', value: objItem.custrecord_scv_inb_landcost, line: i });
                 irRec.setSublistValue({ sublistId: slItem, fieldId: 'custcol_scv_inb_unitlandedcost', value: objItem.unitlandedcost, line: i });
+                irRec.setSublistValue({ sublistId: slItem, fieldId: 'custcol_scv_inspection_number', value: inspectionId, line: i });
+
+                if (inspectionId && !arrInspectionIds.includes(inspectionId)) arrInspectionIds.push(inspectionId);
             }
 
             irRec.save({ enableSourcing: false, ignoreMandatoryFields: true });
+            commonReceiveorder.updateInspectionReceived(arrInspectionIds);
         }
 
         _export.addButtonUpdateInbInfo = function (scriptContext) {

@@ -2,8 +2,13 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
-define(['N/url', '../common/scv_common_ui'],
-    (url, comUI) => {
+define([
+    'N/url',
+    '../common/scv_common_ui'
+], (
+    url,
+    comUI
+) => {
         /**
          * Defines the function definition that is executed before record is loaded.
          * @param {Object} scriptContext
@@ -15,17 +20,17 @@ define(['N/url', '../common/scv_common_ui'],
          */
         const beforeLoad = (scriptContext) => {
             if (scriptContext.type === scriptContext.UserEventType.VIEW) {
-                let newRecord = scriptContext.newRecord;
-                let recid = newRecord.id;
-                let rectype = newRecord.type;
+                let itemFulfillment = scriptContext.newRecord;
+                let itemFulfillmentId = itemFulfillment.id;
+                let itemFulfillmentType = itemFulfillment.type;
 
                 let urlSlPrintPxk = url.resolveScript({
                     scriptId: 'customscript_scv_sl_kbbgh_print',
                     deploymentId: 'customdeploy_scv_sl_kbbgh_print',
                     returnExternalUrl: false,
                     params: {
-                        recid,
-                        rectype,
+                        recid: itemFulfillmentId,
+                        rectype: itemFulfillmentType,
                         printfile: 'scv_render_kbbgh_pdf'
                     }
                 });

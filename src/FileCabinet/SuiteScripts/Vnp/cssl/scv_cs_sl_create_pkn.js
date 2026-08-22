@@ -15,8 +15,9 @@ define(['N/search', "N/ui/message",
     commonCreatePkn,
 ) => {
     const pageInit = (scriptContext) => {
+        let sourceFieldId = getSourceFieldId(scriptContext.currentRecord);
         let createdFrom = scriptContext.currentRecord.getValue({
-            fieldId: 'custpage_createdfrom',
+            fieldId: sourceFieldId
         });
 
         if (createdFrom) {
@@ -24,6 +25,10 @@ define(['N/search', "N/ui/message",
         }
 
         setOptionGridResult();
+    };
+
+    const getSourceFieldId = (curRec) => {
+        return curRec.getField({fieldId: 'custpage_inboundshipment'}) ? 'custpage_inboundshipment' : 'custpage_createdfrom';
     };
 
     const setOptionGridResult = () => {
@@ -49,26 +54,41 @@ define(['N/search', "N/ui/message",
     const searchResult = () => {
         clearMessages();
 
-        if (!_scvForm.validateFieldMandatory([
-            "custpage_createdfrom"
-        ])) return;
-
         let params = _scvForm.getParameter();
+        let sourceFieldId = params.custpage_inboundshipment ? 'custpage_inboundshipment' : 'custpage_createdfrom';
+        if (!_scvForm.validateFieldMandatory([sourceFieldId])) return;
         
         _scvForm.showLoadingDialog(true);
 
-        let lkTran = search.lookupFields({
-            type: 'transaction', id: params.custpage_createdfrom, columns: ['custbody_scv_loai_kiem_nhap']
-        });
-        let custpage_loaikiemnhap = lkTran.custbody_scv_loai_kiem_nhap?.[0]?.value || '';
+        let arrActionFunc = [];
+        if (params.custpage_inboundshipment) {
+            let lkInb = search.lookupFields({
+                type: 'inboundshipment', id: params.custpage_inboundshipment, columns: ['custrecord_scv_inb_po.custbody_scv_loai_kiem_nhap']
+            });
+            let custpage_loaikiemnhap = lkInb['custrecord_scv_inb_po.custbody_scv_loai_kiem_nhap']?.[0]?.value || '';
 
-        let arrActionFunc = [
-            { action: 'trans_to_pkn_01', params: { ...params }, data: [] },
-            { action: 'total_qty_pkn_02', params: { ...params }, data: [] },
-            { action: 'tcn_data_03', params: { ...params, custpage_loaikiemnhap }, data: [] },
-            { action: 'item_tck_04', params: { ...params, custpage_loaikiemnhap }, data: [] },
-            { action: 'tcn_hanghoa_05', params: { ...params, custpage_loaikiemnhap }, data: [] },
-        ];
+            arrActionFunc = [
+                { action: 'inb_to_pkn_06', params: { ...params }, data: [] },
+                { action: 'total_qty_pkn_02', params: { ...params }, data: [] },
+                { action: 'tcn_data_03', params: { ...params, custpage_loaikiemnhap }, data: [] },
+                { action: 'item_tck_04', params: { ...params, custpage_loaikiemnhap }, data: [] },
+                { action: 'tcn_hanghoa_05', params: { ...params, custpage_loaikiemnhap }, data: [] },
+            ];
+        }
+        else {
+            let lkTran = search.lookupFields({
+                type: 'transaction', id: params.custpage_createdfrom, columns: ['custbody_scv_loai_kiem_nhap']
+            });
+            let custpage_loaikiemnhap = lkTran.custbody_scv_loai_kiem_nhap?.[0]?.value || '';
+
+            arrActionFunc = [
+                { action: 'trans_to_pkn_01', params: { ...params }, data: [] },
+                { action: 'total_qty_pkn_02', params: { ...params }, data: [] },
+                { action: 'tcn_data_03', params: { ...params, custpage_loaikiemnhap }, data: [] },
+                { action: 'item_tck_04', params: { ...params, custpage_loaikiemnhap }, data: [] },
+                { action: 'tcn_hanghoa_05', params: { ...params, custpage_loaikiemnhap }, data: [] },
+            ];
+        }
 
         _scvForm.ajax.postAsyncMultiFetchSSPage(_scvForm.serviceScript.url, arrActionFunc, (arrResponse) => {
             let dataInput = {
@@ -77,6 +97,7 @@ define(['N/search', "N/ui/message",
                 arrTcnData03: _scvForm.getResultActionPage(arrResponse, 'tcn_data_03'),
                 arrItemTck04: _scvForm.getResultActionPage(arrResponse, 'item_tck_04'),
                 arrTcnHangHoa05: _scvForm.getResultActionPage(arrResponse, 'tcn_hanghoa_05'),
+                arrInbToPkn06: _scvForm.getResultActionPage(arrResponse, 'inb_to_pkn_06'),
             };
 
             let objResult = commonCreatePkn.getDataResult(params, dataInput);
@@ -90,9 +111,9 @@ define(['N/search', "N/ui/message",
     const onSubmit = async () => {
         clearMessages();
 
-        if (!_scvForm.validateFieldMandatory([
-            "custpage_createdfrom"
-        ])) return;
+        let params = _scvForm.getParameter();
+        let sourceFieldId = params.custpage_inboundshipment ? 'custpage_inboundshipment' : 'custpage_createdfrom';
+        if (!_scvForm.validateFieldMandatory([sourceFieldId])) return;
 
         let arrResultLine = _scvDx.getDataSource("custpage_sl_result");
         let arrResultSelected = arrResultLine.filter((e) => e.is_check);
@@ -102,8 +123,6 @@ define(['N/search', "N/ui/message",
         }
 
         _scvForm.showLoadingDialog(true);
-
-        let params = _scvForm.getParameter();
 
         let arrTCN_CT = _scvDx.getDataSource("custpage_sl_tcn");
 

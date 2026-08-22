@@ -2,9 +2,14 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
-define(['N/url', 'N/search',
-        '../common/scv_common_ui',
-        '../lib/scv_lib_utils.js'], (url, search, comUI, libUtils) => {
+define([
+    'N/url', 'N/search', 'N/log',
+    '../lib/scv_lib_utils.js',
+    '../common/scv_common_ui'
+], (
+    url, search, log,
+    libUtils, comUI
+) => {
     // TODO(BA-Q1): Chọn mẫu theo ngân hàng tài khoản chi tiền và xử lý ngân hàng thứ 4.
     // printfile / logoFile / coChiNhanh* / coTinhTP: khong dung trong UE (o day chi
     // can timNganHang qua tuKhoa de quyet dinh HIEN hay AN button), nhung giu dong bo
@@ -34,21 +39,13 @@ define(['N/url', 'N/search',
         }
     };
 
-    const chuanHoa=s=>libUtils.removeVietnameseTones(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')
-
-    const timNganHang = (ten) => {
-        const tenDaChuanHoa = chuanHoa(ten);
-        return Object.keys(NganHang).find((maNganHang) =>
-            NganHang[maNganHang].tuKhoa.some((tuKhoa) => tenDaChuanHoa.includes(tuKhoa)));
-    };
-
     // Them button in UNC. Loi o day KHONG duoc chan viec mo chung tu: nut in la
     // tien ich, con xem chung tu la nghiep vu. Nuot loi va ghi log, khong throw.
     const beforeLoad = (scriptContext) => {
         try {
             themButtonUNC(scriptContext);
-        } catch (e) {
-            log.error({title: 'scv_ue_unc_print', details: e});
+        } catch (error) {
+            log.error({title: 'scv_ue_unc_print', details: error});
         }
     };
 
@@ -56,28 +53,29 @@ define(['N/url', 'N/search',
         if (scriptContext.type !== scriptContext.UserEventType.VIEW) {
             return;
         }
-        const recType = scriptContext.newRecord.type;
-        const recId = scriptContext.newRecord.id;
+        const transactionType = scriptContext.newRecord.type;
+        const transactionId = scriptContext.newRecord.id;
         // TODO(BA-Q8): Xác nhận field account có đúng trên cả ba loại chứng từ.
         const accountValue = search.lookupFields({
-            type: recType, id: recId, columns: ['account']
+            type: transactionType, id: transactionId, columns: ['account']
         }).account;
-        const accId = Array.isArray(accountValue) ? accountValue[0]?.value :
+        const accountId = Array.isArray(accountValue) ? accountValue[0]?.value :
             accountValue?.value || accountValue;
-        if (!accId) {
+        if (!accountId) {
             return;
         }
         // TODO(BA-Q11): custrecord_scv_acc_bank_name hien rong tren 100% tai khoan,
         // nen tam do them ten tai khoan de dinh tuyen. Bo 'name' khi ke toan da
         // dien du field. Chi dung de AN/HIEN button, khong in ra chung tu.
-        const accFields = search.lookupFields({
-            type: 'account', id: accId,
+        const accountFields = search.lookupFields({
+            type: 'account', id: accountId,
             columns: ['custrecord_scv_acc_bank_name', 'name']
         });
-        const layChuoi = (v) => Array.isArray(v) ?
-            v[0]?.text || v[0]?.value || '' : v?.text || v?.value || v || '';
-        const tenNganHang = layChuoi(accFields.custrecord_scv_acc_bank_name) ||
-            layChuoi(accFields.name);
+        const layChuoi = (fieldValue) => Array.isArray(fieldValue) ?
+            fieldValue[0]?.text || fieldValue[0]?.value || '' :
+                fieldValue?.text || fieldValue?.value || fieldValue || '';
+        const tenNganHang = layChuoi(accountFields.custrecord_scv_acc_bank_name) ||
+            layChuoi(accountFields.name);
         const maNganHang = timNganHang(tenNganHang);
         // TODO(BA-Q1): Không khớp thì ẩn button và mở form bình thường.
         if (!maNganHang) {
@@ -86,7 +84,7 @@ define(['N/url', 'N/search',
         const urlSl = url.resolveScript({
             scriptId: 'customscript_scv_sl_unc_print',
             deploymentId: 'customdeploy_scv_sl_unc_print',
-            params: {recid: recId, rectype: recType}
+            params: {recid: transactionId, rectype: transactionType}
         });
         scriptContext.form.addButton({
             id: 'custpage_scv_btn_unc_pdf',
@@ -95,6 +93,15 @@ define(['N/url', 'N/search',
         });
         comUI.addIconToButton(scriptContext.form);
     };
+
+    const timNganHang = (tenNganHang) => {
+        const tenDaChuanHoa = chuanHoa(tenNganHang);
+        return Object.keys(NganHang).find((maNganHang) =>
+            NganHang[maNganHang].tuKhoa.some((tuKhoa) => tenDaChuanHoa.includes(tuKhoa)));
+    };
+
+    const chuanHoa = (tenNganHang) =>
+        libUtils.removeVietnameseTones(tenNganHang || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
     return {beforeLoad};
 });
