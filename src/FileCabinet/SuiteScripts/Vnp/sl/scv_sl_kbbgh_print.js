@@ -3,196 +3,207 @@
  * @NScriptType Suitelet
  */
 define([
-        'N/render', 'N/search', 'N/record', 'N/query',
-        '../lib/scv_lib_pdf.js'
-    ],
-    (
-        render, search, record, query,
-        libPdf
-    ) => {
-        const renderRecordToPdfWithTemplate = (id, type, printfile) => {
-            if (!printfile) throw "Chưa có setup file xml!";
-            let renderer = libPdf.renderTemplateWithXml(printfile);
-            let rec = addDefaultRecordRender(renderer, type, id);
-            printKBBGH(rec, renderer);
-            return renderer.renderAsPdf();
+    'N/render',
+    'N/search',
+    'N/record',
+    'N/query',
+    '../lib/scv_lib_pdf.js',
+    '../lib/scv_lib_print_format.js',
+    '../common/scv_common_print_lookup.js',
+    '../cons/scv_cons_print.js'
+], (render, search, record, query, libPdf, libPrintFormat, printLookup, consPrint) => {
+    const UrlParameter = consPrint.UrlParameter;
+    const Template = consPrint.Template;
+    const Kbbgh = consPrint.Kbbgh;
+
+    const addDefaultRecordRender = (renderer, recordType, recordId) => {
+        const rec = record.load({
+            type: recordType,
+            id: recordId,
+            isDynamic: false
+        });
+        renderer.addRecord(Template.RECORD_ALIAS, rec);
+        return rec;
+    };
+
+    const getLookupText = (value) => {
+        if (Array.isArray(value)) {
+            return value.map((entry) => entry.text || entry.value || '').join(', ');
+        }
+        if (value && typeof value === 'object') {
+            return value.text || value.value || '';
+        }
+        return libPrintFormat.asText(value);
+    };
+
+    const getCustomerLegalName = (entityId, fallbackName) => {
+        if (!entityId) {
+            return libPrintFormat.asText(fallbackName);
         }
 
-        const printKBBGH = (rec, renderer) => {
-            let dataJson = getDataKBBGH(rec);
-
-            renderer.addCustomDataSource({
-                format: render.DataSource.OBJECT,
-                alias: "dataJson",
-                data: dataJson
-            })
-        }
-
-        const getDataKBBGH = (rec) => {
-            let subsidiaryInfo = getSubsidiaryInfo(rec.getValue({fieldId: 'subsidiary'}));
-            let entityId = rec.getValue({fieldId: 'entity'});
-            let entityName = getCustomerLegalName(
-                entityId,
-                rec.getText({fieldId: 'entity'}) || ''
-            );
-            let tranDateVal = rec.getValue({fieldId: 'trandate'});
-            let tranday = tranDateVal ? ('0' + tranDateVal.getDate()).slice(-2) : '';
-            let tranmonth = tranDateVal ? ('0' + (tranDateVal.getMonth() + 1)).slice(-2) : '';
-            let tranyear = tranDateVal ? tranDateVal.getFullYear() : '';
-
-            return {
-                legalname: libPdf.formatDataXML(subsidiaryInfo.legalname),
-                mainaddress_text: libPdf.formatDataXML(subsidiaryInfo.mainaddress_text),
-                tranday: tranday,
-                tranmonth: tranmonth,
-                tranyear: tranyear,
-                receiver: libPdf.formatDataXML(
-                    rec.getValue({fieldId: 'custbody_scv_receiver'}) || ''
-                ),
-                entityName: libPdf.formatDataXML(entityName),
-                shipaddress: libPdf.formatDataXML(
-                    rec.getValue({fieldId: 'shipaddress'}) || ''
-                ),
-                lines: getLineDataKBBGH(rec)
-            };
-        }
-
-        const getSubsidiaryInfo = (subsidiaryId) => {
-            if (!subsidiaryId) return {legalname: '', mainaddress_text: ''};
-
-            let results = query.runSuiteQL({
-                query: 'select s.legalname, BUILTIN.DF(s.mainaddress) as mainaddress_text ' +
-                    'from subsidiary s where s.id = ?',
-                params: [subsidiaryId]
-            }).asMappedResults();
-
-            return {
-                legalname: results[0]?.legalname || '',
-                mainaddress_text: results[0]?.mainaddress_text || ''
-            };
-        }
-
-        const getCustomerLegalName = (entityId, fallbackName) => {
-            if (!entityId) return fallbackName || '';
-
-            try {
-                let fields = search.lookupFields({
-                    type: search.Type.CUSTOMER,
-                    id: entityId,
-                    columns: ['custentity_scv_legal_name']
-                });
-                return getLookupValue(fields.custentity_scv_legal_name) || fallbackName || '';
-            } catch (e) {
-                return fallbackName || '';
-            }
-        }
-
-        // TODO(BA-Q): mockup chỉ có số < 1000, chưa xác nhận dấu phân cách hàng nghìn.
-        const formatQuantity = (quantity) => {
-            let numericQuantity = Number(quantity);
-            if (!Number.isFinite(numericQuantity)) numericQuantity = 0;
-
-            let parts = numericQuantity.toFixed(2).split('.');
-            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-            return parts.join('.');
-        }
-
-        const getLineDataKBBGH = (rec) => {
-            let lineData = [];
-            let itemInfoById = {};
-            let lineCount = rec.getLineCount({sublistId: 'item'});
-
-            for (let i = 0; i < lineCount; i++) {
-                let itemId = rec.getSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'item',
-                    line: i
-                });
-                let itemInfo = getItemInfo(itemId, itemInfoById);
-                let description = rec.getSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'description',
-                    line: i
-                }) || '';
-                let unitsdisplay = rec.getSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'unitsdisplay',
-                    line: i
-                }) || '';
-                let dvt = unitsdisplay || rec.getSublistText({
-                    sublistId: 'item',
-                    fieldId: 'units',
-                    line: i
-                }) || '';
-                let quantity = rec.getSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'quantity',
-                    line: i
-                }) || 0;
-
-                lineData.push({
-                    tenHang: libPdf.formatDataXML(description || itemInfo.displayName),
-                    dvt: libPdf.formatDataXML(dvt),
-                    soLuong: formatQuantity(quantity)
-                });
-            }
-
-            return lineData;
-        }
-
-        const getItemInfo = (itemId, itemInfoById) => {
-            if (!itemId) return {displayName: ''};
-            if (itemInfoById[itemId]) return itemInfoById[itemId];
-
-            try {
-                let results = query.runSuiteQL({
-                    query: 'select i.displayname from item i where i.id = ?',
-                    params: [itemId]
-                }).asMappedResults();
-                itemInfoById[itemId] = {
-                    displayName: results[0]?.displayname || ''
-                };
-            } catch (e) {
-                itemInfoById[itemId] = {displayName: ''};
-            }
-
-            return itemInfoById[itemId];
-        }
-
-        const getLookupValue = (value) => {
-            if (Array.isArray(value)) {
-                return value.map((item) => item.text || item.value || '').join(', ');
-            }
-            if (value && typeof value === 'object') return value.text || value.value || '';
-            return value || '';
-        }
-
-        const addDefaultRecordRender = (renderer, type, id) => {
-            let rec = record.load({
-                type: type,
-                id: id,
-                isDynamic: false
+        try {
+            const fields = search.lookupFields({
+                type: Kbbgh.CUSTOMER_RECORD_TYPE,
+                id: entityId,
+                columns: [Kbbgh.CUSTOMER_LEGAL_NAME_FIELD]
             });
-            renderer.addRecord('record', rec);
-            return rec;
-        }
-
-        const onRequest = (scriptContext) => {
-            let request = scriptContext.request;
-            let response = scriptContext.response;
-            let params = request.parameters;
-
-            let pdfFile = renderRecordToPdfWithTemplate(
-                params.recid,
-                params.rectype,
-                params.printfile
+            return libPrintFormat.asText(
+                getLookupText(fields[Kbbgh.CUSTOMER_LEGAL_NAME_FIELD]) || fallbackName
             );
-            response.writeFile(pdfFile, true);
+        } catch (error) {
+            log.error({
+                title: 'getCustomerLegalName',
+                details: {
+                    entityId,
+                    fieldId: Kbbgh.CUSTOMER_LEGAL_NAME_FIELD,
+                    error
+                }
+            });
+            return libPrintFormat.asText(fallbackName);
         }
+    };
+
+    const getItemInfo = (itemId, itemInfoById) => {
+        const itemKey = libPrintFormat.asText(itemId);
+        if (!itemKey) {
+            return {displayName: Kbbgh.EMPTY};
+        }
+        if (itemInfoById[itemKey]) {
+            return itemInfoById[itemKey];
+        }
+
+        try {
+            const rows = query.runSuiteQL({
+                query: Kbbgh.ITEM_QUERY,
+                params: [itemId]
+            }).asMappedResults();
+            itemInfoById[itemKey] = {
+                displayName: libPrintFormat.asText(rows[0]?.displayname)
+            };
+        } catch (error) {
+            log.error({
+                title: 'getItemInfo',
+                details: {itemId, query: Kbbgh.ITEM_QUERY, error}
+            });
+            itemInfoById[itemKey] = {displayName: Kbbgh.EMPTY};
+        }
+
+        return itemInfoById[itemKey];
+    };
+
+    const formatQuantity = (value) => {
+        const numericValue = Number(value);
+        const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+        const parts = safeValue.toFixed(Kbbgh.QUANTITY_DECIMAL_PLACES).split(
+            Kbbgh.DECIMAL_SEPARATOR
+        );
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, Kbbgh.THOUSANDS_SEPARATOR);
+        return parts.join(Kbbgh.DECIMAL_SEPARATOR);
+    };
+
+    const getLineDataKbbgh = (rec) => {
+        const itemInfoById = Object.create(null);
+        const lineCount = rec.getLineCount({sublistId: Kbbgh.SUBLIST_ID});
+        const lines = [];
+
+        for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
+            const itemId = libPrintFormat.readSublistValue(
+                rec, lineIndex, Kbbgh.LINE_FIELD.ITEM
+            );
+            const itemInfo = getItemInfo(itemId, itemInfoById);
+            const description = libPrintFormat.readSublistValue(
+                rec, lineIndex, Kbbgh.LINE_FIELD.DESCRIPTION
+            );
+            const unitsDisplay = libPrintFormat.readSublistValue(
+                rec, lineIndex, Kbbgh.LINE_FIELD.UNITS_DISPLAY
+            );
+            const unitsText = libPrintFormat.readSublistText(
+                rec, lineIndex, Kbbgh.LINE_FIELD.UNITS
+            );
+            const quantity = libPrintFormat.asNumber(libPrintFormat.readSublistValue(
+                rec, lineIndex, Kbbgh.LINE_FIELD.QUANTITY
+            ));
+
+            lines.push({
+                tenHang: libPdf.formatDataXML(
+                    libPrintFormat.asText(description || itemInfo.displayName)
+                ),
+                dvt: libPdf.formatDataXML(
+                    libPrintFormat.asText(unitsDisplay || unitsText)
+                ),
+                soLuong: formatQuantity(quantity)
+            });
+        }
+
+        return lines;
+    };
+
+    const getDataKbbgh = (rec) => {
+        const subsidiaryInfo = printLookup.getSubsidiaryInfo(
+            rec.getValue({fieldId: Kbbgh.FIELD.SUBSIDIARY})
+        );
+        const entityName = getCustomerLegalName(
+            rec.getValue({fieldId: Kbbgh.FIELD.ENTITY}),
+            rec.getText({fieldId: Kbbgh.FIELD.ENTITY})
+        );
+        const dateParts = libPrintFormat.getDateParts(
+            rec.getValue({fieldId: Kbbgh.FIELD.TRANSACTION_DATE})
+        );
 
         return {
-            onRequest,
-            renderRecordToPdfWithTemplate
+            legalname: libPdf.formatDataXML(
+                libPrintFormat.asText(subsidiaryInfo.legalname)
+            ),
+            mainaddress_text: libPdf.formatDataXML(
+                libPrintFormat.asText(subsidiaryInfo.mainaddress_text)
+            ),
+            entityName: libPdf.formatDataXML(entityName),
+            receiver: libPdf.formatDataXML(
+                libPrintFormat.asText(rec.getValue({fieldId: Kbbgh.FIELD.RECEIVER}))
+            ),
+            shipaddress: libPdf.formatDataXML(
+                libPrintFormat.asText(rec.getValue({fieldId: Kbbgh.FIELD.SHIP_ADDRESS}))
+            ),
+            tranday: dateParts.ngay,
+            tranmonth: dateParts.thang,
+            tranyear: dateParts.nam,
+            lines: getLineDataKbbgh(rec)
+        };
+    };
+
+    const printKbbgh = (rec, renderer, recordId) => {
+        const dataJson = getDataKbbgh(rec, recordId);
+        renderer.addCustomDataSource({
+            format: render.DataSource.OBJECT,
+            alias: Template.DATA_ALIAS,
+            data: dataJson
+        });
+    };
+
+    const renderRecordToPdfWithTemplate = (recordId, recordType, printFile) => {
+        const renderer = libPdf.renderTemplateWithXml(printFile || Kbbgh.PRINT_FILE);
+        const rec = addDefaultRecordRender(
+            renderer,
+            recordType || Kbbgh.DEFAULT_RECORD_TYPE,
+            recordId
+        );
+        printKbbgh(rec, renderer, recordId);
+        return renderer.renderAsPdf();
+    };
+
+    const onRequest = (scriptContext) => {
+        const params = scriptContext.request.parameters;
+        if (!params[UrlParameter.RECORD_ID]) {
+            throw new Error('Missing item fulfillment record id.');
         }
-    }
-);
+
+        const pdfFile = renderRecordToPdfWithTemplate(
+            params[UrlParameter.RECORD_ID],
+            params[UrlParameter.RECORD_TYPE] || Kbbgh.DEFAULT_RECORD_TYPE,
+            params[UrlParameter.PRINT_FILE]
+        );
+        scriptContext.response.writeFile({file: pdfFile, isInline: true});
+    };
+
+    return {onRequest, renderRecordToPdfWithTemplate};
+});

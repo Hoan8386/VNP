@@ -16,6 +16,40 @@ define(['N/ui/message', 'N/search', 'N/url'
         // TODO: Initialize the page.
     };
 
+    const checkQuantityToBeReceived = (currentRecord, sublistId, line) => {
+        let quantity = currentRecord.getSublistValue({sublistId, fieldId: 'custpage_col_quantitytobereceived', line}) * 1;
+        let quantityOrder = currentRecord.getSublistValue({sublistId, fieldId: 'custpage_col_quantityorder', line}) * 1;
+        let quantityReceived = currentRecord.getSublistValue({sublistId, fieldId: 'custpage_col_quantityreceived', line}) * 1;
+        let maxQuantity = quantityOrder - quantityReceived;
+
+        return {
+            isValid: quantity <= maxQuantity,
+            quantity,
+            maxQuantity,
+        };
+    };
+
+    const fieldChanged = (scriptContext) => {
+        let currentRecord = scriptContext.currentRecord;
+        let sublistId = scriptContext.sublistId;
+        let fieldId = scriptContext.fieldId;
+        let line = Number(scriptContext.line);
+
+        if (sublistId == 'custpage_sl_result') {
+            if (fieldId == 'custpage_col_quantitytobereceived') {
+                let quantityValidation = checkQuantityToBeReceived(currentRecord, sublistId, line);
+
+                if (!quantityValidation.isValid) {
+                    alert('Quantity To Be Received không được vượt quá ' + quantityValidation.maxQuantity + '.');
+                    currentRecord.setCurrentSublistValue({
+                        sublistId, fieldId: 'custpage_col_quantitytobereceived', value: quantityValidation.maxQuantity, ignoreFieldChange: true,
+                    });
+                }
+            }
+
+        }
+    };
+
     const searchResult = () => {
         window.onbeforeunload = null;
 
@@ -24,6 +58,7 @@ define(['N/ui/message', 'N/search', 'N/url'
         ])) return;
 
         let params = _scvForm.getParameter();
+        params.custpage_issearch = 'T';
         let queryString = new URLSearchParams(params).toString();
         let urlSearch = _scvForm.currentScript.url + '&' + queryString;
 
@@ -65,6 +100,12 @@ define(['N/ui/message', 'N/search', 'N/url'
             let isCreate = currentRecord.getSublistValue({sublistId, fieldId: 'custpage_col_create', line: i});
             if (isCreate !== true && isCreate !== 'T') continue;
 
+            let quantityValidation = checkQuantityToBeReceived(currentRecord, sublistId, i);
+            if (!quantityValidation.isValid) {
+                alert('Quantity To Be Received tại dòng ' + (i + 1) + ' không được vượt quá ' + quantityValidation.maxQuantity + '.');
+                return;
+            }
+
             // try {
             //     if (!_scvInventoryDetail.validateLine(sublistId, inventoryDetailFieldId, i)) return;
             // } catch (error) {
@@ -81,7 +122,7 @@ define(['N/ui/message', 'N/search', 'N/url'
 
             arrLines.push({
                 item: currentRecord.getSublistValue({sublistId, fieldId: 'custpage_col_item', line: i}),
-                quantity: currentRecord.getSublistValue({sublistId, fieldId: 'custpage_col_quantitytobereceived', line: i}),
+                quantity: quantityValidation.quantity,
                 location: currentRecord.getSublistValue({sublistId, fieldId: 'custpage_col_receivelocation', line: i}),
                 originallineid: currentRecord.getSublistValue({sublistId, fieldId: 'custpage_col_originallineid', line: i}),
                 lineid_inboundshipment: currentRecord.getSublistValue({sublistId, fieldId: 'custpage_col_lineidinboundshipment', line: i})*1,
@@ -145,6 +186,7 @@ define(['N/ui/message', 'N/search', 'N/url'
 
     return {
         pageInit,
+        fieldChanged,
         searchResult,
         onBackForm,
         onSubmit,

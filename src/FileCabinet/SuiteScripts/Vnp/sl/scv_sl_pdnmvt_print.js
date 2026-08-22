@@ -2,133 +2,146 @@
  * @NApiVersion 2.1
  * @NScriptType Suitelet
  */
-// Loads purchase requisition data and renders the PDF template.
-define(['N/query', 'N/render', '../lib/scv_lib_pdf.js'], (query, render, libPdf) => {
-    const HEADER_QUERY = `
-        SELECT
-            t.tranid AS so_phieu,
-            TO_CHAR(t.trandate, 'DD/MM/YYYY') AS ngay_phieu,
-            TO_CHAR(t.custbody_scv_exp_receipt_date, 'DD/MM/YYYY') AS thoi_gian_can,
-            sub.legalname AS ten_cong_ty
-        FROM transaction t
-        LEFT JOIN transactionline tl
-            ON tl.transaction = t.id
-           AND tl.mainline = 'T'
-        LEFT JOIN subsidiary sub ON sub.id = tl.subsidiary
-        WHERE t.id = ?`;
+define([
+    'N/render',
+    'N/record',
+    '../lib/scv_lib_pdf.js',
+    '../lib/scv_lib_print_format.js',
+    '../common/scv_common_print_lookup.js',
+    '../cons/scv_cons_print.js'
+], (render, record, libPdf, libPrintFormat, printLookup, consPrint) => {
+    const UrlParameter = consPrint.UrlParameter;
+    const Template = consPrint.Template;
+    const Pdnmvt = consPrint.Pdnmvt;
 
-    const LINES_QUERY = [
-        'SELECT',
-        // TODO(BA-Q8): UI Description chưa có Field ID; không dò thêm.
-        '    NVL(tl.memo, BUILTIN.DF(tl.item)) AS ten_hang,',
-        '    BUILTIN.DF(tl.units) AS dvt,',
-        '    tl.custcol_scv_quantity AS so_luong,',
-        '    tl.linesequencenumber AS line_sequence',
-        'FROM transactionline tl',
-        'WHERE tl.transaction = ?',
-        "  AND tl.mainline = 'F'",
-        "  AND tl.taxline = 'F'",
-        "  AND tl.iscogs = 'F'",
-        'ORDER BY tl.linesequencenumber'
-    ].join('\n');
-
-    // Converts nullable SuiteQL values to template-safe text.
-    const asText = (value) => value === null || value === undefined ? '' : String(value);
-
-    // Converts a quantity value to a finite number before summing.
-    const asNumber = (value) => {
-        const numberValue = Number(value);
-        return Number.isFinite(numberValue) ? numberValue : 0;
-    };
-
-    // Loads exactly one header row through the mainline subsidiary join.
-    const getHeader = (recid) => {
-        const rows = query.runSuiteQL({query: HEADER_QUERY, params: [recid]}).asMappedResults();
-        if (rows.length !== 1) {
-            throw new Error('Không tìm thấy header của phiếu đề nghị mua vật tư.');
-        }
-        return rows[0];
-    };
-
-    // Loads non-mainline, non-tax detail rows in sequence order.
-    const getLines = (recid) => query.runSuiteQL({
-        query: LINES_QUERY,
-        params: [recid]
-    }).asMappedResults();
-
-    // Maps query rows into the data contract consumed by FreeMarker.
-    const buildDataJson = (header, rows) => {
-        if (!rows.length) {
-            throw new Error('Phiếu đề nghị mua vật tư không có dòng hàng hóa.');
-        }
-        const dateParts = asText(header.ngay_phieu).split('/');
-        let total = 0;
-        const lines = rows.map((row) => {
-            const quantity = asNumber(row.so_luong);
-            total += quantity;
-            return {
-                tenHang: asText(row.ten_hang),
-                quyCach: '',
-                dvt: asText(row.dvt),
-                soLuong: libPdf.formatNumber(quantity),
-                ghiChu: ''
-            };
+    const addDefaultRecordRender = (renderer, recordType, recordId) => {
+        const rec = record.load({
+            type: recordType,
+            id: recordId,
+            isDynamic: false
         });
-        const legalName = asText(header.ten_cong_ty);
-        const separator = ' - ';
-        const separatorIndex = legalName.lastIndexOf(separator);
-        let tenCongTyDong1 = legalName;
-        let tenCongTyDong2 = '';
-        // Bảng quy đổi viết tắt loại hình doanh nghiệp sang tên đầy đủ theo mockup FDD.
-        // TODO(BA-Q7): mở rộng khi có subsidiary khác; nếu legalname được sửa thành tên
-        // đầy đủ thì bỏ bảng này và dùng thẳng phần sau dấu gạch.
-        const LOAI_HINH = {
-            'CTCP': 'CÔNG TY CỔ PHẦN'
-        };
-        if (separatorIndex >= 0) {
-            tenCongTyDong1 = legalName.slice(0, separatorIndex).trim();
-            const loaiHinhVietTat = legalName.slice(separatorIndex + separator.length).trim();
-            tenCongTyDong2 = LOAI_HINH[loaiHinhVietTat] || loaiHinhVietTat;
+        renderer.addRecord(Template.RECORD_ALIAS, rec);
+        return rec;
+    };
+
+    const isInternalIdText = (value) => {
+        const text = libPrintFormat.asText(value).trim();
+        return text !== Pdnmvt.EMPTY && /^\d+$/.test(text);
+    };
+
+    const getItemLines = (rec) => {
+        const lineCount = rec.getLineCount({sublistId: Pdnmvt.SUBLIST_ID});
+        let total = 0;
+        const lines = [];
+
+        for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
+            const memo = libPrintFormat.readSublistValue(
+                rec, lineIndex, Pdnmvt.LINE_FIELD.MEMO
+            );
+            const itemText = libPrintFormat.readSublistText(
+                rec, lineIndex, Pdnmvt.LINE_FIELD.ITEM
+            );
+            const unitsText = libPrintFormat.readSublistText(
+                rec, lineIndex, Pdnmvt.LINE_FIELD.UNITS
+            );
+            const unitsDisplay = libPrintFormat.readSublistValue(
+                rec, lineIndex, Pdnmvt.LINE_FIELD.UNITS_DISPLAY
+            );
+            const quantity = libPrintFormat.asNumber(libPrintFormat.readSublistValue(
+                rec, lineIndex, Pdnmvt.LINE_FIELD.QUANTITY
+            ));
+            const unitText = unitsText && !isInternalIdText(unitsText)
+                ? unitsText
+                : unitsDisplay;
+
+            total += quantity;
+            lines.push({
+                tenHang: libPrintFormat.asText(memo || itemText),
+                quyCach: Pdnmvt.EMPTY,
+                dvt: libPrintFormat.asText(unitText),
+                soLuong: libPdf.formatNumber(quantity),
+                ghiChu: Pdnmvt.EMPTY
+            });
         }
+
+        return {lines, total};
+    };
+
+    const getCompanyNameLines = (legalNameValue) => {
+        const legalName = libPrintFormat.asText(legalNameValue);
+        const separatorIndex = legalName.lastIndexOf(Pdnmvt.COMPANY_NAME_SEPARATOR);
+        if (separatorIndex < 0) {
+            return {tenCongTyDong1: legalName, tenCongTyDong2: Pdnmvt.EMPTY};
+        }
+
+        const firstLine = legalName.slice(0, separatorIndex).trim();
+        const shortCompanyType = legalName
+            .slice(separatorIndex + Pdnmvt.COMPANY_NAME_SEPARATOR.length)
+            .trim();
         return {
-            tenCongTy: legalName,
-            tenCongTyDong1,
-            tenCongTyDong2,
-            soPhieu: asText(header.so_phieu),
-            ngay: dateParts[0] || '',
-            thang: dateParts[1] || '',
-            nam: dateParts[2] || '',
-            thoiGianCan: asText(header.thoi_gian_can),
-            lines,
-            tongSoLuong: libPdf.formatNumber(total)
+            tenCongTyDong1: firstLine,
+            tenCongTyDong2: Pdnmvt.COMPANY_TYPE_NAMES[shortCompanyType] || shortCompanyType
         };
     };
 
-    /**
-     * Builds the data object and renders the requested PDF template.
-     * @param {Object} scriptContext
-     * @returns {void}
-     */
-    const onRequest = (scriptContext) => {
-        const params = scriptContext.request.parameters;
-        if (!params.recid) {
-            throw new Error('Thiếu recid của phiếu đề nghị mua vật tư.');
-        }
-        if (!params.printfile) {
-            throw new Error('Thiếu printfile của mẫu PDF.');
-        }
-        const dataJson = buildDataJson(getHeader(params.recid), getLines(params.recid));
-        const renderer = libPdf.renderTemplateWithXml(params.printfile);
+    const getDataPdnmvt = (rec) => {
+        const lineData = getItemLines(rec);
+        const dateParts = libPrintFormat.getDateParts(
+            rec.getValue({fieldId: Pdnmvt.FIELD.TRANSACTION_DATE})
+        );
+        const subsidiaryInfo = printLookup.getSubsidiaryInfo(
+            rec.getValue({fieldId: Pdnmvt.FIELD.SUBSIDIARY})
+        );
+
+        return {
+            ...getCompanyNameLines(subsidiaryInfo.legalname),
+            soPhieu: libPrintFormat.asText(
+                rec.getValue({fieldId: Pdnmvt.FIELD.TRANSACTION_ID})
+            ),
+            ngay: dateParts.ngay,
+            thang: dateParts.thang,
+            nam: dateParts.nam,
+            thoiGianCan: libPrintFormat.formatDate(
+                rec.getValue({fieldId: Pdnmvt.FIELD.REQUIRED_DATE})
+            ),
+            lines: lineData.lines,
+            tongSoLuong: libPdf.formatNumber(lineData.total)
+        };
+    };
+
+    const printPdnmvt = (rec, renderer, recordId) => {
+        const dataJson = getDataPdnmvt(rec, recordId);
         renderer.addCustomDataSource({
             format: render.DataSource.OBJECT,
-            alias: 'dataJson',
+            alias: Template.DATA_ALIAS,
             data: dataJson
-        });
-        scriptContext.response.writeFile({
-            file: renderer.renderAsPdf(),
-            isInline: true
         });
     };
 
-    return {onRequest};
+    const renderRecordToPdfWithTemplate = (recordId, recordType, printFile) => {
+        const renderer = libPdf.renderTemplateWithXml(printFile || Pdnmvt.PRINT_FILE);
+        const rec = addDefaultRecordRender(
+            renderer,
+            recordType || Pdnmvt.RECORD_TYPE,
+            recordId
+        );
+        printPdnmvt(rec, renderer, recordId);
+        return renderer.renderAsPdf();
+    };
+
+    const onRequest = (scriptContext) => {
+        const params = scriptContext.request.parameters;
+        if (!params[UrlParameter.RECORD_ID]) {
+            throw new Error('Missing purchase requisition record id.');
+        }
+
+        const pdfFile = renderRecordToPdfWithTemplate(
+            params[UrlParameter.RECORD_ID],
+            Pdnmvt.RECORD_TYPE,
+            params[UrlParameter.PRINT_FILE]
+        );
+        scriptContext.response.writeFile({file: pdfFile, isInline: true});
+    };
+
+    return {onRequest, renderRecordToPdfWithTemplate};
 });

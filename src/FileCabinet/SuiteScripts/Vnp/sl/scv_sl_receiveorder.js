@@ -9,8 +9,9 @@
  * @NApiVersion 2.1
  * @NScriptType Suitelet
  */
-define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search',
+define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search', 'N/redirect',
     '../common/scv_common_receiveorder.js',
+    '../common/scv_common_itemreceipt.js',
 
     '../cons/scv_cons_form.js',
     '../cons/scv_cons_search_receiveorder_01.js',
@@ -18,8 +19,9 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search',
     '../cons/scv_cons_search_receiveorder_03.js',
     '../cons/scv_cons_search_receiveorder_04.js',
 ], (
-    runtime, url, format, record, search,
+    runtime, url, format, record, search, redirect,
     commonReceiveorder,
+    commonItemreceipt,
 
     constForm,
     cSearchReceiveorder01,
@@ -46,6 +48,13 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search',
                 case 'onSubmitReceiveorder':
                     objResponse.data = onSubmitReceiveorder(params);
                     break;
+                case 'updateInbInfo':
+                    commonItemreceipt.updItemReceiptFromIB({id: params.itemreceipt});
+                    redirect.toRecord({
+                        type: record.Type.ITEM_RECEIPT,
+                        id: params.itemreceipt,
+                    });
+                    return;
             }
 
             constForm.write(objResponse);
@@ -61,6 +70,8 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search',
         let hasOrderNumber= !!params?.custpage_ordernumber;
         let arrINB = getDataINB03(params);
         let arrITF = getDataITF04(params);
+        if (!params.custpage_inboundshipment && arrINB.length == 1) params.custpage_inboundshipment = arrINB[0].id;
+        if (!params.custpage_itemfulfillment && arrITF.length == 1) params.custpage_itemfulfillment = arrITF[0].id;
 
         constForm.createForm('Receive Order', '../cssl/scv_cs_sl_receiveorder.js');
 
@@ -164,24 +175,26 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search',
             }
         );
 
-        let arrReceiveOrderDetail  = [];
-        if (params.custpage_inboundshipment) {
-            arrReceiveOrderDetail = getDataInboundShipment(params);
-        }
-        else if (params.custpage_itemfulfillment) {
-            arrReceiveOrderDetail = getDataItemFulfillment(params);
-        }
-        else if (params.custpage_ordernumber) {
-            arrReceiveOrderDetail = getDataReceiveorder01(params);
-        }
-        
-        let arrInventoryDetail = cSearchReceiveorder02.getDataSource(params);
-        let arrResult = commonReceiveorder.getDataResult(params, {
-            arrReceiveOrderDetail,
-            arrInventoryDetail,
-        });
+        if (params.custpage_issearch == 'T') {
+            let arrReceiveOrderDetail  = [];
+            if (params.custpage_inboundshipment) {
+                arrReceiveOrderDetail = getDataInboundShipment(params);
+            }
+            else if (params.custpage_itemfulfillment) {
+                arrReceiveOrderDetail = getDataItemFulfillment(params);
+            }
+            else if (params.custpage_ordernumber) {
+                arrReceiveOrderDetail = getDataReceiveorder01(params);
+            }
 
-        constForm.setDataOfSublist('custpage_sl_result', arrResult);
+            let arrInventoryDetail = cSearchReceiveorder02.getDataSource(params);
+            let arrResult = commonReceiveorder.getDataResult(params, {
+                arrReceiveOrderDetail,
+                arrInventoryDetail,
+            });
+
+            constForm.setDataOfSublist('custpage_sl_result', arrResult);
+        }
         constForm.writePage();
     };
     
@@ -243,7 +256,7 @@ define(['N/runtime', 'N/url', 'N/format', 'N/record', 'N/search',
             objRes.unit = inboundShipmentRec.getSublistText(sublistId, "unit", i);
             objRes.qtyorder = quantityexpected;
             objRes.qtyreceived = quantityreceived;
-            objRes.qtyremaining = quantityexpected;
+            objRes.qtyremaining = quantityexpected - quantityreceived;
             objRes.originallineid = inboundShipmentRec.getSublistValue(sublistId, "custrecord_scv_original_line_id", i);
             objRes.lineid_inboundshipment = inboundShipmentRec.getSublistValue(sublistId, "id", i);
             objRes.shipmentitem = inboundShipmentRec.getSublistValue(sublistId, "shipmentitem", i);

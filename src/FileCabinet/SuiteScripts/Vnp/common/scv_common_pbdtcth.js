@@ -155,7 +155,7 @@ define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
         let arrResRaw = getDataSource(params);
 
         let arrResult = alasql(`SELECT DISTINCT salescontract, debitagreement FROM ?`, [arrResRaw]);
-        
+
         arrResult.forEach(objRes => {
             objRes.lines = arrResRaw.filter(e => e.salescontract == objRes.salescontract
                 && e.debitagreement == objRes.debitagreement

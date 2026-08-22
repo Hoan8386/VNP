@@ -264,7 +264,12 @@ define(['N/search', 'N/record', './scv_lib_function'],
                 curRec.setValue({fieldId: group.dateOut, value: '', ignoreFieldChange: true});
                 return;
             }
-            const days = parseFloat(curRec.getValue(group.days)) || 0;
+            const daysValue = curRec.getValue(group.days);
+            if (daysValue === null || daysValue === undefined || daysValue === '') {
+                curRec.setValue({fieldId: group.dateOut, value: '', ignoreFieldChange: true});
+                return;
+            }
+            const days = parseFloat(daysValue) || 0;
             curRec.setValue({fieldId: group.dateOut, value: addDays(endDate, days), ignoreFieldChange: true});
         }
 

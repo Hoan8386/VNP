@@ -2,316 +2,346 @@
  * @NApiVersion 2.1
  * @NScriptType Suitelet
  */
-define(['N/query', 'N/render', 'N/search',
-        '../lib/scv_lib_pdf.js',
-        '../lib/scv_lib_amount_in_word.js',
-        '../lib/scv_lib_utils.js'], (query, render, search, libPdf, libAmount, libUtils) => {
-    // TODO(BA-Q1): Chọn mẫu theo ngân hàng tài khoản chi tiền và xử lý ngân hàng thứ 4.
-    // coChiNhanhNguoiTra / coChiNhanhNguoiHuong tach rieng vi FDD (sheet "UNC TP
-    // Bank") quy dinh TPBank BAT DOI XUNG: ben tra (M11) chi lay bank_name, KHONG
-    // ghep chi nhanh; ben huong (M18) lai ghep "bank_name - bank_branch". VietinBank
-    // va SHB thi ca 2 ben deu ghep chi nhanh (doi xung) theo FDD tuong ung.
-    const NganHang = {
-        TPBANK: {
-            tuKhoa: ['TPBANK', 'TIENPHONGBANK'],
-            printfile: 'scv_render_unc_tpbank_pdf',
-            logoFile: 'Logo-TPBank.png',
-            bannerFile: 'Banner-TPBank.png',
-            coTinhTP: true, coChiNhanhNguoiTra: false, coChiNhanhNguoiHuong: true
-        },
-        VIETINBANK: {
-            // 'VIETTINBANK' 2 chu T: ke toan dang go sai chinh ta tren 3 tai khoan
-            // that (id 145, 147, 802). Thieu tu khoa nay la 3 tai khoan do khong
-            // bao gio ra button.
-            tuKhoa: ['VIETINBANK', 'VIETTINBANK', 'CONGTHUONG'],
-            printfile: 'scv_render_unc_vietinbank_pdf',
-            logoFile: 'Logo-VietinBank.png',
-            coTinhTP: false, coChiNhanhNguoiTra: true, coChiNhanhNguoiHuong: true
-        },
-        SHB: {
-            tuKhoa: ['SHB', 'SAIGONHANOI'],
-            printfile: 'scv_render_unc_shb_pdf',
-            logoFile: 'Logo-SHB-EN.png',
-            coTinhTP: false, coChiNhanhNguoiTra: true, coChiNhanhNguoiHuong: true
+define([
+    'N/query',
+    'N/render',
+    'N/file',
+    'N/log',
+    'N/record',
+    '../lib/scv_lib_pdf.js',
+    '../lib/scv_lib_amount_in_word.js',
+    '../lib/scv_lib_utils.js',
+    '../lib/scv_lib_print_format.js',
+    '../common/scv_common_print_lookup.js',
+    '../cons/scv_cons_print.js'
+], (
+    query,
+    render,
+    file,
+    log,
+    record,
+    libPdf,
+    libAmount,
+    libUtils,
+    libPrintFormat,
+    printLookup,
+    consPrint
+) => {
+    const UrlParameter = consPrint.UrlParameter;
+    const Template = consPrint.Template;
+    const Unc = consPrint.Unc;
+
+    const addDefaultRecordRender = (renderer, recordType, recordId, loadedRecord) => {
+        const rec = loadedRecord || record.load({
+            type: recordType,
+            id: recordId,
+            isDynamic: false
+        });
+        renderer.addRecord(Template.RECORD_ALIAS, rec);
+        return rec;
+    };
+
+    const getLogoUrl = (fileName) => {
+        if (!fileName) {
+            return Unc.EMPTY;
         }
-    };
 
-    // Logo ngan hang nam trong File Cabinet: Images / Unc.
-    // CO Y khong hardcode internal id (1600/1601/1602) va cung khong hardcode URL:
-    //  - id doi moi khi ai do xoa roi upload lai file -> tra theo TEN file thi khong gay.
-    //  - URL cua File Cabinet co tham so &c=&h= sinh theo account, hardcode la khong
-    //    mang sang account khac duoc.
-    // Rang buoc CA folder lan folder cha de sau nay them Images/<task khac> thi file
-    // trung ten o folder khac khong bi lay nham.
-    const ThuMucLogo = {ten: 'Unc', cha: 'Images'};
-
-    // BA-Q9 da chot bang SuiteQL tren account that: bang transaction CHI co cot
-    // 'total'. 't.usertotal' va 't.payment' deu nem loi, du FDD ghi 2 ten do cho
-    // man hinh Check va Vendor Prepayment - do la field id tren RECORD, khong phai
-    // cot SuiteQL. Ca 3 loai chung tu deu lay ABS(t.total).
-    // Dictionary nay gio chi con lam whitelist loai chung tu duoc phep in.
-    const ManHinh = {check: true, vendorprepayment: true, vendorpayment: true};
-
-    // TODO(BA-Q10): Bổ sung symbol tiền tệ khi NetSuite trả giá trị mới.
-    const MaTienTeTheoSymbol = {VND: 'VND', 'VNĐ': 'VND', '₫': 'VND', 'đ': 'VND'};
-
-    const chuanHoa=s=>libUtils.removeVietnameseTones(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')
-
-    const timNganHang = (ten) => {
-        const tenDaChuanHoa = chuanHoa(ten);
-        return Object.keys(NganHang).find((maNganHang) =>
-            NganHang[maNganHang].tuKhoa.some((tuKhoa) => tenDaChuanHoa.includes(tuKhoa)));
-    };
-
-    const asText = (value) => (value == null ? '' : String(value));
-
-    const layFieldAnToan = (type, id, fieldId) => {
-        if (!id || !fieldId) return '';
+        const filePath = Unc.LOGO_FOLDER + '/' + fileName;
         try {
-            const fields = search.lookupFields({type, id, columns: [fieldId]}) || {};
-            const value = fields[fieldId];
-            if (Array.isArray(value)) {
-                return asText(value[0]?.value ?? value[0]?.text);
-            }
-            if (value && typeof value === 'object') {
-                return asText(value.value ?? value.text);
-            }
-            return asText(value);
-        } catch (e) {
+            return libPrintFormat.asText(file.load({id: filePath}).url);
+        } catch (error) {
             log.error({
-                title: 'UNC lookup field fallback: ' + fieldId,
-                details: e
+                title: 'UNC logo lookup failed',
+                details: {filePath, error}
             });
-            return '';
+            return Unc.EMPTY;
         }
     };
 
-    const layFieldTextAnToan = (type, id, fieldId) => {
-        if (!id || !fieldId) return '';
-        try {
-            const fields = search.lookupFields({type, id, columns: [fieldId]}) || {};
-            const value = fields[fieldId];
-            if (Array.isArray(value)) {
-                return asText(value[0]?.text ?? value[0]?.value);
-            }
-            if (value && typeof value === 'object') {
-                return asText(value.text ?? value.value);
-            }
-            return asText(value);
-        } catch (e) {
-            log.error({
-                title: 'UNC lookup field fallback: ' + fieldId,
-                details: e
-            });
-            return '';
-        }
-    };
+    const getAccountDataFromRecord = (accountId) => ({
+        id_tk_nguoi_tra: accountId,
+        stk_nguoi_tra: libPrintFormat.getSafeFieldValue(
+            Unc.ACCOUNT_RECORD_TYPE,
+            accountId,
+            Unc.ACCOUNT_NATIVE_FIELD.BANK_ACCOUNT
+        ),
+        nh_nguoi_tra: libPrintFormat.getSafeFieldValue(
+            Unc.ACCOUNT_RECORD_TYPE,
+            accountId,
+            Unc.ACCOUNT_NATIVE_FIELD.BANK_NAME
+        ),
+        ten_tk_dinh_tuyen: libPrintFormat.getSafeFieldValue(
+            Unc.ACCOUNT_RECORD_TYPE,
+            accountId,
+            Unc.ACCOUNT_NATIVE_FIELD.ROUTING_NAME
+        ),
+        cn_nguoi_tra: libPrintFormat.getSafeFieldValue(
+            Unc.ACCOUNT_RECORD_TYPE,
+            accountId,
+            Unc.ACCOUNT_NATIVE_FIELD.BRANCH
+        ),
+        tinh_nguoi_tra: libPrintFormat.getSafeFieldValue(
+            Unc.ACCOUNT_RECORD_TYPE,
+            accountId,
+            Unc.ACCOUNT_NATIVE_FIELD.PROVINCE
+        )
+    });
 
-    const getMaTienTe = (symbol) => {
-        const giaTri = asText(symbol);
-        const maTienTe = MaTienTeTheoSymbol[giaTri];
-        if (!maTienTe) {
-            log.audit({
-                title: 'UNC fallback mã tiền tệ',
-                details: 'Chưa map mã tiền tệ cho symbol: ' + giaTri
-                    + '; dùng chính symbol làm mã tiền tệ.'
-            });
-            return giaTri;
-        }
-        return maTienTe;
-    };
-
-    const getTickTienTe = (maTienTe) => {
-        // TODO(BA-Q6): BA xác nhận cách tick các mã tiền tệ ngoài VND, USD, EUR.
-        return {
-            tickVND: maTienTe === 'VND' ? 'X' : '',
-            tickUSD: maTienTe === 'USD' ? 'X' : '',
-            tickEUR: maTienTe === 'EUR' ? 'X' : '',
-            tickKhac: !['VND', 'USD', 'EUR'].includes(maTienTe) ? 'X' : ''
-        };
-    };
-
-    const getTickPhi = (maNganHang) => {
-        // TODO(BA-Q7): BA xác nhận ô phí có hardcode hay lấy từ field nào.
-        const tickTheoNganHang = {
-            TPBANK: {
-                tickPhiNguoiChuyen: 'X', tickPhiNguoiHuong: '',
-                tickPhiTrong: '', tickPhiNgoai: ''
-            },
-            VIETINBANK: {
-                tickPhiNguoiChuyen: '', tickPhiNguoiHuong: '',
-                tickPhiTrong: '', tickPhiNgoai: 'X'
-            },
-            SHB: {
-                tickPhiNguoiChuyen: '', tickPhiNguoiHuong: '',
-                tickPhiTrong: '', tickPhiNgoai: ''
-            }
-        };
-        return tickTheoNganHang[maNganHang];
-    };
-
-    // Tra URL logo theo TEN file trong dung folder Images/Unc.
-    // libPdf co ham getFontUrl() lam y het viec nay nhung KHONG duoc export ra
-    // ngoai, va lib/ thi cam sua -> viet lai o day theo cung pattern.
-    // Khong tim thay logo thi tra '' de template tu bo qua the <img>: thieu logo
-    // van in duoc chung tu, con nem loi thi ca ban in chet.
-    const getLogoUrl = (tenFile) => {
-        if (!tenFile) return '';
-        try {
-            const sql = `
-                SELECT f.url
-                FROM file f
-                JOIN mediaitemfolder mf ON mf.id = f.folder
-                LEFT JOIN mediaitemfolder mfp ON mfp.id = mf.parent
-                WHERE UPPER(f.name) = UPPER(?)
-                  AND UPPER(mf.name) = UPPER(?)
-                  AND UPPER(mfp.name) = UPPER(?)
-            `;
-            const rows = query.runSuiteQL({
-                query: sql,
-                params: [tenFile, ThuMucLogo.ten, ThuMucLogo.cha]
-            }).asMappedResults();
-            return asText(rows[0]?.url);
-        } catch (e) {
-            log.error({title: 'getLogoUrl: khong tra duoc logo ' + tenFile, details: e});
-            return '';
-        }
-    };
-
-    const ghepNganHang = (ten, chiNhanh, coChiNhanh) => {
-        const tenNganHang = asText(ten);
-        const tenChiNhanh = asText(chiNhanh);
-        if (!coChiNhanh) return tenNganHang;
-        if (tenNganHang && tenChiNhanh) return tenNganHang + ' - ' + tenChiNhanh;
-        return tenNganHang || tenChiNhanh;
-    };
-
-    const getHeader = (recid) => {
-        const sql = `
-            SELECT
-                t.id,
-                TO_CHAR(t.trandate, 'DD/MM/YYYY') AS ngay_ct,
-                t.memo AS noi_dung,
-                ABS(t.total) AS so_tien, -- BA-Q9: chi co cot 'total', va no am
-                cur.symbol AS ma_tien_te,
-                sub.legalname AS ten_nguoi_tra,
-                acc.id AS id_tk_nguoi_tra,
-                acc.custrecord_scv_acc_bank_acc AS stk_nguoi_tra, -- TODO(BA-Q3)
-                acc.custrecord_scv_acc_bank_name AS nh_nguoi_tra, -- TODO(BA-Q3)
-                -- Chi dung de DINH TUYEN mau in, KHONG in ra chung tu.
-                -- custrecord_scv_acc_bank_name hien rong tren 100% tai khoan, nen
-                -- tam do ten tai khoan. TODO(BA-Q11): TechLead chot lai.
-                -- KHONG dung COALESCE: da test tren account that, tron custom field
-                -- voi native field trong COALESCE lam ca cau query gay voi loi
-                -- chung chung 'Invalid or unsupported search'. Ghep trong JS.
-                acc.accountsearchdisplayname AS ten_tk_dinh_tuyen,
-                acc.custrecord_scv_acc_bank_branch AS cn_nguoi_tra, -- TODO(BA-Q3)
-                acc.custrecord_scv_acc_province AS tinh_nguoi_tra, -- TODO(BA-Q3)
-                t.custbody_scv_beneficiary_bank AS ten_nguoi_huong, -- TODO(BA-Q4)
-                t.custbody_scv_bank_account AS stk_nguoi_huong,
-                t.custbody_scv_bank_name AS nh_nguoi_huong,
-                t.custbody_scv_bank_branch AS cn_nguoi_huong,
-                t.custbody_scv_province AS tinh_nguoi_huong,
-                t.custbody_scv_beneficiary AS id_nguoi_huong
-            FROM transaction t
-            LEFT JOIN transactionline tl ON tl.transaction = t.id
-                AND tl.mainline = 'T' -- TODO(BA-Q8)
-            -- transactionline.account bi NOT_EXPOSED trong SuiteQL, phai di vong
-            -- qua transactionaccountingline moi lay duoc tai khoan ngan hang.
-            LEFT JOIN transactionaccountingline tal ON tal.transaction = t.id
-                AND tal.transactionline = tl.id
-            LEFT JOIN account acc ON acc.id = tal.account
-            -- t.subsidiary cung bi NOT_EXPOSED, lay tu dong mainline.
-            LEFT JOIN subsidiary sub ON sub.id = tl.subsidiary
-            LEFT JOIN currency cur ON cur.id = t.currency
-            WHERE t.id = ?
-        `;
-        const rows = query.runSuiteQL({query: sql, params: [recid]}).asMappedResults();
+    const getAccountDataFromSuiteQL = (recordId) => {
+        const rows = query.runSuiteQL({
+            query: Unc.ACCOUNT_QUERY,
+            params: [recordId]
+        }).asMappedResults();
         if (rows.length !== 1) {
-            throw new Error('Không tìm thấy chứng từ cần in.');
+            throw new Error('Bank account could not be resolved for transaction.');
         }
         return rows[0];
     };
 
-    const buildDataJson = (header, maNganHang, config, tenNhText) => {
-        const soTien = Number(header.so_tien);
-        const maTienTe = getMaTienTe(header.ma_tien_te);
-        const soTienBangChu = libAmount.DocTienBangChu(soTien, maTienTe)
-            .replace(/\.\/\s*$/, ''); // TODO(BA-Q12): mẫu ngân hàng không có đuôi ./
-        const tickTienTe = getTickTienTe(maTienTe);
-        const tickPhi = getTickPhi(maNganHang);
-        const nhNguoiTra = ghepNganHang(
-            tenNhText, header.cn_nguoi_tra, config.coChiNhanhNguoiTra
+    const getAccountData = (rec, recordId) => {
+        const accountId = rec.getValue({fieldId: Unc.TRANSACTION_FIELD.ACCOUNT});
+        if (accountId !== null && accountId !== undefined && accountId !== '') {
+            return getAccountDataFromRecord(accountId);
+        }
+        return getAccountDataFromSuiteQL(recordId);
+    };
+
+    const getHeaderFromRecord = (rec, recordId, accountData) => ({
+        id: recordId,
+        ngay_ct: libPrintFormat.formatDate(
+            rec.getValue({fieldId: Unc.TRANSACTION_FIELD.TRANSACTION_DATE})
+        ),
+        noi_dung: rec.getValue({fieldId: Unc.TRANSACTION_FIELD.MEMO}),
+        so_tien: rec.getValue({fieldId: Unc.TRANSACTION_FIELD.TOTAL}),
+        ma_tien_te: printLookup.getCurrencySymbol(
+            rec.getValue({fieldId: Unc.TRANSACTION_FIELD.CURRENCY})
+        ),
+        ten_nguoi_tra: printLookup.getSubsidiaryLegalName(
+            rec.getValue({fieldId: Unc.TRANSACTION_FIELD.SUBSIDIARY})
+        ),
+        ...accountData,
+        ten_nguoi_huong: rec.getValue({
+            fieldId: Unc.TRANSACTION_FIELD.BENEFICIARY_BANK
+        }),
+        stk_nguoi_huong: rec.getValue({
+            fieldId: Unc.TRANSACTION_FIELD.BENEFICIARY_ACCOUNT
+        }),
+        nh_nguoi_huong: rec.getValue({
+            fieldId: Unc.TRANSACTION_FIELD.BENEFICIARY_BANK_NAME
+        }),
+        cn_nguoi_huong: rec.getValue({
+            fieldId: Unc.TRANSACTION_FIELD.BENEFICIARY_BRANCH
+        }),
+        tinh_nguoi_huong: rec.getValue({
+            fieldId: Unc.TRANSACTION_FIELD.BENEFICIARY_PROVINCE
+        }),
+        id_nguoi_huong: rec.getValue({
+            fieldId: Unc.TRANSACTION_FIELD.BENEFICIARY
+        })
+    });
+
+    const normalizeText = (value) => libUtils.removeVietnameseTones(
+        libPrintFormat.asText(value)
+    ).toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    const findBank = (bankName) => {
+        const normalizedBankName = normalizeText(bankName);
+        return Object.keys(Unc.BANKS).find((bankCode) =>
+            Unc.BANKS[bankCode].KEYWORDS.some((keyword) =>
+                normalizedBankName.includes(keyword)
+            )
         );
-        const nhNguoiHuong = ghepNganHang(
-            header.nh_nguoi_huong, header.cn_nguoi_huong, config.coChiNhanhNguoiHuong
-        );
-        const diaChiNguoiHuong = layFieldAnToan(
-            'customrecord_scv_beneficiary',
-            header.id_nguoi_huong,
-            'custrecord_scv_beb_bank_address'
-        );
+    };
+
+    const getBankSelection = (rec, recordId) => {
+        const accountData = getAccountData(rec, recordId);
+        const bankNameText = accountData.id_tk_nguoi_tra
+            ? libPrintFormat.getSafeFieldText(
+                Unc.ACCOUNT_RECORD_TYPE,
+                accountData.id_tk_nguoi_tra,
+                Unc.ACCOUNT_NATIVE_FIELD.BANK_NAME
+            )
+            : Unc.EMPTY;
+        const accountName = libPrintFormat.asText(accountData.ten_tk_dinh_tuyen);
+        const bankCode = findBank(bankNameText) || findBank(accountName);
+        if (!bankCode) {
+            log.error({
+                title: 'getBankSelection',
+                details: {bankNameText, accountName, recordId}
+            });
+            throw new Error('No UNC bank template matched the paying account.');
+        }
+        return {accountData, bankCode, bankNameText};
+    };
+
+    const getCurrencyCode = (symbol) => {
+        const symbolValue = libPrintFormat.asText(symbol);
+        const currencyCode = consPrint.Currency.SYMBOL_TO_CODE[symbolValue];
+        if (!currencyCode) {
+            log.audit({
+                title: 'UNC currency fallback',
+                details: symbolValue
+            });
+            return symbolValue;
+        }
+        return currencyCode;
+    };
+
+    const getCurrencyTicks = (currencyCode) => ({
+        tickVND: currencyCode === 'VND' ? Unc.TICK : Unc.EMPTY,
+        tickUSD: currencyCode === 'USD' ? Unc.TICK : Unc.EMPTY,
+        tickEUR: currencyCode === 'EUR' ? Unc.TICK : Unc.EMPTY,
+        tickKhac: Unc.CURRENCY_CODES.includes(currencyCode) ? Unc.EMPTY : Unc.TICK
+    });
+
+    const getFeeTicks = (bankCode) => {
+        const feeTicks = Unc.FEE_TICKS[bankCode];
         return {
-            logoUrl: getLogoUrl(config.logoFile),
-            bannerUrl: config.bannerFile ? getLogoUrl(config.bannerFile) : '',
-            ngayCT: asText(header.ngay_ct),
-            tenNguoiTra: asText(header.ten_nguoi_tra),
-            stkNguoiTra: asText(header.stk_nguoi_tra),
-            nhNguoiTra,
-            tinhNguoiTra: config.coTinhTP ? asText(header.tinh_nguoi_tra) : '',
-            tenNguoiHuong: asText(header.ten_nguoi_huong),
-            stkNguoiHuong: asText(header.stk_nguoi_huong),
-            nhNguoiHuong,
-            tinhNguoiHuong: config.coTinhTP ? asText(header.tinh_nguoi_huong) : '',
-            diaChiNguoiHuong,
-            soTien: libPdf.formatNumber(soTien),
-            soTienBangChu,
-            maTienTe,
-            noiDung: asText(header.noi_dung),
-            tickVND: tickTienTe.tickVND,
-            tickUSD: tickTienTe.tickUSD,
-            tickEUR: tickTienTe.tickEUR,
-            tickKhac: tickTienTe.tickKhac,
-            tickPhiNguoiChuyen: tickPhi.tickPhiNguoiChuyen,
-            tickPhiNguoiHuong: tickPhi.tickPhiNguoiHuong,
-            tickPhiTrong: tickPhi.tickPhiTrong,
-            tickPhiNgoai: tickPhi.tickPhiNgoai
+            tickPhiNguoiChuyen: feeTicks.SENDER,
+            tickPhiNguoiHuong: feeTicks.BENEFICIARY,
+            tickPhiTrong: feeTicks.INCLUDING,
+            tickPhiNgoai: feeTicks.EXCLUDING
         };
     };
 
-    const renderPdf = (response, config, dataJson) => {
-        const renderer = libPdf.renderTemplateWithXml(config.printfile);
+    const combineBankName = (bankName, branchName, includeBranch) => {
+        const bankNameText = libPrintFormat.asText(bankName);
+        const branchNameText = libPrintFormat.asText(branchName);
+        if (!includeBranch) {
+            return bankNameText;
+        }
+        if (bankNameText && branchNameText) {
+            return bankNameText + Unc.BANK_NAME_SEPARATOR + branchNameText;
+        }
+        return bankNameText || branchNameText;
+    };
+
+    const buildDataJson = (header, bankCode, config, bankNameText) => {
+        const amount = Math.abs(libPrintFormat.asNumber(header.so_tien));
+        const currencyCode = getCurrencyCode(header.ma_tien_te);
+        const amountInWords = libPrintFormat.asText(
+            libAmount.DocTienBangChu(amount, currencyCode)
+        ).replace(/\.\/\s*$/, '');
+        const currencyTicks = getCurrencyTicks(currencyCode);
+        const feeTicks = getFeeTicks(bankCode);
+        const beneficiaryAddress = libPrintFormat.getSafeFieldValue(
+            Unc.BENEFICIARY_RECORD_TYPE,
+            header.id_nguoi_huong,
+            Unc.BENEFICIARY_ADDRESS_FIELD
+        );
+
+        return {
+            logoUrl: getLogoUrl(config.LOGO_FILE),
+            bannerUrl: getLogoUrl(config.BANNER_FILE),
+            ngayCT: libPrintFormat.asText(header.ngay_ct),
+            tenNguoiTra: libPrintFormat.asText(header.ten_nguoi_tra),
+            stkNguoiTra: libPrintFormat.asText(header.stk_nguoi_tra),
+            nhNguoiTra: combineBankName(
+                bankNameText,
+                header.cn_nguoi_tra,
+                config.INCLUDE_SENDER_BRANCH
+            ),
+            tinhNguoiTra: config.HAS_PROVINCE
+                ? libPrintFormat.asText(header.tinh_nguoi_tra)
+                : Unc.EMPTY,
+            tenNguoiHuong: libPrintFormat.asText(header.ten_nguoi_huong),
+            stkNguoiHuong: libPrintFormat.asText(header.stk_nguoi_huong),
+            nhNguoiHuong: combineBankName(
+                header.nh_nguoi_huong,
+                header.cn_nguoi_huong,
+                config.INCLUDE_BENEFICIARY_BRANCH
+            ),
+            tinhNguoiHuong: config.HAS_PROVINCE
+                ? libPrintFormat.asText(header.tinh_nguoi_huong)
+                : Unc.EMPTY,
+            diaChiNguoiHuong: libPrintFormat.asText(beneficiaryAddress),
+            soTien: libPdf.formatNumber(amount),
+            soTienBangChu: amountInWords,
+            maTienTe: libPrintFormat.asText(currencyCode),
+            noiDung: libPrintFormat.asText(header.noi_dung),
+            tickVND: currencyTicks.tickVND,
+            tickUSD: currencyTicks.tickUSD,
+            tickEUR: currencyTicks.tickEUR,
+            tickKhac: currencyTicks.tickKhac,
+            tickPhiNguoiChuyen: feeTicks.tickPhiNguoiChuyen,
+            tickPhiNguoiHuong: feeTicks.tickPhiNguoiHuong,
+            tickPhiTrong: feeTicks.tickPhiTrong,
+            tickPhiNgoai: feeTicks.tickPhiNgoai
+        };
+    };
+
+    const printUnc = (rec, renderer, recordId, bankSelection) => {
+        const header = getHeaderFromRecord(
+            rec,
+            recordId,
+            bankSelection.accountData
+        );
+        log.debug({
+            title: 'UNC header',
+            details: header
+        });
+        const config = Unc.BANKS[bankSelection.bankCode];
+        const dataJson = buildDataJson(
+            header,
+            bankSelection.bankCode,
+            config,
+            bankSelection.bankNameText
+        );
+        log.debug({
+            title: 'UNC dataJson',
+            details: dataJson
+        });
         renderer.addCustomDataSource({
             format: render.DataSource.OBJECT,
-            alias: 'dataJson',
+            alias: Template.DATA_ALIAS,
             data: dataJson
         });
-        response.writeFile({file: renderer.renderAsPdf(), isInline: true});
+    };
+
+    const renderRecordToPdfWithTemplate = (recordId, recordType) => {
+        const loadedRecord = record.load({
+            type: recordType,
+            id: recordId,
+            isDynamic: false
+        });
+        const bankSelection = getBankSelection(loadedRecord, recordId);
+        const config = Unc.BANKS[bankSelection.bankCode];
+        const renderer = libPdf.renderTemplateWithXml(config.PRINT_FILE);
+        const rec = addDefaultRecordRender(renderer, recordType, recordId, loadedRecord);
+        printUnc(rec, renderer, recordId, bankSelection);
+        return renderer.renderAsPdf();
     };
 
     const onRequest = (scriptContext) => {
-        const params = scriptContext.request.parameters;
-        if (!params.recid) {
-            throw new Error('Thiếu mã chứng từ cần in.');
+        let recordId = Unc.EMPTY;
+        let recordType = Unc.EMPTY;
+        try {
+            const params = scriptContext.request.parameters;
+            recordId = params[UrlParameter.RECORD_ID];
+            recordType = params[UrlParameter.RECORD_TYPE];
+            if (!recordId) {
+                throw new Error('Missing UNC transaction record id.');
+            }
+            if (!Object.values(Unc.RECORD_TYPES).includes(recordType)) {
+                throw new Error('Invalid UNC transaction record type.');
+            }
+
+            const pdfFile = renderRecordToPdfWithTemplate(recordId, recordType);
+            scriptContext.response.writeFile({file: pdfFile, isInline: true});
+        } catch (error) {
+            log.error({
+                title: 'UNC print failed',
+                details: {
+                    recid: recordId,
+                    rectype: recordType,
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                }
+            });
+            throw error;
         }
-        if (!ManHinh[params.rectype]) {
-            throw new Error('Loại màn hình không hợp lệ: ' + asText(params.rectype));
-        }
-        const header = getHeader(params.recid);
-        const tenNhText = header.nh_nguoi_tra
-            ? layFieldTextAnToan('account', header.id_tk_nguoi_tra, 'custrecord_scv_acc_bank_name')
-            : '';
-        const tenTk = asText(header.ten_tk_dinh_tuyen);
-        const maNganHang = timNganHang(tenNhText) || timNganHang(tenTk);
-        // TODO(BA-Q1): Không có mẫu mặc định cho ngân hàng không khớp.
-        if (!maNganHang) {
-            throw new Error('Chưa có mẫu UNC cho ngân hàng. Tên NH: "' + tenNhText
-                + '" | Tên TK: "' + tenTk + '"');
-        }
-        const config = NganHang[maNganHang];
-        const dataJson = buildDataJson(header, maNganHang, config, tenNhText);
-        renderPdf(scriptContext.response, config, dataJson);
     };
 
-    return {onRequest};
+    return {onRequest, renderRecordToPdfWithTemplate};
 });

@@ -4,8 +4,8 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
-define(['N/record', 'N/search', 'N/url'],
-    (record, search, url) => {
+define(['N/record', 'N/search', 'N/url', 'N/runtime'],
+    (record, search, url, runtime) => {
 
         const PAYR_RECORD = 'customrecord_scv_paymentrequest';
         const DETAIL_SUBLIST = 'recmachcustrecord_scv_pay';
@@ -50,9 +50,19 @@ define(['N/record', 'N/search', 'N/url'],
         const beforeLoad = (context) => {
             try {
                 const rec = context.newRecord;
-                if (rec.type !== PAYR_RECORD || context.type !== context.UserEventType.VIEW) return;
+                if (rec.type !== PAYR_RECORD) return;
 
-                addPaymentButtons(context.form, rec);
+                if (context.type === context.UserEventType.VIEW) {
+                    addPaymentButtons(context.form, rec);
+                    return;
+                }
+
+                if (context.type === context.UserEventType.CREATE) {
+                    const params = context.request?.parameters || {};
+                    if (params.id_rec && params.type_func) {
+                        prefillFromSource(rec, params);
+                    }
+                }
             } catch (e) {
                 log.error('beforeLoad Payment Request', e);
             }
@@ -169,6 +179,192 @@ define(['N/record', 'N/search', 'N/url'],
                 label,
                 functionName: `window.open("${resolvedUrl}")`
             });
+        }
+
+        // FDD (FIN) - Chức năng tạo Payment Request từ PC, PO
+        const PO_ITEM_SUBLIST = 'item';
+        const PC_ITEM_SUBLIST = 'item';
+        const BILL_RELATED_TO_PO_SEARCH = 'customsearch_scv_bill_payr';
+
+        function prefillFromSource(rec, params) {
+            if (params.type_func === 'po_to_prepayment') {
+                prefillFromPurchaseOrder(rec, params.id_rec, params.id_type || record.Type.PURCHASE_ORDER, 'prepayment');
+            } else if (params.type_func === 'po_to_payable') {
+                prefillFromPurchaseOrder(rec, params.id_rec, params.id_type || record.Type.PURCHASE_ORDER, 'payable');
+            } else if (params.type_func === 'pc_to_payable') {
+                prefillFromPurchaseContract(rec, params.id_rec, params.id_type);
+            }
+        }
+
+        function prefillFromPurchaseOrder(rec, poId, poType, mode) {
+            const poRec = record.load({type: poType, id: poId});
+
+            safeSetValue(rec, FIELD.TYPE, mode === 'prepayment' ? PAYMENT_TYPE.VENDOR_PREPAYMENT : PAYMENT_TYPE.PAYABLE_PAYMENT);
+            safeSetValue(rec, 'custrecord_scv_payment_ngycau', poRec.getValue('custbody_scv_employee'));
+            safeSetValue(rec, 'custrecord_scv_payment_department', poRec.getValue('department'));
+            safeSetValue(rec, 'custrecord_scv_payment_entity', poRec.getValue('entity'));
+            safeSetValue(rec, 'custrecord_scv_payment_currency', poRec.getValue('currency'));
+            safeSetValue(rec, 'custrecord_scv_payment_exchangerate', poRec.getValue('exchangerate'));
+            safeSetValue(rec, 'custrecord_scv_payment_memo', poRec.getValue('memo'));
+            safeSetValue(rec, FIELD.DATE, new Date());
+            safeSetValue(rec, 'custrecord_scv_payr_subs', poRec.getValue('subsidiary'));
+            safeSetValue(rec, FIELD.PO, poId);
+            safeSetValue(rec, 'custrecord_scv_payment_pc', poRec.getValue('custbody_scv_purchase_contract'));
+
+            if (mode === 'prepayment') {
+                copyPoItemLines(rec, poRec);
+                return;
+            }
+
+            const bills = getBillsRelatedToPurchaseOrder(poId);
+            setLinesFromBills(rec, bills);
+            const relatedIds = bills.map(bill => bill.internalId).filter(Boolean);
+            if (relatedIds.length) safeSetValue(rec, FIELD.RELATED, relatedIds);
+        }
+
+        function copyPoItemLines(rec, poRec) {
+            const map = {
+                custrecord_scv_pay_detail_item: 'item',
+                custrecord_scv_pay_detail_des: 'description',
+                custrecord_scv_pay_detail_qty: 'quantity',
+                custrecord_scv_pay_detail_rate: 'rate',
+                custrecord_scv_pay_detail_amt: 'amount',
+                custrecord_scv_pay_detail_taxcode: 'taxcode',
+                custrecord_scv_pay_detail_taxrate: 'taxrate1',
+                custrecord_scv_pay_detail_taxamt: 'tax1amt',
+                custrecord_scv_pay_detail_gr_amt: 'grossamt'
+            };
+            const lineCount = poRec.getLineCount({sublistId: PO_ITEM_SUBLIST});
+            for (let i = 0; i < lineCount; i++) {
+                rec.insertLine({sublistId: DETAIL_SUBLIST, line: i});
+                Object.keys(map).forEach(targetField => {
+                    const value = poRec.getSublistValue({sublistId: PO_ITEM_SUBLIST, fieldId: map[targetField], line: i});
+                    safeSetSublistValue(rec, DETAIL_SUBLIST, targetField, i, value);
+                });
+            }
+        }
+
+        function getBillsRelatedToPurchaseOrder(poId) {
+            const rows = [];
+            try {
+                const loadedSearch = search.load({id: BILL_RELATED_TO_PO_SEARCH});
+                loadedSearch.filters.push(search.createFilter({
+                    name: 'createdfrom',
+                    operator: search.Operator.ANYOF,
+                    values: poId
+                }));
+                const columns = loadedSearch.columns;
+                const colItem = findColumnByLabel(columns, 'ItemID');
+                const colDesc = findColumnByLabel(columns, 'Description');
+                const colUnit = findColumnByLabel(columns, 'Unit');
+                const colAmt = findColumnByLabel(columns, 'AmountRemaining');
+                const colInvNo = findColumnByLabel(columns, 'InvoiceNumber');
+                const colInvDate = findColumnByLabel(columns, 'InvoiceDate');
+                const colInvSerial = findColumnByLabel(columns, 'InvoiceSerial');
+                const colInternalId = findColumnByLabel(columns, 'InternalID');
+
+                loadedSearch.run().each(result => {
+                    rows.push({
+                        item: colItem ? result.getValue(colItem) : '',
+                        description: colDesc ? result.getValue(colDesc) : '',
+                        unit: colUnit ? result.getValue(colUnit) : '',
+                        amountRemaining: colAmt ? result.getValue(colAmt) : 0,
+                        invoiceNumber: colInvNo ? result.getValue(colInvNo) : '',
+                        invoiceDate: colInvDate ? result.getValue(colInvDate) : '',
+                        invoiceSerial: colInvSerial ? result.getValue(colInvSerial) : '',
+                        internalId: colInternalId ? result.getValue(colInternalId) : result.id
+                    });
+                    return true;
+                });
+            } catch (e) {
+                log.error('getBillsRelatedToPurchaseOrder failed', e);
+            }
+            return rows;
+        }
+
+        function setLinesFromBills(rec, bills) {
+            bills.forEach((bill, index) => {
+                rec.insertLine({sublistId: DETAIL_SUBLIST, line: index});
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_item', index, bill.item);
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_des', index, bill.description);
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_unit', index, bill.unit);
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_qty', index, 1);
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_rate', index, bill.amountRemaining);
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_amt', index, bill.amountRemaining);
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_taxcode', index, '5');
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_taxrate', index, '0.0%');
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_taxamt', index, 0);
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_gr_amt', index, bill.amountRemaining);
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_invoice_number', index, bill.invoiceNumber);
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_invoice_date', index, bill.invoiceDate);
+                safeSetSublistValue(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_inv_serial', index, bill.invoiceSerial);
+            });
+        }
+
+        function prefillFromPurchaseContract(rec, pcId, pcType) {
+            if (!pcType) {
+                log.error('prefillFromPurchaseContract missing id_type', {pcId});
+                return;
+            }
+            const pcRec = record.load({type: pcType, id: pcId});
+
+            safeSetValue(rec, FIELD.TYPE, PAYMENT_TYPE.PAYABLE_PAYMENT);
+            safeSetValue(rec, 'custrecord_scv_payment_entity', pcRec.getValue('entity'));
+            safeSetValue(rec, 'custrecord_scv_payment_ngycau', runtime.getCurrentUser().id);
+            safeSetValue(rec, 'custrecord_scv_payment_department', pcRec.getValue('department'));
+            safeSetValue(rec, 'custrecord_scv_payment_currency', pcRec.getValue('currency'));
+            safeSetValue(rec, 'custrecord_scv_payment_exchangerate', pcRec.getValue('exchangerate'));
+            safeSetValue(rec, 'custrecord_scv_payment_memo', pcRec.getValue('memo'));
+            safeSetValue(rec, FIELD.DATE, new Date());
+            safeSetValue(rec, 'custrecord_scv_payr_subs', pcRec.getValue('subsidiary'));
+            safeSetValue(rec, 'custrecord_scv_payment_pc', pcId);
+
+            copyPcItemLines(rec, pcRec);
+        }
+
+        function copyPcItemLines(rec, pcRec) {
+            const map = {
+                custrecord_scv_pay_detail_item: 'item',
+                custrecord_scv_pay_detail_des: 'description',
+                custrecord_scv_pay_detail_unit: 'units',
+                custrecord_scv_pay_detail_qty: 'custcol_scv_quantity',
+                custrecord_scv_pay_detail_rate: 'custcol_scv_rate_custom',
+                custrecord_scv_pay_detail_amt: 'custcol_scv_amt_custom',
+                custrecord_scv_pay_detail_taxcode: 'custcol_scv_sumtrans_line_taxcode',
+                custrecord_scv_pay_detail_taxrate: 'custcol_scv_sumtrans_line_taxrate',
+                custrecord_scv_pay_detail_taxamt: 'custcol_scv_tax_amt_custom',
+                custrecord_scv_pay_detail_gr_amt: 'custcol_scv_gross_amt_custom'
+            };
+            const lineCount = pcRec.getLineCount({sublistId: PC_ITEM_SUBLIST});
+            for (let i = 0; i < lineCount; i++) {
+                rec.insertLine({sublistId: DETAIL_SUBLIST, line: i});
+                Object.keys(map).forEach(targetField => {
+                    const value = pcRec.getSublistValue({sublistId: PC_ITEM_SUBLIST, fieldId: map[targetField], line: i});
+                    safeSetSublistValue(rec, DETAIL_SUBLIST, targetField, i, value);
+                });
+            }
+        }
+
+        function findColumnByLabel(columns, label) {
+            return (columns || []).find(col => col.label === label);
+        }
+
+        function safeSetValue(rec, fieldId, value) {
+            if (value === null || value === undefined || value === '') return;
+            try {
+                rec.setValue({fieldId, value});
+            } catch (e) {
+                log.debug('skip field ' + fieldId, e.message || e);
+            }
+        }
+
+        function safeSetSublistValue(rec, sublistId, fieldId, line, value) {
+            if (value === null || value === undefined || value === '') return;
+            try {
+                rec.setSublistValue({sublistId, fieldId, line, value});
+            } catch (e) {
+                log.debug('skip line field ' + sublistId + '.' + fieldId, e.message || e);
+            }
         }
 
         function setPaymentRequestNumber(rec) {

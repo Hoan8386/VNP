@@ -56,10 +56,16 @@ define(['../lib/scv_lib_tender_calc'],
             debugger;
             try {
                 const sublistId = scriptContext.sublistId;
-                if (sublistId !== libCalc.SUBLIST_ITEM) return;
-
                 const curRec = scriptContext.currentRecord;
                 const fieldId = scriptContext.fieldId;
+
+                if (!sublistId) {
+                    libCalc.recalcHeaderDateByField(curRec, fieldId);
+                    return;
+                }
+
+                if (sublistId !== libCalc.SUBLIST_ITEM) return;
+
                 const currencyId = curRec.getValue('currency');
 
                 if (fieldId === libCalc.FIELD_ITEM) {

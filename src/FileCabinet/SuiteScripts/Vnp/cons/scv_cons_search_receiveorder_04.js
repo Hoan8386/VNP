@@ -28,7 +28,14 @@ define(['N/search',
     const addFilter = (params) => {
         let filters = [];
 
-        // TODO: Add search filters.
+        if (params.custpage_ordernumber) {
+            filters.push(
+                search.createFilter({
+                    name: "createdfrom", operator: "anyof", values: params.custpage_ordernumber,
+                })
+            );
+        }
+
         return filters;
     };
 

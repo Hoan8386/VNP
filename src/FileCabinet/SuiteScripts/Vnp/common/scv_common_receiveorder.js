@@ -10,7 +10,7 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
 ) => {
     const getColumnsResult = () => {
         let columns = [
-            { id: "custpage_col_create", label: "Create", type: "checkbox", displayType: "normal", },
+            { id: "custpage_col_create", label: "Create", type: "checkbox", displayType: "entry", },
             { id: 'custpage_col_item', label: 'Item', type: 'select', source: 'item', },
             { id: 'custpage_col_description', label: 'Description', type: 'text', },
             { id: 'custpage_col_entity', label: 'Entity', type: 'text', },
@@ -18,7 +18,7 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
             { id: 'custpage_col_units', label: 'Units', type: 'text', },
             { id: 'custpage_col_quantityorder', label: 'Quantity Order', type: 'float', },
             { id: 'custpage_col_quantityreceived', label: 'Quantity Received', type: 'float', },
-            { id: 'custpage_col_quantitytobereceived', label: 'Quantity To Be Received', type: 'float', displayType: 'normal', },
+            { id: 'custpage_col_quantitytobereceived', label: 'Quantity To Be Received', type: 'float', displayType: 'entry', },
             { id: 'custpage_col_inventorydetail', label: 'Inventory Detail', type: 'text', },
             { id: 'custpage_col_originallineid', label: 'Original Line ID', type: 'text', displayType: 'hidden', },
             { id: 'custpage_col_lineidinboundshipment', label: 'ID Line Inbound Shipment', type: 'text', displayType: 'hidden', },

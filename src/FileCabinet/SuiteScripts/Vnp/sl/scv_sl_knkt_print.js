@@ -2,427 +2,456 @@
  * @NApiVersion 2.1
  * @NScriptType Suitelet
  */
-/*
- * Print KNKT - Báo cáo kết quả thực hiện các khuyến nghị.
- */
-define(['N/query', 'N/render', 'N/file', 'N/encode', 'N/log', '../lib/scv_lib_pdf.js'],
-    (query, render, file, encode, log, libPdf) => {
-        const PRINT_FILE = 'scv_render_knkt_pdf';
-        // Whitelist: printfile đến từ URL param, không được phép load file XML tuỳ ý.
-        const PRINT_FILE_LAN_2 = 'scv_render_knkt_pdf_l2';
-        const PRINT_FILES = [PRINT_FILE, PRINT_FILE_LAN_2];
-        const WORD_PRINT_FILE = 'scv_render_knkt_word';
-        const WORD_PRINT_FILE_LAN_2 = 'scv_render_knkt_word_l2';
-        const WORD_PRINT_FILES = [WORD_PRINT_FILE, WORD_PRINT_FILE_LAN_2];
-        // Relative path resolved from this Suitelet's folder, giống cách scv_lib_pdf nạp XML.
-        const WORD_TEMPLATE_FOLDER = '../xml/word/';
-        // Việt Nam dùng UTC+7 cố định và không có DST, không phụ thuộc giờ Pacific.
-        const VIET_NAM_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
-        const DATA_QUERY = `
-            SELECT
-                p.custrecord_scv_xlkn_sobaocao                        AS so_bao_cao,
-                BUILTIN.DF(p.custrecord_scv_xlkn_subs)                AS cong_ty,
-                TO_CHAR(p.custrecord_scv_xlkn_date, 'DD/MM/YYYY')     AS ngay_phat_hanh,
-                BUILTIN.DF(p.custrecord_scv_xlkn_department)          AS don_vi,
-                ph.id                                                   AS ph_id,
-                ph.custrecord_scv_ctph_chitietphathien                AS chi_tiet_phat_hien,
-                kn.id                                                   AS kn_id,
-                kn.custrecord_scv_ykkn_ykienkhuyennghi                AS khuyen_nghi,
-                TO_CHAR(
-                    kn.custrecord_scv_ykkn_thoigianphanhoi,
-                    'DD/MM/YYYY'
-                ) AS thoi_han_phan_hoi,
-                kq.id                                                   AS kq_id,
-                kq.custrecord_scv_kqkn_tinhhinhthuchien               AS tinh_hinh_thuc_hien,
-                BUILTIN.DF(kq.custrecord_scv_kqkn_ketquathuchien)     AS ket_qua_thuc_hien,
-                TO_CHAR(
-                    kq.custrecord_scv_kqkn_ngaythuchien,
-                    'DD/MM/YYYY'
-                ) AS ngay_thuc_hien,
-                TO_CHAR(
-                    kq.custrecord_scv_kqkn_ngaythuchien,
-                    'YYYYMMDD'
-                ) AS ngay_thuc_hien_sort
-            FROM customrecord_scv_xu_ly_kien_nghi p
-                LEFT JOIN customrecord_scv_chitietkiennghi ph
-                    ON ph.custrecord_scv_ctph_phieukn = p.id
-                   AND ph.isinactive = 'F'
-                LEFT JOIN customrecord_scv_ykienkiennghi kn
-                    ON kn.custrecord_scv_ykkn_chitietkhuyennghi = ph.id
-                   AND kn.isinactive = 'F'
-                LEFT JOIN customrecord_scv_ketquakhuyennghi kq
-                    ON kq.custrecord_scv_kqkn_ykienkhuyennghi = kn.id
-                   AND kq.isinactive = 'F'
-            WHERE p.id = ?
-            ORDER BY ph.id, kn.id, kq.id
-        `;
+define([
+    'N/search',
+    'N/render',
+    'N/file',
+    'N/encode',
+    'N/log',
+    'N/record',
+    'N/format',
+    '../lib/scv_lib_pdf.js',
+    '../lib/scv_lib_print_format.js',
+    '../common/scv_common_print_lookup.js',
+    '../cons/scv_cons_file.js',
+    '../cons/scv_cons_print.js'
+], (
+    search,
+    render,
+    file,
+    encode,
+    log,
+    record,
+    format,
+    libPdf,
+    libPrintFormat,
+    printLookup,
+    consFile,
+    consPrint
+) => {
+    const UrlParameter = consPrint.UrlParameter;
+    const Template = consPrint.Template;
+    const Knkt = consPrint.Knkt;
 
-        // Ép giá trị SuiteQL về chuỗi; `== null` là có ý, bắt cả null và undefined.
-        const toText = (value) => value == null ? '' : String(value);
+    const addDefaultRecordRender = (renderer, recordType, recordId) => {
+        const rec = record.load({
+            type: recordType,
+            id: recordId,
+            isDynamic: false
+        });
+        renderer.addRecord(Template.RECORD_ALIAS, rec);
+        return rec;
+    };
 
-        // Pads one date part to exactly two digits.
-        const padHaiChuSo = (value) => String(value).padStart(2, '0');
+    const getResultText = (result, fieldId) => {
+        try {
+            return result.getText({name: fieldId}) || result.getValue({name: fieldId});
+        } catch (error) {
+            return result.getValue({name: fieldId});
+        }
+    };
 
-        // Returns the current Vietnam date from epoch time, independent of server timezone.
-        const getNgayKyVietNam = () => {
-            const ngayVietNam = new Date(Date.now() + VIET_NAM_UTC_OFFSET_MS);
+    const toSortId = (value) => {
+        const numericValue = Number(value);
+        return Number.isFinite(numericValue) ? numericValue : 0;
+    };
 
+    const normalizeSearchDate = (value) => {
+        if (value === null || value === undefined || value === '') {
+            return {display: Knkt.EMPTY, sort: Knkt.EMPTY};
+        }
+
+        if (value instanceof Date) {
+            const dateParts = libPrintFormat.getDateParts(value);
             return {
-                ngayKy: padHaiChuSo(ngayVietNam.getUTCDate()),
-                thangKy: padHaiChuSo(ngayVietNam.getUTCMonth() + 1),
-                namKy: String(ngayVietNam.getUTCFullYear())
+                display: libPrintFormat.formatDate(value),
+                sort: dateParts.nam + dateParts.thang + dateParts.ngay
             };
         }
 
-        /**
-         * Defines the Suitelet script trigger point.
-         * @param {Object} scriptContext
-         * @param {ServerRequest} scriptContext.request - Incoming request
-         * @param {ServerResponse} scriptContext.response - Suitelet response
-         * @since 2015.2
-         */
-        const onRequest = (scriptContext) => {
-            const params = scriptContext.request.parameters;
-            if (!params.recid) {
-                throw "Chưa có mã bản ghi để in!";
-            }
-
-            const format = params.format || 'word';
-            if (format === 'pdf') {
-                const pdfFile = renderRecordToPdf(params.recid, params.printfile);
-                scriptContext.response.writeFile(pdfFile, true);
-                return;
-            }
-
-            if (format !== 'word') {
-                throw "Định dạng file không hợp lệ!";
-            }
-
-            try {
-                const wordFile = renderRecordToWord(params.recid, params.printfile);
-                scriptContext.response.writeFile({
-                    file: wordFile,
-                    isInline: false
-                });
-            } catch (error) {
-                log.error({
-                    title: 'KNKT_WORD_PRINT_ERROR',
-                    details: JSON.stringify({
-                        recid: params.recid,
-                        printfile: params.printfile,
-                        name: error && error.name,
-                        message: error && error.message,
-                        stack: error && error.stack
-                    })
-                });
-                throw error;
-            }
-        }
-
-        // Returns a safe template name; anything outside the whitelist falls back to lần 1.
-        const getPrintFile = (printfile) => {
-            return PRINT_FILES.indexOf(printfile) === -1 ? PRINT_FILE : printfile;
-        }
-
-        // Returns a safe Word template name; anything outside the whitelist falls back to lần 1.
-        const getWordPrintFile = (printfile) => {
-            return WORD_PRINT_FILES.indexOf(printfile) === -1 ? WORD_PRINT_FILE : printfile;
-        }
-
-        // Renders one KNKT record with the requested XML template and returns its PDF file.
-        const renderRecordToPdf = (recid, printfile) => {
-            const renderer = libPdf.renderTemplateWithXml(getPrintFile(printfile));
-            renderer.addCustomDataSource({
-                format: render.DataSource.OBJECT,
-                alias: "dataJson",
-                data: getDataKNKT(recid)
+        const text = libPrintFormat.asText(value).trim();
+        try {
+            const parsedDate = format.parse({
+                value: text,
+                type: format.Type.DATE
             });
-
-            return renderer.renderAsPdf();
-        }
-
-        // Renders one KNKT record as HTML that Microsoft Word can open and edit.
-        const renderRecordToWord = (recid, printfile) => {
-            const wordPrintFile = getWordPrintFile(printfile);
-            const templateFile = file.load({
-                id: WORD_TEMPLATE_FOLDER + wordPrintFile + '.html'
-            });
-            const renderer = render.create();
-            renderer.templateContent = templateFile.getContents();
-            const dataJson = getDataKNKT(recid);
-            renderer.addCustomDataSource({
-                format: render.DataSource.OBJECT,
-                alias: "dataJson",
-                data: dataJson
-            });
-
-            const wordContent = renderer.renderAsString();
-            const wordFilePrefix = wordPrintFile === WORD_PRINT_FILE_LAN_2
-                ? 'BaoCaoKNKT_Lan2_'
-                : 'BaoCaoKNKT_';
-            const wordFileName = wordFilePrefix +
-                dataJson.soBaoCao.replace(/[\\/:*?"<>|\u0000-\u001F\u007F]/g, '_') +
-                '.doc';
-
-            return file.create({
-                name: wordFileName,
-                fileType: file.Type.WORD,
-                contents: encode.convert({
-                    string: wordContent,
-                    inputEncoding: encode.Encoding.UTF_8,
-                    outputEncoding: encode.Encoding.BASE_64
-                })
-            });
-        }
-
-        // Returns one header object and the nested phát hiện/khuyến nghị tree for the template.
-        const getDataKNKT = (recid) => {
-            // TODO(BA-Q5): Confirm that custrecord_scv_xlkn_subs is the intended company field.
-            // TODO(BA-Q6): Confirm that inactive child records must be excluded.
-            // TODO(BA-Q7): Confirm that internal-id ascending is the intended child sequence.
-            // BA-Q8 đã chốt 18/08/2026: "Cập nhật đến" = ngày thực hiện lớn nhất
-            // toàn báo cáo. Đúng như đang chạy.
-            // TODO(BA-Q10): Mockup vẫn để "Ngày … tháng … năm 2026" nhưng FDD ghi Current Date —
-            // hiện điền đủ ngày/tháng/năm; nếu BA muốn giữ dấu chấm thì sửa lại 1 dòng trong XML.
-            // TODO(BA-Q11): Xác nhận custrecord_scv_kqkn_ngaythuchien là kiểu Date
-            // (đang dùng TO_CHAR).
-            const rows = query.runSuiteQL({
-                query: DATA_QUERY,
-                params: [recid]
-            }).asMappedResults();
-
-            if (rows.length === 0) {
-                throw "Không tìm thấy bản ghi cần in hoặc bạn không có quyền xem!";
-            }
-
-            if (rows.length >= 5000) {
-                throw "Báo cáo quá lớn, vượt giới hạn 5.000 dòng của SuiteQL!";
-            }
-
-            const header = rows[0] || {};
-            const ngayKyVietNam = getNgayKyVietNam();
-
+            const dateParts = libPrintFormat.getDateParts(parsedDate);
             return {
-                soBaoCao: toText(header.so_bao_cao),
-                congTy: toText(header.cong_ty),
-                ngayPhatHanh: toText(header.ngay_phat_hanh),
-                donVi: toText(header.don_vi),
-                ngayCapNhat: getLatestNgayThucHien(rows),
-                ngayKy: ngayKyVietNam.ngayKy,
-                thangKy: ngayKyVietNam.thangKy,
-                namKy: ngayKyVietNam.namKy,
-                phatHienList: buildPhatHienTree(rows)
+                display: libPrintFormat.formatDate(parsedDate),
+                sort: dateParts.nam + dateParts.thang + dateParts.ngay
+            };
+        } catch (error) {
+            const parts = text.split(/[/-]/);
+            if (parts.length !== 3) {
+                return {display: text, sort: Knkt.EMPTY};
+            }
+
+            const yearFirst = parts[0].length === 4;
+            const year = yearFirst ? parts[0] : parts[2];
+            const month = yearFirst ? parts[1] : parts[1];
+            const day = yearFirst ? parts[2] : parts[0];
+            const paddedDay = libPrintFormat.padDatePart(day);
+            const paddedMonth = libPrintFormat.padDatePart(month);
+            return {
+                display: paddedDay + '/' + paddedMonth + '/' + year,
+                sort: year + paddedMonth + paddedDay
             };
         }
+    };
 
-        // Updates a tracker with one execution date if it is newer; returns nothing.
-        const keepLatestValue = (tracker, ngayThucHien, ngayThucHienSort) => {
-            if (ngayThucHienSort === '') {
-                return;
-            }
+    const runTierSearch = (type, filters, columns, mapResult) => {
+        const rows = [];
+        search.create({type, filters, columns}).run().each((result) => {
+            rows.push(mapResult(result));
+            return true;
+        });
+        return rows;
+    };
 
-            if (tracker.ngayThucHienSort >= ngayThucHienSort) {
-                return;
-            }
+    const getFindingRows = (recordId) => runTierSearch(
+        Knkt.FINDING.RECORD_TYPE,
+        [
+            [Knkt.FINDING.PARENT, search.Operator.ANYOF, recordId],
+            'AND',
+            [Knkt.INACTIVE, search.Operator.IS, Knkt.ACTIVE_VALUE]
+        ],
+        [
+            search.createColumn({name: Knkt.INTERNAL_ID, sort: search.Sort.ASC}),
+            Knkt.FINDING.TEXT
+        ],
+        (result) => {
+            const id = libPrintFormat.asText(result.getValue({name: Knkt.INTERNAL_ID}));
+            return {
+                id,
+                sortId: toSortId(id),
+                text: libPrintFormat.asText(result.getValue({name: Knkt.FINDING.TEXT}))
+            };
+        }
+    );
 
-            tracker.ngayThucHien = ngayThucHien;
-            tracker.ngayThucHienSort = ngayThucHienSort;
+    const getRecommendationRows = (findingIds) => {
+        if (!findingIds.length) {
+            return [];
         }
 
-        // Updates a tracker with the newest execution date from one result row; returns nothing.
-        const keepLatestNgayThucHien = (tracker, row) => {
-            if (row.kq_id === null || row.kq_id === undefined) {
-                return;
+        return runTierSearch(
+            Knkt.RECOMMENDATION.RECORD_TYPE,
+            [
+                [Knkt.RECOMMENDATION.PARENT, search.Operator.ANYOF, findingIds],
+                'AND',
+                [Knkt.INACTIVE, search.Operator.IS, Knkt.ACTIVE_VALUE]
+            ],
+            [
+                search.createColumn({name: Knkt.INTERNAL_ID, sort: search.Sort.ASC}),
+                Knkt.RECOMMENDATION.PARENT,
+                Knkt.RECOMMENDATION.TEXT,
+                Knkt.RECOMMENDATION.DUE_DATE
+            ],
+            (result) => {
+                const id = libPrintFormat.asText(result.getValue({name: Knkt.INTERNAL_ID}));
+                return {
+                    id,
+                    sortId: toSortId(id),
+                    findingId: libPrintFormat.asText(
+                        result.getValue({name: Knkt.RECOMMENDATION.PARENT})
+                    ),
+                    text: libPrintFormat.asText(
+                        result.getValue({name: Knkt.RECOMMENDATION.TEXT})
+                    ),
+                    dueDate: normalizeSearchDate(
+                        result.getValue({name: Knkt.RECOMMENDATION.DUE_DATE})
+                    ).display
+                };
             }
+        );
+    };
 
+    const getResultRows = (recommendationIds) => {
+        if (!recommendationIds.length) {
+            return [];
+        }
+
+        return runTierSearch(
+            Knkt.RESULT.RECORD_TYPE,
+            [
+                [Knkt.RESULT.PARENT, search.Operator.ANYOF, recommendationIds],
+                'AND',
+                [Knkt.INACTIVE, search.Operator.IS, Knkt.ACTIVE_VALUE]
+            ],
+            [
+                search.createColumn({name: Knkt.INTERNAL_ID, sort: search.Sort.ASC}),
+                Knkt.RESULT.PARENT,
+                Knkt.RESULT.IMPLEMENTATION_STATUS,
+                Knkt.RESULT.RESULT_TEXT,
+                Knkt.RESULT.IMPLEMENTATION_DATE
+            ],
+            (result) => {
+                const id = libPrintFormat.asText(result.getValue({name: Knkt.INTERNAL_ID}));
+                const implementationDate = normalizeSearchDate(
+                    result.getValue({name: Knkt.RESULT.IMPLEMENTATION_DATE})
+                );
+                return {
+                    id,
+                    sortId: toSortId(id),
+                    recommendationId: libPrintFormat.asText(
+                        result.getValue({name: Knkt.RESULT.PARENT})
+                    ),
+                    ngayThucHien: implementationDate.display,
+                    ngayThucHienSort: implementationDate.sort,
+                    tinhHinhThucHien: libPrintFormat.asText(
+                        result.getValue({name: Knkt.RESULT.IMPLEMENTATION_STATUS})
+                    ),
+                    ketQuaThucHien: libPrintFormat.asText(
+                        getResultText(result, Knkt.RESULT.RESULT_TEXT)
+                    )
+                };
+            }
+        );
+    };
+
+    const keepLatestValue = (tracker, dateValue, dateSort) => {
+        if (!dateSort || tracker.dateSort >= dateSort) {
+            return;
+        }
+        tracker.date = dateValue;
+        tracker.dateSort = dateSort;
+    };
+
+    const finalizeRecommendation = (recommendationEntry) => {
+        const resultRows = recommendationEntry.resultRows.slice().sort((left, right) => {
+            if (left.ngayThucHienSort !== right.ngayThucHienSort) {
+                if (!left.ngayThucHienSort) return -1;
+                if (!right.ngayThucHienSort) return 1;
+                return left.ngayThucHienSort < right.ngayThucHienSort ? -1 : 1;
+            }
+            return left.sortId - right.sortId;
+        });
+        const latestResult = resultRows[resultRows.length - 1];
+        const previousResult = resultRows[resultRows.length - 2];
+
+        if (latestResult) {
+            recommendationEntry.output.tinhHinhThucHien = latestResult.tinhHinhThucHien;
+            recommendationEntry.output.ketQuaThucHien = latestResult.ketQuaThucHien;
+        }
+        if (previousResult) {
+            recommendationEntry.output.tinhHinhThucHienTruoc =
+                previousResult.tinhHinhThucHien;
+            recommendationEntry.output.ketQuaThucHienTruoc =
+                previousResult.ketQuaThucHien;
             keepLatestValue(
-                tracker,
-                toText(row.ngay_thuc_hien),
-                toText(row.ngay_thuc_hien_sort)
+                recommendationEntry.findingEntry.previous,
+                previousResult.ngayThucHien,
+                previousResult.ngayThucHienSort
             );
         }
+    };
 
-        // Returns the newest execution date across all flat SuiteQL rows.
-        const getLatestNgayThucHien = (rows) => {
-            const tracker = {ngayThucHien: '', ngayThucHienSort: ''};
-            rows.forEach((row) => {
-                keepLatestNgayThucHien(tracker, row);
-            });
+    const buildPhatHienTree = (recordId) => {
+        const findingRows = getFindingRows(recordId);
+        const findingEntries = findingRows.map((row, findingIndex) => ({
+            id: row.id,
+            output: {
+                stt: String(findingIndex + 1),
+                chiTietPhatHien: row.text,
+                ngayThucHien: Knkt.EMPTY,
+                ngayThucHienTruoc: Knkt.EMPTY,
+                khuyenNghiList: []
+            },
+            recommendationById: new Map(),
+            latest: {date: Knkt.EMPTY, dateSort: Knkt.EMPTY},
+            previous: {date: Knkt.EMPTY, dateSort: Knkt.EMPTY}
+        }));
+        const findingById = new Map(
+            findingEntries.map((entry) => [entry.id, entry])
+        );
+        const recommendationRows = getRecommendationRows(
+            findingEntries.map((entry) => entry.id)
+        );
+        const recommendationEntries = [];
 
-            return tracker.ngayThucHien;
-        }
-
-        // Stores one raw result row for date-aware finalization.
-        const addKetQua = (khuyenNghiEntry, row) => {
-            khuyenNghiEntry.ketQuaRows.push({
-                ngayThucHien: toText(row.ngay_thuc_hien),
-                ngayThucHienSort: toText(row.ngay_thuc_hien_sort),
-                tinhHinhThucHien: toText(row.tinh_hinh_thuc_hien),
-                ketQuaThucHien: toText(row.ket_qua_thuc_hien),
-                kqId: Number(row.kq_id)
-            });
-        }
-
-        // Sorts one recommendation's results and exposes the clean template contract.
-        const finalizeKetQuaList = (khuyenNghiEntry) => {
-            // TODO(BA-Q13): Dòng kết quả mới nhất có ngày nhưng Tình hình thực hiện rỗng —
-            // hiện in trống theo đúng dữ liệu; xác nhận có cần lùi về dòng cũ hơn
-            // có nội dung không.
-            // TODO(BA-Q14): Hai kết quả trùng ngày thực hiện — hiện lấy dòng có id lớn hơn.
-            khuyenNghiEntry.ketQuaRows.sort((left, right) => {
-                if (left.ngayThucHienSort < right.ngayThucHienSort) {
-                    return -1;
-                }
-                if (left.ngayThucHienSort > right.ngayThucHienSort) {
-                    return 1;
-                }
-
-                return left.kqId - right.kqId;
-            });
-
-            // TODO(BA-Q16): Kết quả có ngày thực hiện rỗng đang bị coi là cũ nhất
-            // nên rơi vào cột trái; xác nhận với BA.
-            const ketQuaRows = khuyenNghiEntry.ketQuaRows;
-            khuyenNghiEntry.khuyenNghi.ketQuaList = ketQuaRows.map((row) => ({
-                ngayThucHien: row.ngayThucHien,
-                tinhHinhThucHien: row.tinhHinhThucHien,
-                ketQuaThucHien: row.ketQuaThucHien
-            }));
-
-            const ketQuaMoiNhat = ketQuaRows[ketQuaRows.length - 1];
-            if (ketQuaMoiNhat) {
-                khuyenNghiEntry.khuyenNghi.tinhHinhThucHien =
-                    ketQuaMoiNhat.tinhHinhThucHien;
-                khuyenNghiEntry.khuyenNghi.ketQuaThucHien =
-                    ketQuaMoiNhat.ketQuaThucHien;
+        recommendationRows.forEach((row) => {
+            const findingEntry = findingById.get(row.findingId);
+            if (!findingEntry) {
+                return;
             }
 
-            // TODO(BA-Q15): Khuyến nghị chỉ có 1 kết quả đang để trống cột trái;
-            // xác nhận với BA có cần in dấu "…" không.
-            const ketQuaTruoc = ketQuaRows[ketQuaRows.length - 2];
-            if (ketQuaTruoc) {
-                khuyenNghiEntry.khuyenNghi.tinhHinhThucHienTruoc =
-                    ketQuaTruoc.tinhHinhThucHien;
-                khuyenNghiEntry.khuyenNghi.ketQuaThucHienTruoc =
-                    ketQuaTruoc.ketQuaThucHien;
-                keepLatestValue(
-                    khuyenNghiEntry.phatHienEntry.truoc,
-                    ketQuaTruoc.ngayThucHien,
-                    ketQuaTruoc.ngayThucHienSort
-                );
+            const output = {
+                stt: String(findingEntry.output.khuyenNghiList.length + 1),
+                khuyenNghi: row.text,
+                thoiHanPhanHoi: row.dueDate,
+                tinhHinhThucHien: Knkt.EMPTY,
+                tinhHinhThucHienTruoc: Knkt.EMPTY,
+                ketQuaThucHien: Knkt.EMPTY,
+                ketQuaThucHienTruoc: Knkt.EMPTY
+            };
+            const entry = {
+                id: row.id,
+                output,
+                findingEntry,
+                resultRows: []
+            };
+            findingEntry.recommendationById.set(row.id, entry);
+            findingEntry.output.khuyenNghiList.push(output);
+            recommendationEntries.push(entry);
+        });
+
+        const resultRows = getResultRows(recommendationEntries.map((entry) => entry.id));
+        resultRows.forEach((row) => {
+            const recommendationEntry = recommendationEntries.find(
+                (entry) => entry.id === row.recommendationId
+            );
+            if (!recommendationEntry) {
+                return;
             }
+            recommendationEntry.resultRows.push(row);
+            keepLatestValue(
+                recommendationEntry.findingEntry.latest,
+                row.ngayThucHien,
+                row.ngayThucHienSort
+            );
+        });
+
+        recommendationEntries.forEach((entry) => finalizeRecommendation(entry));
+        findingEntries.forEach((entry) => {
+            entry.output.ngayThucHien = entry.latest.date;
+            entry.output.ngayThucHienTruoc = entry.previous.date;
+        });
+
+        const latest = {date: Knkt.EMPTY, dateSort: Knkt.EMPTY};
+        resultRows.forEach((row) => {
+            keepLatestValue(latest, row.ngayThucHien, row.ngayThucHienSort);
+        });
+        return {
+            phatHienList: findingEntries.map((entry) => entry.output),
+            ngayCapNhat: latest.date
+        };
+    };
+
+    const getNgayKyVietNam = () => {
+        const vietnamDate = new Date(Date.now() + Knkt.UTC_OFFSET_MILLISECONDS);
+        return {
+            ngayKy: libPrintFormat.padDatePart(vietnamDate.getUTCDate()),
+            thangKy: libPrintFormat.padDatePart(vietnamDate.getUTCMonth() + 1),
+            namKy: String(vietnamDate.getUTCFullYear())
+        };
+    };
+
+    const getDataKnkt = (rec, recordId) => {
+        const tree = buildPhatHienTree(recordId);
+        const ngayKy = getNgayKyVietNam();
+        return {
+            soBaoCao: libPrintFormat.asText(
+                rec.getValue({fieldId: Knkt.HEADER_FIELD.REPORT_NUMBER})
+            ),
+            congTy: libPrintFormat.asText(
+                printLookup.getSubsidiaryLegalName(
+                    rec.getValue({fieldId: Knkt.HEADER_FIELD.SUBSIDIARY})
+                )
+            ),
+            ngayPhatHanh: libPrintFormat.formatDate(
+                rec.getValue({fieldId: Knkt.HEADER_FIELD.REPORT_DATE})
+            ),
+            donVi: libPrintFormat.asText(
+                rec.getText({fieldId: Knkt.HEADER_FIELD.DEPARTMENT})
+            ),
+            ngayCapNhat: libPrintFormat.asText(tree.ngayCapNhat),
+            ngayKy: ngayKy.ngayKy,
+            thangKy: ngayKy.thangKy,
+            namKy: ngayKy.namKy,
+            phatHienList: tree.phatHienList
+        };
+    };
+
+    const printKnkt = (rec, renderer, recordId) => {
+        const dataJson = getDataKnkt(rec, recordId);
+        renderer.addCustomDataSource({
+            format: render.DataSource.OBJECT,
+            alias: Template.DATA_ALIAS,
+            data: dataJson
+        });
+        return dataJson;
+    };
+
+    const getPdfPrintFile = (printFileName) => Knkt.PRINT_FILES.includes(printFileName)
+        ? printFileName
+        : Knkt.PRINT_FILE;
+
+    const getWordPrintFile = (printFileName) => Knkt.WORD_PRINT_FILES.includes(printFileName)
+        ? printFileName
+        : Knkt.WORD_PRINT_FILE;
+
+    const renderRecordToPdf = (recordId, printFileName) => {
+        const renderer = libPdf.renderTemplateWithXml(getPdfPrintFile(printFileName));
+        const rec = addDefaultRecordRender(renderer, Knkt.RECORD_TYPE, recordId);
+        printKnkt(rec, renderer, recordId);
+        return renderer.renderAsPdf();
+    };
+
+    const renderRecordToWord = (recordId, printFileName) => {
+        const wordPrintFile = getWordPrintFile(printFileName);
+        const templatePath = consFile.getCurrentRootFolder() + '/' + Knkt.WORD_FOLDER
+            + '/' + wordPrintFile + Knkt.WORD_EXTENSION;
+        const templateFile = file.load({id: templatePath});
+        const renderer = render.create();
+        renderer.templateContent = templateFile.getContents();
+        const rec = addDefaultRecordRender(renderer, Knkt.RECORD_TYPE, recordId);
+        const dataJson = printKnkt(rec, renderer, recordId);
+        const wordFilePrefix = wordPrintFile === Knkt.WORD_PRINT_FILE_LAN_2
+            ? Knkt.WORD_PREFIX_LAN_2
+            : Knkt.WORD_PREFIX;
+        const wordFileName = wordFilePrefix
+            + dataJson.soBaoCao.replace(/[\\/:*?"<>|\u0000-\u001F\u007F]/g, '_')
+            + Knkt.DOC_EXTENSION;
+
+        return file.create({
+            name: wordFileName,
+            fileType: file.Type.WORD,
+            contents: encode.convert({
+                string: renderer.renderAsString(),
+                inputEncoding: encode.Encoding.UTF_8,
+                outputEncoding: encode.Encoding.BASE_64
+            })
+        });
+    };
+
+    const onRequest = (scriptContext) => {
+        const params = scriptContext.request.parameters;
+        const recordId = params[UrlParameter.RECORD_ID];
+        if (!recordId) {
+            throw new Error('Missing internal audit recommendation report id.');
         }
 
-        // Returns an existing or newly created recommendation entry for one query row.
-        const getOrCreateKhuyenNghiEntry = (
-            phatHienEntry,
-            khuyenNghiEntries,
-            row
-        ) => {
-            let khuyenNghiEntry = phatHienEntry.khuyenNghiById.get(row.kn_id);
-            if (!khuyenNghiEntry) {
-                const khuyenNghi = {
-                    stt: phatHienEntry.phatHien.khuyenNghiList.length + 1,
-                    khuyenNghi: toText(row.khuyen_nghi),
-                    thoiHanPhanHoi: toText(row.thoi_han_phan_hoi),
-                    // Nguồn của tinhHinhThucHien/tinhHinhThucHienTruoc; template lần 1
-                    // bỏ qua danh sách này, lần 2 chỉ dùng 2 phần tử cuối.
-                    ketQuaList: [],
-                    tinhHinhThucHien: '',
-                    tinhHinhThucHienTruoc: '',
-                    ketQuaThucHien: '',
-                    ketQuaThucHienTruoc: ''
-                };
-                khuyenNghiEntry = {
-                    khuyenNghi: khuyenNghi,
-                    phatHienEntry: phatHienEntry,
-                    ketQuaRows: []
-                };
-                phatHienEntry.khuyenNghiById.set(row.kn_id, khuyenNghiEntry);
-                phatHienEntry.phatHien.khuyenNghiList.push(khuyenNghi);
-                khuyenNghiEntries.push(khuyenNghiEntry);
-            }
-
-            return khuyenNghiEntry;
+        const outputFormat = params[UrlParameter.FORMAT] || Knkt.FORMAT_WORD;
+        if (outputFormat === Knkt.FORMAT_PDF) {
+            scriptContext.response.writeFile({
+                file: renderRecordToPdf(recordId, params[UrlParameter.PRINT_FILE]),
+                isInline: true
+            });
+            return;
+        }
+        if (outputFormat !== Knkt.FORMAT_WORD) {
+            throw new Error('Invalid KNKT output format.');
         }
 
-        // Returns an existing or newly created finding entry for one query row.
-        const getOrCreatePhatHienEntry = (phatHienList, phatHienById, row) => {
-            let phatHienEntry = phatHienById.get(row.ph_id);
-            if (!phatHienEntry) {
-                const phatHien = {
-                    stt: phatHienList.length + 1,
-                    chiTietPhatHien: toText(row.chi_tiet_phat_hien),
-                    ngayThucHien: '',
-                    ngayThucHienTruoc: '',
-                    khuyenNghiList: []
-                };
-                phatHienEntry = {
-                    phatHien: phatHien,
-                    khuyenNghiById: new Map(),
-                    ngayThucHien: '',
-                    ngayThucHienSort: '',
-                    // BA-Q17 đã chốt 18/08/2026: header cột trái lấy ngày lớn nhất
-                    // trong tập giá trị được xếp vào cột trái, KHÔNG phải ngày lớn
-                    // thứ nhì của cả phát hiện. Đúng như đang chạy.
-                    truoc: {ngayThucHien: '', ngayThucHienSort: ''}
-                };
-                phatHienById.set(row.ph_id, phatHienEntry);
-                phatHienList.push(phatHien);
-            }
-
-            return phatHienEntry;
-        }
-
-        // Folds flat SuiteQL rows and returns the template's phát hiện/khuyến nghị tree.
-        const buildPhatHienTree = (rows) => {
-            const phatHienList = [];
-            const phatHienById = new Map();
-            const khuyenNghiEntries = [];
-
-            rows.forEach((row) => {
-                if (row.ph_id === null || row.ph_id === undefined) {
-                    return;
-                }
-
-                const phatHienEntry = getOrCreatePhatHienEntry(
-                    phatHienList,
-                    phatHienById,
-                    row
-                );
-                keepLatestNgayThucHien(phatHienEntry, row);
-                phatHienEntry.phatHien.ngayThucHien = phatHienEntry.ngayThucHien;
-
-                if (row.kn_id === null || row.kn_id === undefined) {
-                    return;
-                }
-
-                const khuyenNghiEntry = getOrCreateKhuyenNghiEntry(
-                    phatHienEntry,
-                    khuyenNghiEntries,
-                    row
-                );
-
-                if (row.kq_id !== null && row.kq_id !== undefined) {
-                    // BA-Q9 đã chốt 18/08/2026: header nhóm lấy ngày thực hiện lớn
-                    // nhất trong TỪNG phát hiện. Đúng như đang chạy.
-                    // Dấu fallback khi thiếu ngày: xem BA-Q22 trong template.
-                    addKetQua(khuyenNghiEntry, row);
+        try {
+            scriptContext.response.writeFile({
+                file: renderRecordToWord(recordId, params[UrlParameter.PRINT_FILE]),
+                isInline: false
+            });
+        } catch (error) {
+            log.error({
+                title: 'KNKT_WORD_PRINT_ERROR',
+                details: {
+                    recordId,
+                    printFile: params[UrlParameter.PRINT_FILE],
+                    name: error && error.name,
+                    message: error && error.message,
+                    stack: error && error.stack
                 }
             });
-
-            khuyenNghiEntries.forEach((khuyenNghiEntry) => {
-                finalizeKetQuaList(khuyenNghiEntry);
-            });
-
-            phatHienById.forEach((phatHienEntry) => {
-                phatHienEntry.phatHien.ngayThucHienTruoc =
-                    phatHienEntry.truoc.ngayThucHien;
-            });
-
-            return phatHienList;
+            throw error;
         }
+    };
 
-        return {onRequest}
-
-    });
+    return {onRequest, renderRecordToPdf, renderRecordToWord};
+});
