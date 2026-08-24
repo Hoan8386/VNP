@@ -122,7 +122,9 @@ define(['N/record', 'N/search', 'N/url', 'N/runtime'],
                 if (getPurchaseOrderType(rec.getValue('custrecord_scv_payment_po')) === '4') {
                     addRedirectButton(form, rec, 'custpage_scv_payr_bill_credit', 'Bill Credit', 'vendorcredit', 'payment_to_bill_credit');
                 } else {
-                    addRedirectButton(form, rec, 'custpage_scv_payr_vendor_prepay', 'Vendor Prepayment', 'vendorprepayment', 'payment_to_vendor_prepayment');
+                    addRedirectButton(form, rec, 'custpage_scv_payr_vendor_prepay', 'Vendor Prepayment', 'vendorprepayment', 'payment_to_vendor_prepayment', {
+                        purchaseorder: rec.getValue(FIELD.PO)
+                    });
                 }
             }
 
@@ -164,15 +166,19 @@ define(['N/record', 'N/search', 'N/url', 'N/runtime'],
             }
         }
 
-        function addRedirectButton(form, rec, id, label, recordType, typeFunc) {
+        function addRedirectButton(form, rec, id, label, recordType, typeFunc, extraParams = {}) {
+            const params = {
+                id_rec: rec.id,
+                type_func: typeFunc
+            };
+            Object.keys(extraParams).forEach(paramId => {
+                if (extraParams[paramId]) params[paramId] = extraParams[paramId];
+            });
             const resolvedUrl = url.resolveRecord({
                 recordType,
                 recordId: null,
                 isEditMode: true,
-                params: {
-                    id_rec: rec.id,
-                    type_func: typeFunc
-                }
+                params
             });
             form.addButton({
                 id,
@@ -460,8 +466,11 @@ define(['N/record', 'N/search', 'N/url', 'N/runtime'],
             if (context.type === context.UserEventType.EDIT) return;
 
             const totalGrossAmount = sumSublist(rec, DETAIL_SUBLIST, 'custrecord_scv_pay_detail_gr_amt');
+            const paymentAmount = rec.getValue(FIELD.AMOUNT);
 
             if (!rec.id) return;
+
+            if (paymentAmount !== null && paymentAmount !== undefined && paymentAmount !== '') return;
 
             if (totalGrossAmount === 0) return;
 

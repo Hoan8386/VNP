@@ -55,11 +55,11 @@ define(['N/record', 'N/search'
             return lkT.memorized === true || lkT.memorized === 'T';
         };
 
-        const resolvePrefix = (newRecord, recType, account, approval_status) => {
+        const resolvePrefix = (newRecord, recType, account, customApprovalStatus, approvalstatus) => {
             let prefix = '', accountnumber = '';
             if (PAYMENT_TYPES.includes(recType)) {
                 if (account !== undefined && isNaN(account) === false && !!account) {
-                    if (recType === 'check' || (recType !== 'check' && approval_status === CustomApprovalStatus.DA_PHE_DUYET)) {
+                    if (recType === 'check' || (recType !== 'check' && (approvalstatus === ApprovalStatus.APPROVAL || customApprovalStatus === CustomApprovalStatus.DA_PHE_DUYET))) {
                         accountnumber = lookupAccountPrefix3(account);
                         if (accountnumber === '111') {
                             prefix = 'PC';
@@ -129,8 +129,8 @@ define(['N/record', 'N/search'
             }
 
             let account = newRecord.getValue('account');
-            let approval_status = newRecord.getValue('custbody_scv_approval_status');
-            let {prefix, accountnumber} = resolvePrefix(newRecord, recType, account, approval_status);
+            let customApprovalStatus = newRecord.getValue('custbody_scv_approval_status');
+            let {prefix, accountnumber} = resolvePrefix(newRecord, recType, account, customApprovalStatus, approvalstatus);
             if (!prefix) {
                 return doc_number;
             }

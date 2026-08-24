@@ -93,13 +93,20 @@ define(['N/record', 'N/search'],
             });
             const header = readHeader(payrRec);
             header.custbody_scv_payment_number = params.id_rec;
+            let purchaseOrderId = '';
 
             if (params.type_func === 'payment_to_vendor_prepayment') {
+                purchaseOrderId = payrRec.getValue('custrecord_scv_payment_po');
                 header.payment = payrRec.getValue('custrecord_scv_payment_amount');
-                header.custbody_scv_created_transaction = payrRec.getValue('custrecord_scv_payment_po');
+                header.custbody_scv_created_transaction = purchaseOrderId;
             }
 
             setHeaderFields(targetRec, header);
+
+            if (params.type_func === 'payment_to_vendor_prepayment') {
+                setVendorPrepaymentPurchaseOrder(targetRec, purchaseOrderId);
+                setVendorPrepaymentAccount(targetRec, payrRec);
+            }
 
             if (params.type_func === 'payment_to_bill_payment') return;
 
@@ -320,6 +327,48 @@ define(['N/record', 'N/search'],
             });
         }
 
+        function setVendorPrepaymentPurchaseOrder(targetRec, purchaseOrderId) {
+            safeSetValue(targetRec, 'purchaseorder', purchaseOrderId, {
+                ignoreFieldChange: false
+            });
+        }
+
+        function setVendorPrepaymentAccount(targetRec, payrRec) {
+            if (targetRec.getValue('prepaymentaccount')) return;
+
+            const prepaymentAccount = getDefaultVendorPrepaymentAccount(payrRec);
+            safeSetValue(targetRec, 'prepaymentaccount', prepaymentAccount);
+        }
+
+        function getDefaultVendorPrepaymentAccount(payrRec) {
+            try {
+                const tempRec = record.create({
+                    type: record.Type.VENDOR_PREPAYMENT,
+                    isDynamic: true
+                });
+                const sourceFields = [
+                    ['entity', 'custrecord_scv_payment_entity'],
+                    ['subsidiary', 'custrecord_scv_payr_subs'],
+                    ['currency', 'custrecord_scv_payment_currency'],
+                    ['trandate', 'custrecord_scv_payment_date'],
+                    ['purchaseorder', 'custrecord_scv_payment_po']
+                ];
+                sourceFields.forEach(fieldMap => {
+                    const value = payrRec.getValue(fieldMap[1]);
+                    if (value !== null && value !== undefined && value !== '') {
+                        tempRec.setValue({
+                            fieldId: fieldMap[0],
+                            value
+                        });
+                    }
+                });
+                return tempRec.getValue('prepaymentaccount');
+            } catch (e) {
+                log.debug('getDefaultVendorPrepaymentAccount failed', e.message || e);
+                return '';
+            }
+        }
+
         function setTransactionLines(targetRec, payrRec, sublistId) {
             const map = LINE_MAP[sublistId];
             const lineCount = payrRec.getLineCount({sublistId: DETAIL_SUBLIST});
@@ -419,10 +468,17 @@ define(['N/record', 'N/search'],
             return isNaN(number) ? 0 : number;
         }
 
-        function safeSetValue(rec, fieldId, value) {
+        function safeSetValue(rec, fieldId, value, options = {}) {
             if (value === null || value === undefined || value === '') return;
             try {
-                rec.setValue({fieldId, value});
+                const setValueOptions = {
+                    fieldId,
+                    value
+                };
+                if (Object.prototype.hasOwnProperty.call(options, 'ignoreFieldChange')) {
+                    setValueOptions.ignoreFieldChange = options.ignoreFieldChange;
+                }
+                rec.setValue(setValueOptions);
             } catch (e) {
                 log.debug('skip body field ' + fieldId, e.message || e);
             }

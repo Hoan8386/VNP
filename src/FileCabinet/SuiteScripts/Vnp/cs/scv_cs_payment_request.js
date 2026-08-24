@@ -14,6 +14,7 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
     (currentRecord, duplicateCheck, clib, _) => {
 
         let sstax;
+        let paymentAmountManuallyChanged = false;
 
         const staticTransType = {
             PAYMENT_REQUEST: 'customrecord_scv_paymentrequest'
@@ -50,6 +51,7 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
          */
         const pageInit = (scriptContext) => {
             try {
+                paymentAmountManuallyChanged = false;
                 sstax = clib.searchData('customsearch_scv_taxcode_search', [], []);
                 // console.log(sstax);
             } catch (e) {
@@ -75,6 +77,10 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
                 let curRec = scriptContext.currentRecord;
                 let typeRec = curRec.type;
                 if (typeRec === staticTransType.PAYMENT_REQUEST) {
+                    if (!scriptContext.sublistId && scriptContext.fieldId === staticFields[typeRec].SUM_GROSS_AMT) {
+                        paymentAmountManuallyChanged = true;
+                        return;
+                    }
                     updateDataInLine(scriptContext);
                 }
 
@@ -227,7 +233,7 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
             if (staticFields[transType].SUM_AMOUNT) {
                 curRec.setValue(staticFields[transType].SUM_AMOUNT, roundValue(objAmt.totalAmount, factorNumber), true);
             }
-            if (staticFields[transType].SUM_GROSS_AMT) {
+            if (staticFields[transType].SUM_GROSS_AMT && !paymentAmountManuallyChanged) {
                 curRec.setValue(staticFields[transType].SUM_GROSS_AMT, roundValue(objAmt.totalGrossAmt, factorNumber), true);
             }
             if (staticFields[transType].SUM_TAX_AMT) {
