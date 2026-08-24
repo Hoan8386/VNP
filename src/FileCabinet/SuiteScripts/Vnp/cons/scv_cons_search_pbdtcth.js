@@ -37,23 +37,23 @@ define(['N/search',
             );
         }
 
-        if (params.custpage_date) {
-            filters.push(
-                search.createFilter({
-                    name: 'custbody_scv_from_date',
-                    operator: search.Operator.ONORBEFORE,
-                    values: params.custpage_date
-                })
-            );
+        // if (params.custpage_date) {
+        //     filters.push(
+        //         search.createFilter({
+        //             name: 'custbody_scv_from_date',
+        //             operator: search.Operator.ONORBEFORE,
+        //             values: params.custpage_date
+        //         })
+        //     );
 
-            filters.push(
-                search.createFilter({
-                    name: 'custbody_scv_to_date',
-                    operator: search.Operator.ONORAFTER,
-                    values: params.custpage_date
-                })
-            );
-        }
+        //     filters.push(
+        //         search.createFilter({
+        //             name: 'custbody_scv_to_date',
+        //             operator: search.Operator.ONORAFTER,
+        //             values: params.custpage_date
+        //         })
+        //     );
+        // }
 
         if (params.custpage_debit) {
             filters.push(

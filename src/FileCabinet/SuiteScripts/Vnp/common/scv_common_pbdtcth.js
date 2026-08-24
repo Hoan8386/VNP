@@ -3,10 +3,9 @@
  * Key:
  * =======================================================================================
  *  Date                Author                  Description
- *  17 Aug 2026         Thanh Hoan              Init, create file.
+ *  17 Aug 2026         Thanh Hoan              Init, create file. Chức năng phân bổ doanh thu chưa thực hiên from ms. Tâm(https://app.clickup.com/t/3773072/86d40yedc)
  */
-define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
-    '../lib/scv_lib_function.js',
+define([ 'N/record','N/search',
 
     '../olib/alasql/alasql.min@4.6.6.js',
 
@@ -16,9 +15,8 @@ define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
     '../cons/scv_cons_currency.js',
 
     '../cons/scv_cons_search_pbdtcth.js',
-
-], (format, record, url,search,message,
-    lbf,
+    
+], ( record,search,
 
     alasql,
 
@@ -144,7 +142,32 @@ define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
     };
 
     const getDataSource = (params) =>{
-        const arrResult = constSearchPbdtcth.getDataSource(params);
+        let arrResult = constSearchPbdtcth.getDataSource(params);
+        let SLDate = constFormat.parseDate(params.custpage_date);
+
+        let SLMonth = SLDate.getMonth() +1;
+        let SLYear = SLDate.getFullYear();
+
+        arrResult = arrResult.filter(row => {
+            let fromDate = constFormat.parseDate(row.startdate);
+            let toDate = constFormat.parseDate(row.enddate);
+
+            let fromMonth = fromDate.getMonth() + 1;
+            let fromYear = fromDate.getFullYear();
+
+            let toMonth = toDate.getMonth() + 1;
+            let toYear = toDate.getFullYear();
+
+            let from = false;
+            let to = false;
+            if(SLYear > fromYear || (SLYear == fromYear && SLMonth >= fromMonth)) {
+                 from = true ;
+            }
+            if(SLYear < toYear || (SLYear == toYear && SLMonth <= toMonth)) {
+                 to = true ;
+            }
+            return from && to;
+        })
 
         return arrResult;
     }
@@ -262,8 +285,10 @@ define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
   
     const calculateAmount = (row, suiteletDate, periodId) => {
         let allocType = row.allocationtype ;
-
         let allocAmt = row.allocationamt * 1;
+
+        let startDate = row.startdate;
+        let endDate = row.enddate;
 
         if ( allocType === '2' ) {//Tháng
             return allocAmt;
@@ -281,6 +306,7 @@ define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
                 columns: ['startdate', 'enddate']
             });
 
+           
             let periodStart = periodRecord.startdate;
             let periodEnd = periodRecord.enddate;
 
@@ -288,15 +314,22 @@ define(['N/format', 'N/record', 'N/url','N/search', 'N/ui/message',
 
             // Kỳ Suitelet = Kỳ StartDate
             if (periodId == periodStartDate) {
-                numberOfDays = constFormat.calcNumberDays(suiteletDate, row.startdate) + 1;
+                if(suiteletDate < startDate) {
+                    numberOfDays = 0;
+                }else {
+                    numberOfDays = constFormat.calcNumberDays(suiteletDate, row.startdate) + 1;
+                }
 
             // Kỳ Suitelet = Kỳ EndDate
             } else if (periodId == periodEndDate) {
+                if(suiteletDate <= endDate) {
+                    numberOfDays = constFormat.calcNumberDays(suiteletDate, periodStart) + 1;
+                }
                 numberOfDays = constFormat.calcNumberDays(row.enddate, periodStart) + 1;
 
             // Kỳ Suitelet nằm giữa StartDate và EndDate
             } else {
-                numberOfDays = constFormat.calcNumberDays(periodEnd, periodStart) + 1;
+                numberOfDays = constFormat.calcNumberDays(suiteletDate, periodStart) + 1;
             }
 
             // B2: AllocationAmt × số ngày
