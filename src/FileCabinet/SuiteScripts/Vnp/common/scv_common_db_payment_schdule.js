@@ -82,7 +82,10 @@ define(['N/format', 'N/record', '../lib/scv_lib_report.js'],
             }
 
             // ---- Dòng lãi vay ----
-            let interestDates = buildInterestDates(objLoan);
+            // custrecord_scv_loan_end_month_itr === 'T' -> ngày tính lãi là ngày cuối tháng, không lấy theo firstInterestDate
+            let interestDates = objLoan.endOfMonth
+                ? buildInterestDatesEndOfMonth(objLoan)
+                : buildInterestDates(objLoan);
             if (!interestDates.length) {
                 // thiếu 1 trong 2 mốc này thì không sinh được kỳ trả lãi nào
                 log.audit('buildScheduleData - không sinh được kỳ trả lãi', {
@@ -159,6 +162,34 @@ define(['N/format', 'N/record', '../lib/scv_lib_report.js'],
                 listDate.push(dateInterest);
             }
             return listDate;
+        }
+
+        /**
+         * Sinh danh sách DateInterest khi custrecord_scv_loan_end_month_itr === 'T'.
+         *  - Mốc đầu tiên vẫn xuất phát từ tháng của custrecord_scv_inspaymentdate, nhưng lấy ngày cuối tháng
+         *  - Các mốc sau cộng dồn step tháng theo custrecord_scv_dl_inpaymentterm, mỗi mốc là ngày cuối tháng
+         *  - Thỏa mãn DateInterest <= custrecord_scv_loa_end_date
+         */
+        const buildInterestDatesEndOfMonth = (objLoan) => {
+            let listDate = [];
+            if (!objLoan.firstInterestDate || !objLoan.endDate) return listDate;
+
+            let step = (objLoan.interestTerm === InterestTerm.QUARTERLY) ? 3 : 1;
+            for (let i = 0; i < MAX_PERIOD; i++) {
+                let dateInterest = getEndOfMonth(objLoan.firstInterestDate, step * i);
+                if (dateInterest.getTime() > objLoan.endDate.getTime()) break;
+                listDate.push(dateInterest);
+            }
+            return listDate;
+        }
+
+        /**
+         * Ngày cuối cùng của tháng (date + months)
+         */
+        const getEndOfMonth = (date, months) => {
+            let year = date.getFullYear();
+            let month = date.getMonth() + months;
+            return new Date(year, month + 1, 0);
         }
 
         /**
@@ -373,6 +404,7 @@ define(['N/format', 'N/record', '../lib/scv_lib_report.js'],
                   loa.custrecord_scv_dl_inpaymentterm   AS interestterm,
                   loa.custrecord_scv_db_formula         AS daysofyear,
                   loa.custrecord_scv_loa_currency       AS currency,
+                  loa.custrecord_scv_loan_end_month_itr AS endofmonth,
                   cur.currencyprecision                 AS currencyprecision
            FROM ${Record.DEBIT_LOAN} loa
                     LEFT JOIN currency cur ON cur.id = loa.custrecord_scv_loa_currency
@@ -393,6 +425,8 @@ define(['N/format', 'N/record', '../lib/scv_lib_report.js'],
                 interestTerm: objData.interestterm ? String(objData.interestterm) : '',
                 daysOfYear: toNumber(objData.daysofyear) || 365,
                 currency: objData.currency,
+                // custrecord_scv_loan_end_month_itr: 'T' => ngày tính lãi lấy ngày cuối tháng thay vì firstInterestDate
+                endOfMonth: objData.endofmonth === 'T',
                 precision: objData.currencyprecision === null || objData.currencyprecision === undefined
                     ? 2 : toNumber(objData.currencyprecision)
             };
@@ -535,6 +569,7 @@ define(['N/format', 'N/record', '../lib/scv_lib_report.js'],
             InterestTerm,
             buildScheduleData,
             buildInterestDates,
+            buildInterestDatesEndOfMonth,
             buildInterestRows,
             buildInterestRow,
             numberDuplicateName,

@@ -55,7 +55,7 @@ define(['N/query', 'N/runtime', 'N/url', '../common/scv_common_import_data.js'],
             <head>
             <meta charset="UTF-8"/>
             <meta name="viewport" content="width=device-width,initial-scale=1"/>
-            <title>Import Data</title>
+            <title>Import Payroll</title>
             <style>
             :root {
               --bg:       #f8f7f4;
@@ -275,7 +275,7 @@ define(['N/query', 'N/runtime', 'N/url', '../common/scv_common_import_data.js'],
             
             <header class="header">
               <div style="display:flex;align-items:center;gap:14px">
-                <div class="logo"><span>Import Data</span></div>
+                <div class="logo"><span>Import Payroll</span></div>
                 <a href="/app/center/card.nl?sc=-29&whence=" class="home-link">🏠 Home</a>
               </div>
               <div class="supported-types">
@@ -360,19 +360,8 @@ define(['N/query', 'N/runtime', 'N/url', '../common/scv_common_import_data.js'],
               <!-- ══ RIGHT PANEL ══ -->
               <div class="right-panel">
 
-                <!-- Report type selector -->
+                <!-- Subsidiary selector -->
                 <div class="report-bar" id="reportBar">
-                  <label for="reportType">Loại báo cáo <span class="req">*</span></label>
-                  <select id="reportType" onchange="this.classList.remove('invalid')">
-                    <option value="">-- Chọn loại báo cáo --</option>
-                    <option value="bc_1">Báo cáo lưu chuyển tiền tệ trực tiếp</option>
-                    <option value="bc_2">Báo cáo lưu chuyển tiền tệ gián tiếp</option>
-                    <option value="bc_3">BS Report</option>
-                    <option value="bc_4">PL Report</option>
-                    <option value="bc_5">BẢNG THUYẾT MINH BÁO CÁO TÀI CHÍNH</option>
-                    <option value="bc_6">BẢNG THUYẾT MINH BÁO CÁO TÀI CHÍNH Word</option>
-                  </select>
-
                   <label for="subsidiary">Subsidiary <span class="req">*</span></label>
                   <select id="subsidiary" onchange="this.classList.remove('invalid')">
                     <option value="">-- Chọn subsidiary --</option>
@@ -388,7 +377,7 @@ define(['N/query', 'N/runtime', 'N/url', '../common/scv_common_import_data.js'],
                     <button className="act-btn" id="copyBtn" onClick="copyContent()">Sao chép</button>
                     <button className="act-btn" id="downloadBtn" onClick="downloadContent()">Tải xuống</button>
                     <button className="act-btn" id="jsonBtn" onClick="downloadJSON()">Tải JSON</button>
-                    <button className="act-btn" id="postDataBtn" onClick="postData()">Import Data</button>
+                    <button className="act-btn" id="postDataBtn" onClick="postData()">Import Payroll</button>
                   </div>
                 </div>
             
@@ -1062,16 +1051,6 @@ define(['N/query', 'N/runtime', 'N/url', '../common/scv_common_import_data.js'],
             window.postData = function() {
               const b = $('postDataBtn');
 
-              // Validate: bắt buộc chọn loại báo cáo
-              const reportEl = $('reportType');
-              const reportType = reportEl ? reportEl.value : '';
-              if (!reportType) {
-                if (reportEl) { reportEl.classList.add('invalid'); reportEl.focus(); }
-                alert('Vui lòng chọn loại báo cáo trước khi import dữ liệu.');
-                return;
-              }
-              if (reportEl) reportEl.classList.remove('invalid');
-
               // Validate: bắt buộc chọn subsidiary
               const subEl = $('subsidiary');
               const subsidiary = subEl ? subEl.value : '';
@@ -1090,15 +1069,15 @@ define(['N/query', 'N/runtime', 'N/url', '../common/scv_common_import_data.js'],
               const resetBtn = (label) => {
                 if (!b) return;
                 b.textContent = label;
-                setTimeout(() => { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; b.textContent = 'Import Data'; }, 3000);
+                setTimeout(() => { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; b.textContent = 'Import Payroll'; }, 3000);
               };
 
-              // Import data JSON xuống Suitelet xử lý bằng fetch (ajax thuần)
+              // Import Payroll JSON xuống Suitelet xử lý bằng fetch (ajax thuần)
               fetch('${processUrl}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
-                body: JSON.stringify({reportType, subsidiary, data})
+                body: JSON.stringify({subsidiary, data})
               })
               .then(function(response) {
                 if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -1236,7 +1215,6 @@ define(['N/query', 'N/runtime', 'N/url', '../common/scv_common_import_data.js'],
               $('pagePreviews').style.display='none';
               $('pagePreviews').innerHTML='';
               $('ocrSettings').style.display='none';
-              const rt=$('reportType'); if(rt){ rt.value=''; rt.classList.remove('invalid'); }
               const sub=$('subsidiary'); if(sub){ sub.classList.remove('invalid'); }
               Object.assign(S,{mode:null,kind:null,rawHTML:'',rawText:'',rawXML:'',xlsxWB:null,xlsxSheet:null,xmlDoc:null,matches:[],matchIdx:-1});
             }

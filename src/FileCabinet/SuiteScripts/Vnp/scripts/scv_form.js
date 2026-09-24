@@ -19,6 +19,7 @@ const _scvForm = {
     currentRecord: null,
     fields: [],
     sublists: [],
+    messages: [],
     mainKeyInventoryDetail: "",
     infoInventoryDetail: [],
     webWorker: {},
@@ -213,6 +214,20 @@ const _scvForm = {
 		jQuery("#idxProgessStatus").html(_msg);
 		jQuery(".scvProgessStatus").html(_msg);
 	},
+    showMsg: function (_type, _msg, _duration = 10000, _title = "") {
+        let N_Message = _scvForm.modul.ui.message;
+
+		let msg = N_Message.create({
+			title: _title,
+			message: _msg,
+			type: _type || N_Message.Type.INFORMATION
+		});
+
+        msg.show({duration: _duration});
+        this.messages.push(msg);
+
+		return msg;
+	},
     showMsgError: function (_msg, _duration = 10000) {
         let N_Message = _scvForm.modul.ui.message;
 
@@ -234,6 +249,19 @@ const _scvForm = {
 		}).show({duration: _duration});
 
 		return infoMsg;
+	},
+    showMsgConfirmation: function (_msg, _duration = 10000) {
+        let N_Message = _scvForm.modul.ui.message;
+		return this.showMsg(N_Message.Type.CONFIRMATION, _msg||"Success", _duration);
+	},
+    clearMessages: function () {
+        this.messages.forEach(msg => {
+            try {
+                msg.hide();
+            }
+            catch (e) {}
+        });
+        this.messages = [];
 	},
     ajax: {
         request: function (_method, _urlReq, _isAsync, _params,

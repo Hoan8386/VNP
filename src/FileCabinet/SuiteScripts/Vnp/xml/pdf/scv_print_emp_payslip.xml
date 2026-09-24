@@ -1,0 +1,82 @@
+<?xml version = "1.0"?><!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+<head>
+    <meta name="title" value="Phiếu lương nhân viên"/>
+    <link name="ScvFont" type="font" subtype="opentype" src="${libPdf.font.times?html}" src-bold="${libPdf.font.times_bold?html}" src-italic="${libPdf.font.times_italic?html}" src-bolditalic="${libPdf.font.times_bolditalic?html}" bytes="2"/>
+    <style type="text/css">
+        ${libPdf.css}
+
+        body {
+            margin: 0.3in;
+            border: 2px solid;
+        }
+
+        .tbl-emp-payslip tr{
+            margin-bottom: 6px;
+        }
+        .tbl-emp-payslip tr:last-child{
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body padding="0.05in 0.1in 0.05in 0.1in" size="A5">
+    <#list results.details as detail>
+        <#if detail?index !=0>
+            <pbr />
+        </#if>
+        <table class="fs-12">
+            <tr>
+                <td class="align-center"><p><b>${detail.legalnamesub?html}</b></p></td>
+            </tr>
+            <tr class="mt-2">
+                <td class="align-center"><p><b>PHIẾU LƯƠNG CHUẨN THÁNG ${detail.thangnam}</b></p></td>
+            </tr>
+        </table>
+
+        <table class="mt-20 fs-11 tbl-emp-payslip">
+            <tr>
+                <td><p>1. Họ tên: ${detail.emplegalname?html}</p></td>
+            </tr>
+            <tr>
+                <td><p>2. Chức vụ: ${detail.jobtitle?html}</p></td>
+            </tr>
+            <tr>
+                <td><p>3. Ngày công tính lương: ${detail.ngaycong_fmt}</p></td>
+            </tr>
+            <tr>
+                <td><p>4. Lương theo ngày công: ${detail.luongngaycong_fmt} VNĐ</p></td>
+            </tr>
+            <tr>
+                <td><p>5. Phụ cấp và thu nhập khác: ${detail.phucapvathunhapkhac_fmt} VNĐ bao gồm:</p></td>
+            </tr>
+            <tr>
+                <td><p>- Phụ cấp thâm niên: ${detail.phucapthamnien_fmt} VNĐ</p></td>
+            </tr>
+            <tr>
+                <td><p>- Phụ cấp điện thoại: ${detail.phucapdienthoai_fmt} VNĐ</p></td>
+            </tr>
+            <tr>
+                <td><p>- Phụ cấp lái xe: ${detail.phucaplaixe_fmt} VNĐ</p></td>
+            </tr>
+            <tr>
+                <td><p>- Thu nhập khác: ${detail.thunhapkhac_fmt} VNĐ</p></td>
+            </tr>
+            <tr>
+                <td><p>6. Tiền ăn trưa: ${detail.tienantrua_fmt} VNĐ</p></td>
+            </tr>
+            <tr>
+                <td><p>7.Tổng thu nhập (=4+5+6): ${detail.tongthunhap_fmt} VNĐ</p></td>
+            </tr>
+            <tr>
+                <td><p>8. Đóng BHXH (trích 10,5% lương NLĐ): ${detail.bhxh_fmt} VNĐ</p></td>
+            </tr>
+            <tr>
+                <td><p>9. Thuế TNCN: ${detail.thuetncn_fmt} VNĐ</p></td>
+            </tr>
+            <tr>
+                <td><p>10. Lương thực lĩnh (=7-8-9): ${detail.luongthuclinh_fmt} VNĐ</p></td>
+            </tr>
+        </table>
+    </#list>
+</body>
+</pdf>

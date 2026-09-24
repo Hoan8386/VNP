@@ -76,6 +76,7 @@ define(['N/format', 'N/record', 'N/url',
                 item: objSource.item,
                 unitid: objSource.unitid,
                 originallineid: objSource.originallineid,
+                purchaseorder: objSource.purchaseorder,
                 arrTCK_KH: arrTCK_KH,
                 arrTCN_NH: arrTCN_NH,
             };
@@ -133,7 +134,7 @@ define(['N/format', 'N/record', 'N/url',
             "custrecord_scv_insp_h_ori_line_id"
         ], [
             objReqBody.subsidiary,
-            objReqBody.custpage_createdfrom,
+            objReqBody.custpage_inboundshipment ? objReqBody.purchaseorder : objReqBody.custpage_createdfrom,
             objReqBody.custpage_inboundshipment,
             objReqBody.entity,
             objReqBody.custpage_invoiceserial,
@@ -239,11 +240,16 @@ define(['N/format', 'N/record', 'N/url',
             purchaseorder: ['pendingReceipt', 'partiallyBilled', 'pendingBillPartReceived', 'partiallyReceived'],
             returnauthorization: ['pendingReceipt'],
             transferorder: ['pendingReceipt'],
-            inboundshipment: ['inTransit', 'partiallyReceived', 'received'],
+            inboundshipment: ['inTransit', 'partiallyReceived'],
         };
 
         let allowedStatus = allowedStatusByType[recordType] || [];
         if (!allowedStatus.includes(statusRef)) return;
+
+        if (['purchaseorder', 'returnauthorization', 'transferorder'].includes(recordType)) {
+            let checkPknItr = newRecord.getValue({fieldId: 'custbody_scv_check_pkn_itr'});
+            if (!checkPknItr) return;
+        }
 
         if (recordType == 'purchaseorder') {
             let arrInbToPkn = constSearchInbToPkn.getDataSource({custpage_purchaseorder: newRecord.id});

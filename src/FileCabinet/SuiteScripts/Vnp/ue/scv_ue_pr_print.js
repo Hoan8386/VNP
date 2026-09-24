@@ -19,8 +19,7 @@ define([
             mau: 'dntu'
         },
         DNTT: {
-            // TODO(BA-Q6): all listed payment types currently use one template.
-            types: [1, 2, 3, 5, 6],
+            types: [1, 2, 3, 5, 11, 7, 10],
             buttonId: 'custpage_scv_btn_dntt_pdf',
             label: 'ĐNTT',
             printfile: 'scv_render_dntt_pdf',

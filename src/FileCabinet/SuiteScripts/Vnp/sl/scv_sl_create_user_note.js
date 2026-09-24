@@ -2,9 +2,14 @@
  * @NApiVersion 2.1
  * @NScriptType Suitelet
  */
-define(['N/record', 'N/search', 'N/ui/serverWidget', 'N/query', 'N/redirect', 'N/url'],
-    
-    (record, search, serverWidget, query, redirect, url) => {
+define([
+    'N/record', 'N/search', 'N/ui/serverWidget', 
+    'N/query', 'N/redirect', 'N/url', 'N/transaction',
+],
+    (
+        record, search, serverWidget, 
+        query, redirect, url, transaction,
+    ) => {
         /**
          * Defines the Suitelet script trigger point.
          * @param {Object} scriptContext
@@ -20,10 +25,12 @@ define(['N/record', 'N/search', 'N/ui/serverWidget', 'N/query', 'N/redirect', 'N
                 scriptContext.response.writePage(MainForm.form);
             } else if(request.method == 'POST'){
                 var recType = params.custpage_recordtype;
+                var isTransaction = false;
+
                 if(recType.slice(0, 12) == 'customrecord'){
                     createUserNoteFromCustomRecord(params);
                 } else {
-                    createUserNoteFromTransaction(params);
+                    isTransaction = createUserNoteFromTransaction(params);
                 }
                 // set giá trị tại màn hình nhấn nút
                 if(params.custpage_workflow == 'scv_wf_create_user_note'){
@@ -53,6 +60,15 @@ define(['N/record', 'N/search', 'N/ui/serverWidget', 'N/query', 'N/redirect', 'N
                         //         values: objValues
                         //     });
                         // }
+                    }
+
+                    if(isTransaction === true && getFieldRecord.isVoidRecord === true) {
+                        var voidTranId = transaction.void({
+                            type: params.custpage_recordtype,
+                            id: params.custpage_recid
+                        });
+
+                        // log.error("Void Transaction Successfully!", voidTranId);
                     }
                 }
                 // redirect
@@ -144,18 +160,23 @@ define(['N/record', 'N/search', 'N/ui/serverWidget', 'N/query', 'N/redirect', 'N
             newNote.save();
         }
         const createUserNoteFromTransaction = (params) => {
+            var isTransaction = false;
             var listEntity = ["customer", "contact", "vendor", "employee", "job"];
             var listActivity = ["supportcase", "task", "calendarevent", "cashsale", "vendorbill", "opportunity"];
             var recType = params.custpage_recordtype;
+
             var newNote = record.create({type: "note"});
             newNote.setValue("note", params.custpage_description);
+
             if(listEntity.includes(recType)){
                 newNote.setValue("entity", params.custpage_recid);
             } else if(listActivity.includes(recType)) {
                 newNote.setValue("activity", params.custpage_recid);
             } else {
+                isTransaction = true;
                 newNote.setValue("transaction", params.custpage_recid);
             }
+
             var urlRecord = url.resolveRecord({
                 recordType: recType,
                 recordId: params.custpage_recid
@@ -164,6 +185,8 @@ define(['N/record', 'N/search', 'N/ui/serverWidget', 'N/query', 'N/redirect', 'N
             newNote.setValue("custrecord_scv_chatto", params.custpage_entity);
             // newNote.setValue("custrecord_scv_note_recordtype", params.custpage_recordname);
             newNote.save();
+
+            return isTransaction;
         }
         // search partner and customer 
         const onLoadEntitySource = (_entityField, _params) => {
@@ -248,7 +271,8 @@ define(['N/record', 'N/search', 'N/ui/serverWidget', 'N/query', 'N/redirect', 'N
                     search.createColumn({name: "custrecord_scv_recordtype", label: "Record type"}),
                     search.createColumn({name: "custrecord_scv_field_id", label: "Field ID"}),
                     search.createColumn({name: "custrecord_scv_slusernote_statusfield_id", label: "Status Field ID"}),
-                    search.createColumn({name: "custrecord_scv_slusernote_statusvalue_id", label: "Status Value"})
+                    search.createColumn({name: "custrecord_scv_slusernote_statusvalue_id", label: "Status Value"}),
+                    search.createColumn({name: "custrecord_scv_slusernote_void", label: "Is Void Record?"}),
                 ]
             });
             var myColumns = userNoteSearch.columns;
@@ -259,6 +283,7 @@ define(['N/record', 'N/search', 'N/ui/serverWidget', 'N/query', 'N/redirect', 'N
                 objField.fieldId = userNoteSearch[0].getValue(myColumns[2]);
                 objField.statusFieldId = userNoteSearch[0].getValue(myColumns[3]);
                 objField.statusValueId = userNoteSearch[0].getValue(myColumns[4]);
+                objField.isVoidRecord = userNoteSearch[0].getValue(myColumns[5]);
             }
             return objField;
         }

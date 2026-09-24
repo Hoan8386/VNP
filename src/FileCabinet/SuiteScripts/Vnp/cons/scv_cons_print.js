@@ -208,7 +208,7 @@ define([], () => {
             }),
             DNTT: Object.freeze({
                 KEY: 'dntt',
-                TYPES: Object.freeze([1, 2, 3, 5, 6]),
+                TYPES: Object.freeze([1, 2, 3, 5, 11, 7, 10]),
                 PRINT_FILE: 'scv_render_dntt_pdf',
                 HAS_DUE_DATE: false,
                 FORM_NUMBER: '03',
@@ -330,17 +330,67 @@ define([], () => {
         EMPTY: ''
     });
 
+    /**
+     * One entry per KNKT Word print button.
+     *
+     * The key is the `printfile` URL parameter the button sends to
+     * `scv_sl_knkt_print`. Adding a new KNKT print = adding one entry here plus
+     * the matching template in `xml/word` — no logic change in the UE or the
+     * Suitelet.
+     *
+     *   buttonId          - form button id (the `secondary...` twin is derived).
+     *                       PHẢI chứa chuỗi 'word': scv_common_ui.addIconToButton
+     *                       chọn icon theo từ khoá pdf/excel/word có trong id.
+     *                       Đổi thành '..._pdf' là nút hiện icon PDF trở lại.
+     *   label             - button caption
+     *   prefix            - leading text of the generated .doc file name
+     *   requiresTwoResults- true when the button only shows for records that
+     *                       have a khuyến nghị with 2+ kết quả
+     *   excludeCompleted  - true when khuyến nghị whose latest kết quả is in
+     *                       Knkt.COMPLETED_RESULT_TEXTS are hidden (FDD task06
+     *                       Request List #6)
+     */
+    const KnktWordTemplate = Object.freeze({
+        scv_render_knkt_word: Object.freeze({
+            buttonId: 'custpage_scv_btn_knkt_word',
+            label: 'KNKT',
+            prefix: 'BaoCaoKNKT_',
+            requiresTwoResults: false,
+            excludeCompleted: false
+        }),
+        scv_render_knkt_word_l2: Object.freeze({
+            buttonId: 'custpage_scv_btn_knkt_word_l2',
+            label: 'KNKT lần 2',
+            prefix: 'BaoCaoKNKT_Lan2_',
+            requiresTwoResults: false, // anh lead yêu cầu luôn hiển thị (21/09/2026)
+            excludeCompleted: true
+        }),
+        scv_render_knkt_word_nb: Object.freeze({
+            buttonId: 'custpage_scv_btn_knkt_word_nb',
+            label: 'KNKT NB',
+            prefix: 'BaoCaoKNKT_NB_',
+            requiresTwoResults: false,
+            excludeCompleted: false
+        })
+    });
+
     const Knkt = Object.freeze({
         RECORD_TYPE: 'customrecord_scv_xu_ly_kien_nghi',
         PRINT_FILE: 'scv_render_knkt_pdf',
         PRINT_FILE_LAN_2: 'scv_render_knkt_pdf_l2',
+        PRINT_FILES: Object.freeze(['scv_render_knkt_pdf', 'scv_render_knkt_pdf_l2']),
+        WORD_TEMPLATE: KnktWordTemplate,
+        WORD_TEMPLATE_ORDER: Object.freeze(Object.keys(KnktWordTemplate)),
+        DEFAULT_WORD_PRINT_FILE: 'scv_render_knkt_word',
+        // DEPRECATED — thay bằng WORD_TEMPLATE. Giữ lại để file cũ còn nằm trong
+        // File Cabinet (chưa kịp upload lại) không vỡ. Xoá sau khi đã confirm
+        // không còn ai đọc, và xoá cùng lúc với KnktWordTemplate refactor.
         WORD_PRINT_FILE: 'scv_render_knkt_word',
         WORD_PRINT_FILE_LAN_2: 'scv_render_knkt_word_l2',
-        PRINT_FILES: Object.freeze(['scv_render_knkt_pdf', 'scv_render_knkt_pdf_l2']),
-        WORD_PRINT_FILES: Object.freeze(['scv_render_knkt_word', 'scv_render_knkt_word_l2']),
-        WORD_FOLDER: 'xml/word',
+        WORD_PRINT_FILES: Object.freeze(Object.keys(KnktWordTemplate)),
         WORD_PREFIX: 'BaoCaoKNKT_',
         WORD_PREFIX_LAN_2: 'BaoCaoKNKT_Lan2_',
+        WORD_FOLDER: 'xml/word',
         FORMAT_PDF: 'pdf',
         FORMAT_WORD: 'word',
         WORD_EXTENSION: '.html',
@@ -370,11 +420,178 @@ define([], () => {
             RESULT_TEXT: 'custrecord_scv_kqkn_ketquathuchien',
             IMPLEMENTATION_DATE: 'custrecord_scv_kqkn_ngaythuchien'
         }),
+        // So sánh sau khi trim + lowercase + NFC (xem scv_sl_knkt_print).
+        COMPLETED_RESULT_TEXTS: Object.freeze([
+            'đã hoàn thành nhưng chưa xác nhận',
+            'đã hoàn thành và đã xác nhận'
+        ]),
         INTERNAL_ID: 'internalid',
         INACTIVE: 'isinactive',
         ACTIVE_VALUE: 'F',
         EMPTY: ''
     });
 
-    return {UrlParameter, Template, Currency, Pdnmvt, Kbbgh, Ddh, Pr, Unc, Knkt};
+    const Bbth = Object.freeze({
+        DEFAULT_RECORD_TYPE: 'vendorreturnauthorization',
+        PRINT_FILE: 'scv_render_bbth_pdf',
+        SUBLIST_ID: 'item',
+        FIELD: Object.freeze({
+            ENTITY: 'entity',
+            SUBSIDIARY: 'subsidiary',
+            TRANSACTION_DATE: 'trandate'
+        }),
+        LINE_FIELD: Object.freeze({
+            DESCRIPTION: 'description',
+            UNITS_DISPLAY: 'unitsdisplay',
+            UNITS: 'units',
+            QUANTITY: 'quantity'
+        }),
+        SUBRECORD: Object.freeze({
+            INVENTORY_DETAIL: 'inventorydetail',
+            INVENTORY_ASSIGNMENT: 'inventoryassignment',
+            ISSUE_INVENTORY_NUMBER: 'issueinventorynumber',
+            EXPIRATION_DATE: 'expirationdate'
+        }),
+        EMPTY: ''
+    });
+
+    const Pnk = Object.freeze({
+        DEFAULT_RECORD_TYPE: 'itemreceipt',
+        PRINT_FILE: 'scv_render_pnk_pdf',
+        SUBLIST_ID: 'item',
+        FIELD: Object.freeze({
+            TRANSACTION_DATE: 'trandate',
+            TRANSACTION_ID: 'tranid',
+            ENTITY: 'entity',
+            SUBSIDIARY: 'subsidiary',
+            CREATED_FROM: 'createdfrom',
+            INVOICE_NUMBER: 'custbody_scv_invoice_number',
+            INVOICE_DATE: 'custbody_scv_invoice_date',
+            CONCLUSION: 'custbody_scv_memo_custom'
+        }),
+        LINE_FIELD: Object.freeze({
+            ITEM: 'item',
+            DESCRIPTION: 'description',
+            UNITS: 'units',
+            UNITS_DISPLAY: 'unitsdisplay',
+            QUANTITY: 'quantity',
+            LOCATION: 'location',
+            INSPECTION_NUMBER: 'custcol_scv_inspection_number',
+            ORIGIN_LINE_NUM: 'custcol_scv_origin_line_num'
+        }),
+        SUBRECORD: Object.freeze({
+            INVENTORY_DETAIL: 'inventorydetail',
+            INVENTORY_ASSIGNMENT: 'inventoryassignment',
+            RECEIPT_INVENTORY_NUMBER: 'receiptinventorynumber',
+            EXPIRATION_DATE: 'expirationdate',
+            QUANTITY: 'quantity'
+        }),
+        PKN: Object.freeze({
+            RECORD_TYPE: 'customrecord_scv_inspection_header',
+            FIELD: Object.freeze({
+                ITEM: 'custrecord_scv_insp_h_item',
+                UNIT: 'custrecord_scv_insp_h_unit',
+                QUANTITY: 'custrecord_scv_insp_h_qty',
+                LOCATION: 'custrecord_scv_insp_h_location',
+                ENTITY: 'custrecord_scv_insp_h_entity',
+                ORIGINAL_LINE_ID: 'custrecord_scv_insp_h_ori_line_id'
+            }),
+            DOCUMENT_SUBLIST: 'recmachcustrecord_scv_insp_d_header',
+            DOCUMENT_CRITERIA: 'custrecord_scv_insp_d_criteria',
+            DOCUMENT_RESULT: 'custrecord_scv_insp_d_result',
+            RECEIPT_SUBLIST: 'recmachcustrecord_scv_insp_i_header',
+            RECEIPT_CRITERIA: 'custrecord_scv_insp_i_criteria',
+            RECEIPT_RESULT: 'custrecord_scv_insp_i_result',
+            RECEIPT_LOT: 'custrecord_scv_insp_i_lotnumber'
+        }),
+        LOCATION: Object.freeze({
+            ADDRESS: 'custrecord_scv_loc_address',
+            PHARMACIST: 'custrecord_scv_loc_ds_phu_trach',
+            STOREKEEPER: 'custrecord_scv_loc_thu_kho',
+            QUALITY_CONTROL: 'custrecord_scv_loc_cv_kscl'
+        }),
+        /**
+         * Quy tắc đánh dấu Đạt / Không đạt trong hai bảng kiểm.
+         *
+         * TICK_VALUES / UNTICK_VALUES được so khớp với CẢ giá trị thô
+         * (getSublistValue) VÀ nhãn hiển thị (getSublistText) của
+         * custrecord_scv_insp_d_result và custrecord_scv_insp_i_result.
+         * Giá trị không khớp danh sách nào cũng KHÔNG được tick, và được ghi vào
+         * chẩn đoán để đối chiếu.
+         *
+         * TODO(schema): kiểu của hai field kết quả chưa xác minh trên account.
+         * - Nếu là checkbox: TICK_VALUES hiện tại đã đúng.
+         * - Nếu là select Đạt/Không đạt: thay bằng nhãn hoặc internal ID tương ứng.
+         * UNTICK_VALUES cố ý để rỗng: checkbox chưa check chỉ có nghĩa "chưa tick",
+         * chưa đủ căn cứ diễn giải thành "Không đạt".
+         */
+        RESULT: Object.freeze({
+            /**
+             * Bảng "Kiểm tra chứng từ" — custrecord_scv_insp_d_result.
+             * FDD chỉ ghi "lấy Kết quả" và mẫu in vẽ ô ☑/☐ nên đây là checkbox.
+             */
+            DOCUMENT_TICK_VALUES: Object.freeze([true, 'T']),
+            /**
+             * Bảng "Kiểm nhận hàng" — custrecord_scv_insp_i_result.
+             * FDD mục 19/20 ghi rõ: "Kết quả = Đạt => tích ô này" và
+             * "Kết quả = Không đạt => tích ô này". Đây là field GIÁ TRỊ CHỮ,
+             * KHÔNG phải checkbox — so khớp với text của ô (getSublistText).
+             */
+            RECEIPT_PASS_VALUES: Object.freeze(['Đạt']),
+            RECEIPT_FAIL_VALUES: Object.freeze(['Không đạt']),
+            POSITIVE_LABEL: 'Đạt',
+            NEGATIVE_LABEL: 'Không đạt',
+            /**
+             * CỜ ĐÁNH DẤU — KHÔNG phải ký tự được in ra.
+             *
+             * Đổi giá trị này KHÔNG làm đổi hình dạng dấu trên bản in. Template
+             * chỉ so sánh chuỗi này với '' để biết ô có được đánh dấu hay không;
+             * dấu ✓ thật do widget <input type="checkbox"> của BFO tự vẽ bằng
+             * ZapfDingbats. Muốn đổi hình dạng dấu thì sửa xml/pdf/scv_render_pnk_pdf.xml.
+             *
+             * LÝ DO phải là chuỗi chứ không phải boolean: render.DataSource.OBJECT
+             * không giữ được kiểu boolean sang FreeMarker. Đã xác nhận bằng log —
+             * tickCount ghi hangHoa:9, chungTu:3 (SL tick đúng 12 ô) nhưng bản in
+             * ra trống hoàn toàn và KHÔNG có lỗi render nào, trong khi mọi field
+             * kiểu chuỗi ở cùng object đều in đúng.
+             */
+            TICK_GLYPH: 'X',
+            /**
+             * Nhãn cột "đạt" của riêng từng tiêu chí, theo FDD mục 19/22/25:
+             * "Số lượng theo hóa đơn - Đủ", còn hai tiêu chí kia là "Đạt".
+             * CHỈ dùng cho chữ hiển thị trên đầu cột — khoá so khớp kết quả vẫn là
+             * internal ID của tiêu chí, nên BA đổi tên tiêu chí cũng không vỡ logic.
+             */
+            POSITIVE_LABEL_BY_CRITERIA: Object.freeze({
+                'Số lượng theo hóa đơn': 'Đủ'
+            })
+        }),
+        /**
+         * CHỈ dùng làm tiêu đề cột khi Item Receipt chưa gắn PKN nào, để bảng hàng
+         * hoá còn giữ khung theo mẫu in. KHÔNG BAO GIỜ được dùng làm khoá so khớp
+         * kết quả — khoá luôn là internal ID của tiêu chí.
+         */
+        RECEIPT_CRITERIA_FALLBACK_LABELS: Object.freeze([
+            Object.freeze({label: 'Số lượng theo hóa đơn', positiveLabel: 'Đủ'}),
+            Object.freeze({label: 'Điều kiện bảo quản khi vận chuyển', positiveLabel: 'Đạt'}),
+            Object.freeze({label: 'Nhận xét cảm quan', positiveLabel: 'Đạt'})
+        ]),
+        /**
+         * Ảnh dấu tick cho ô kiểm tra chứng từ và ô Đạt/Không đạt.
+         *
+         * Lý do dùng ảnh thay vì ký tự: KHÔNG font nào trong project có glyph dấu
+         * tick. Đã in thử và loại U+2713, U+2714, U+2611 (cả Times lẫn Arial) và
+         * font-family "ZapfDingbats". U+221A "√" hiện được nhưng là dấu căn, không
+         * giống mẫu in.
+         *
+         * Đường dẫn tương đối tính từ scv_sl_pnk_print.js trong thư mục sl/.
+         * Nếu file chưa tồn tại, Suitelet vẫn in bình thường và tự lùi về ký tự
+         * dự phòng khai trong template.
+         */
+        TICK_IMAGE_PATH: '../img/tick.png',
+        ENTITY_LEGAL_NAME: 'custentity_scv_legal_name',
+        EMPTY: ''
+    });
+
+    return {UrlParameter, Template, Currency, Pdnmvt, Kbbgh, Ddh, Pr, Unc, Knkt, Bbth, Pnk};
 });

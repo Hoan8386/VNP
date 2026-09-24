@@ -7,6 +7,8 @@ define(['N/search', 'N/record', './scv_lib_function'],
 
         const SUBLIST_ITEM = 'item';
         const FIELD_ITEM = 'item';
+        const FIELD_UNIT = 'units';
+        const FIELD_EINVOICE_UNIT = 'custcol_scv_einvoice_unit';
         const FIELD_TAX_CODE = 'custcol_scv_sumtrans_line_taxcode';
         const FIELD_TAX_RATE = 'custcol_scv_sumtrans_line_taxrate';
 
@@ -46,12 +48,53 @@ define(['N/search', 'N/record', './scv_lib_function'],
             return !currencyId || currencyId === '1';
         }
 
+        function normalizeRate(value) {
+            const rate = parseFloat(value) || 0;
+            return Math.abs(rate) > 1 ? rate / 100 : rate;
+        }
+
         function getLineValue(curRec, fieldId, line) {
             return curRec.getSublistValue({sublistId: SUBLIST_ITEM, fieldId: fieldId, line: line});
         }
 
         function setLineValue(curRec, fieldId, line, value) {
             curRec.setSublistValue({sublistId: SUBLIST_ITEM, fieldId: fieldId, line: line, value: value});
+        }
+
+        function getCurrentText(curRec, fieldId) {
+            try {
+                return curRec.getCurrentSublistText({sublistId: SUBLIST_ITEM, fieldId: fieldId}) || '';
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function getLineText(curRec, fieldId, line) {
+            try {
+                return curRec.getSublistText({sublistId: SUBLIST_ITEM, fieldId: fieldId, line: line}) || '';
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function setCurrentLineValue(curRec, fieldId, value) {
+            curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: fieldId, value: value, ignoreFieldChange: true});
+        }
+
+        function getEinvoiceUnitText(curRec, line) {
+            return getLineText(curRec, FIELD_UNIT, line) || getLineValue(curRec, FIELD_UNIT, line);
+        }
+
+        function getCurrentEinvoiceUnitText(curRec) {
+            return getCurrentText(curRec, FIELD_UNIT) || curRec.getCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: FIELD_UNIT});
+        }
+
+        function setEinvoiceUnitForLine(curRec, line) {
+            setLineValue(curRec, FIELD_EINVOICE_UNIT, line, getEinvoiceUnitText(curRec, line));
+        }
+
+        function setCurrentEinvoiceUnit(curRec) {
+            setCurrentLineValue(curRec, FIELD_EINVOICE_UNIT, getCurrentEinvoiceUnitText(curRec));
         }
 
         function setLineDefaults(curRec) {
@@ -109,12 +152,13 @@ define(['N/search', 'N/record', './scv_lib_function'],
                     const amtPreDiscount = roundNumber(ratePreDiscount * qty, digit);
                     setLineValue(curRec, group.amtPreDiscount, line, amtPreDiscount);
                     const discountPer = parseFloat(getLineValue(curRec, group.discountPer, line)) || 0;
-                    const discountAmt = roundNumber(amtPreDiscount * discountPer / 100, digit);
+                    const discountRate = normalizeRate(discountPer);
+                    const discountAmt = roundNumber(amtPreDiscount * discountRate, digit);
                     setLineValue(curRec, group.discountAmt, line, discountAmt);
 
                     if (ratePreDiscount) {
-                        // TT hợp đồng đã nhập -> Rate Custom luôn tính theo (TT hợp đồng - chiết khấu)/SL, ghi đè giá trị gõ tay
-                        rate = qty ? roundNumber((amtPreDiscount - discountAmt) / qty, 6) : 0;
+                        // TT hợp đồng đã nhập -> Rate Custom luôn tính trực tiếp theo ĐG hợp đồng sau chiết khấu.
+                        rate = roundNumber(ratePreDiscount - (ratePreDiscount * discountRate), 6);
                         setLineValue(curRec, group.rate, line, rate);
                         rateVat = roundNumber(rate * (1 + taxRate / 100), 6);
                         setLineValue(curRec, group.rateVat, line, rateVat);
@@ -160,6 +204,7 @@ define(['N/search', 'N/record', './scv_lib_function'],
             for (let i = 0; i < lineCount; i++) {
                 setTaxCodeForLine(curRec, i);
                 setTaxRateForLine(curRec, i);
+                setEinvoiceUnitForLine(curRec, i);
                 recalcLineGroups(curRec, i, currencyId);
                 setLineDefaultsForLine(curRec, i);
             }
@@ -199,12 +244,13 @@ define(['N/search', 'N/record', './scv_lib_function'],
                 const amtPreDiscount = roundNumber(ratePreDiscount * qty, digit);
                 curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.amtPreDiscount, value: amtPreDiscount, ignoreFieldChange: true});
                 const discountPer = parseFloat(curRec.getCurrentSublistValue(SUBLIST_ITEM, group.discountPer)) || 0;
-                const discountAmt = roundNumber(amtPreDiscount * discountPer / 100, digit);
+                const discountRate = normalizeRate(discountPer);
+                const discountAmt = roundNumber(amtPreDiscount * discountRate, digit);
                 curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.discountAmt, value: discountAmt, ignoreFieldChange: true});
 
                 if (ratePreDiscount) {
-                    // TT hợp đồng đã nhập -> Rate Custom luôn tính theo (TT hợp đồng - chiết khấu)/SL, ghi đè giá trị gõ tay
-                    rate = qty ? roundNumber((amtPreDiscount - discountAmt) / qty, 6) : 0;
+                    // TT hợp đồng đã nhập -> Rate Custom luôn tính trực tiếp theo ĐG hợp đồng sau chiết khấu.
+                    rate = roundNumber(ratePreDiscount - (ratePreDiscount * discountRate), 6);
                     curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.rate, value: rate, ignoreFieldChange: true});
                     rateVat = roundNumber(rate * (1 + taxRate / 100), 6);
                     curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.rateVat, value: rateVat, ignoreFieldChange: true});
@@ -227,6 +273,7 @@ define(['N/search', 'N/record', './scv_lib_function'],
             const grossAmt = roundNumber(qty * rateVat, digit);
             const taxAmt = roundNumber(grossAmt - amt, digit);
 
+            setCurrentEinvoiceUnit(curRec);
             curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.amt, value: amt, ignoreFieldChange: true});
             curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.taxAmt, value: taxAmt, ignoreFieldChange: true});
             curRec.setCurrentSublistValue({sublistId: SUBLIST_ITEM, fieldId: group.grossAmt, value: grossAmt, ignoreFieldChange: true});
@@ -289,6 +336,8 @@ define(['N/search', 'N/record', './scv_lib_function'],
         return {
             SUBLIST_ITEM,
             FIELD_ITEM,
+            FIELD_UNIT,
+            FIELD_EINVOICE_UNIT,
             FIELD_TAX_CODE,
             FIELD_TAX_RATE,
             FIELD_END_DATE,
@@ -299,6 +348,7 @@ define(['N/search', 'N/record', './scv_lib_function'],
             getGroupByField,
             setTaxCodeFromItem,
             setTaxRateFromTaxCode,
+            setCurrentEinvoiceUnit,
             recalcGroupLine,
             recalcAllGroups,
             updateGroupTotal,

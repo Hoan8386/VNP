@@ -12,10 +12,12 @@
  */
 define([
    '../common/scv_common_itemreceipt.js',
+    '../common/scv_common_tran2lot.js',
 ],
     
     (
-       commonIR
+       commonIR,
+       commonTran2Lot
     ) => {
         /**
          * Defines the function definition that is executed before record is loaded.
@@ -56,6 +58,12 @@ define([
 
             if (["create"].includes(triggerType)) {
                 commonIR.updItemReceiptFromIB(newRec);
+                
+                commonTran2Lot.fillInfoLot({
+                    recordtype: newRec.type,
+                    recid: newRec.id,
+                    isAuto: true,
+                });
             }
         }
 

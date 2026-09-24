@@ -2,14 +2,19 @@
  * @NApiVersion 2.1
  * @NScriptType Suitelet
  */
-define(['N/cache', 'N/redirect', 'N/task', 'N/ui/message', 'N/ui/serverWidget',
+define(['N/cache', 'N/redirect', 'N/runtime', 'N/search', 'N/task', 'N/ui/message', 'N/ui/serverWidget',
         '../common/scv_common_txn_exe.js', '../lib/scv_lib_report.js'],
-    
-    (cache, redirect, task, message, serverWidget, cmTxnExe, libRep) => {
-        
+
+    (cache, redirect, runtime, search, task, message, serverWidget, cmTxnExe, libRep) => {
+
         const SavedSearch = {
             TXN_MAPPING_CONFIG_FILTER: 'customsearch_scv_txn_mapping_config_ft',
             TXN_MAPPING_CONFIG_DEFAULT: 'customsearch_scv_txn_mapping_config_df'
+        }
+
+        const isSuitecloudUser = () => {
+            let userEmail = runtime.getCurrentUser().email;
+            return !!(userEmail && userEmail.endsWith('suitecloud.vn'));
         }
         
         /**
@@ -75,8 +80,19 @@ define(['N/cache', 'N/redirect', 'N/task', 'N/ui/message', 'N/ui/serverWidget',
         }
         
         const createForm = (parameters, iscomplete) => {
+            let formTitle = 'TXN EXCUTE FUNCTION';
+            if (parameters.custpage_txn_group) {
+                let txnGroupLKF = search.lookupFields({
+                    type: 'customlist_scv_txcf_group_type',
+                    id: parameters.custpage_txn_group,
+                    columns: ['name']
+                });
+                if (txnGroupLKF && txnGroupLKF.name) {
+                    formTitle = String(txnGroupLKF.name).toUpperCase();
+                }
+            }
             let form = serverWidget.createForm({
-                title: 'TXN EXCUTE FUNCTION'
+                title: formTitle
             });
             form.clientScriptModulePath = '../cssl/scv_cs_sl_txn_exe.js';
             
@@ -86,18 +102,36 @@ define(['N/cache', 'N/redirect', 'N/task', 'N/ui/message', 'N/ui/serverWidget',
             if(iscomplete) {
                 form.addSubmitButton({label: 'Submit'});
             }
-            
+
+            let fieldTxnGroup = form.addField({
+                id: 'custpage_txn_group',
+                type: serverWidget.FieldType.SELECT,
+                label: 'Txn Group',
+                container: filterGroupId,
+                source: 'customlist_scv_txcf_group_type'
+            });
+            fieldTxnGroup.updateDisplayType({displayType: serverWidget.FieldDisplayType.HIDDEN});
+
             let fieldTxnConfig = form.addField({
                 id: 'custpage_txn_config',
                 type: serverWidget.FieldType.SELECT,
-                label: 'Txn Config',
+                label: 'Txn Type',
                 container: filterGroupId,
                 //source: cmTxnExe.RecordType.TXN_MAPPING_CONFIG
             });
             fieldTxnConfig.isMandatory = true;
-            let sqlTxnConfig = `SELECT cf.id value, cf.name text, cf.custrecord_scv_txcf_rp_column, cf.custrecord_scv_txcf_rp_temp, cf.custrecord_scv_txcf_header_field, cf.custrecord_scv_txcf_line_field, f.url temp_url FROM ${cmTxnExe.RecordType.TXN_MAPPING_CONFIG} cf left join file f  on cf.custrecord_scv_txcf_rp_temp = f.id  WHERE cf.isinactive = 'F' and cf.custrecord_scv_txcf_config_type = '${cmTxnExe.ConfigType.RECORD}'`;
+            let sqlTxnConfig = `SELECT cf.id value, cf.name text, cf.custrecord_scv_txcf_rp_column, cf.custrecord_scv_txcf_rp_temp, cf.custrecord_scv_txcf_header_field, 
+                cf.custrecord_scv_txcf_line_field, f.url temp_url FROM ${cmTxnExe.RecordType.TXN_MAPPING_CONFIG} cf left join file f  on cf.custrecord_scv_txcf_rp_temp = f.id  
+                WHERE cf.isinactive = 'F' and cf.custrecord_scv_txcf_config_type = '${cmTxnExe.ConfigType.RECORD}'
+                ${parameters.custpage_txn_group ? ' and cf.custrecord_scv_txcf_group_type = ?' : ''}
+                order by cf.custrecord_scv_txcf_sort
+            `;
             let listTxnConfig = [];
-            libRep.doSearchSqlAll(listTxnConfig, sqlTxnConfig, []);
+            let sqlParams = [];
+            if (parameters.custpage_txn_group) {
+                sqlParams.push(parameters.custpage_txn_group);
+            }
+            libRep.doSearchSqlAll(listTxnConfig, sqlTxnConfig, sqlParams);
             libRep.addSelectType(fieldTxnConfig, parameters.custpage_txn_config, listTxnConfig, false);
             let txn_config = parameters.custpage_txn_config || fieldTxnConfig.getSelectOptions()[0]?.value;
             listTxnConfig = listTxnConfig.filter(o => String(o.value) === String(txn_config));
@@ -125,7 +159,9 @@ define(['N/cache', 'N/redirect', 'N/task', 'N/ui/message', 'N/ui/serverWidget',
                 addFieldMapping(form, parameters, listTxnConfigDefaults, defaultGroupId);
             }
             
-            addButtonExportDataRaw(form);
+            if (isSuitecloudUser()) {
+                addButtonExportDataRaw(form);
+            }
             return form;
         }
         
@@ -141,13 +177,21 @@ define(['N/cache', 'N/redirect', 'N/task', 'N/ui/message', 'N/ui/serverWidget',
                 if (objFilter.is_mandatory === true) {
                     field.isMandatory = true;
                 }
+                if (objFilter.display_type_display === 'Hidden') {
+                    field.updateDisplayType({displayType: serverWidget.FieldDisplayType.HIDDEN});
+                } else if (objFilter.display_type_display === 'Disabled') {
+                    field.updateDisplayType({displayType: serverWidget.FieldDisplayType.DISABLED});
+                } else if (objFilter.display_type_display === 'Inline Text') {
+                    field.updateDisplayType({displayType: serverWidget.FieldDisplayType.READONLY});
+                }
+
                 if (objFilter.saved_search) {
                     let listSavedSearchData = [];
                     let criterias = null, isDoSearchCriteria = true;
                     if (objFilter.criteria) {
                         criterias = JSON.parse(objFilter.criteria);
                         for (let criteria of criterias) {
-                            criteria.values = criteria.operator === 'anyof' ? parameters[criteria.values].split(',') : parameters[criteria.values];
+                            criteria.values = criteria.operator === 'anyof' ? parameters[criteria.values]?.split(',') : parameters[criteria.values];
                             if (!criteria.values) {
                                 isDoSearchCriteria = false;
                             }
@@ -199,48 +243,44 @@ define(['N/cache', 'N/redirect', 'N/task', 'N/ui/message', 'N/ui/serverWidget',
             delete newParameters.whence;
             delete newParameters._csrf;
             delete newParameters.entryformquerystring;
-            
+
             let txn_config = parameters.custpage_txn_config;
             let mrTaskId = '', messageInfo = '';
             if (iscomplete) {
-                let mrTask = task.create({
-                    taskType: task.TaskType.MAP_REDUCE,
-                    scriptId: 'customscript_scv_mr_txn_exe',
-                    deploymentId: 'customdeploy_scv_mr_txn_exe'
-                });
-                mrTask.params = {
+                let listCachedTask = cmTxnExe.getCachedMrTaskList(myCache);
+                let params = {
                     custscript_scv_mr_txn_exe_config: txn_config,
                     custscript_scv_mr_txn_exe_params: JSON.stringify(newParameters)
                 };
-                mrTaskId = mrTask.submit();
-                myCache.put({key: 'mrTaskId', value: mrTaskId});
-                messageInfo = 'Your request has been submitted. Task ID: ' + mrTaskId;
+                let result = cmTxnExe.submitMrTask(listCachedTask, txn_config, params,
+                    () => 'customdeploy_scv_mr_txn_exe', 1, 1);
+                cmTxnExe.putCachedMrTaskList(myCache, listCachedTask);
+                mrTaskId = result.taskId || '';
+                messageInfo = result.taskId ? 'Your request has been submitted. Task ID: ' + result.taskId : result.message;
             }
-            
+
             return {mrTaskId, messageInfo, newParameters};
         }
-        
+
         const getMessage = (parameters) => {
             let myCache = cache.getCache({
                 name: 'cTxnExe',
                 scope: cache.Scope.PUBLIC
             });
-            let mrTaskId = parameters.mrTaskId;
-            if (!mrTaskId) {
-                mrTaskId = myCache.get({key: 'mrTaskId', loader: 'loader'});
-            }
+            let listCachedTask = cmTxnExe.getCachedMrTaskList(myCache);
+            let mrTaskId = parameters.mrTaskId || listCachedTask[listCachedTask.length - 1]?.taskId;
             let iscomplete = true, messageInfo = parameters.messageInfo;
             if (mrTaskId) {
                 let taskStatus = task.checkStatus(mrTaskId);
                 if (taskStatus.status === 'COMPLETE' || taskStatus.status === 'FAILED' || taskStatus.status === 'CANCELED') {
                     messageInfo = 'Your request has been completed. Task ID: ' + mrTaskId;
-                    myCache.remove({key: 'mrTaskId'});
+                    cmTxnExe.putCachedMrTaskList(myCache, []);
                 } else {
                     iscomplete = false;
                     messageInfo = `Your Task ID ${mrTaskId} is: ` + taskStatus.status;
                 }
             }
-            
+
             return {myCache, iscomplete, messageInfo};
         }
         

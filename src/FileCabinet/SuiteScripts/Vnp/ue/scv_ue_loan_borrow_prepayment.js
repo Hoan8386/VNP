@@ -577,7 +577,7 @@ define(['N/record', 'N/runtime', 'N/search', '../lib/scv_lib_function.js', '../l
                         let readFields = ['custrecord_scv_loa_entity', 'custrecord_scv_loa_subsidiary', 'custrecord_scv_loa_currency'];
                         libFunc.setValueData(newRecord, ['custbody_scv_loa'], [trid]);
                         libFunc.setValue(newRecord, readLoa, newFields, readFields);
-                        libFunc.setDisableFields(form, [entityFieldId, 'subsidiary', 'custbody_scv_loa']);//'currency',
+                        // libFunc.setDisableFields(form, [entityFieldId, 'subsidiary', 'custbody_scv_loa']);//'currency',
                         if (newRecrodType === record.Type.VENDOR_BILL) {
                             if (principal === true || principal === 'true') {
                                 libFunc.setValue(newRecord, readLoa, ['trandate', 'duedate'], ['custrecord_scv_loa_start_date', 'custrecord_scv_loa_end_date']);
@@ -599,8 +599,9 @@ define(['N/record', 'N/runtime', 'N/search', '../lib/scv_lib_function.js', '../l
                             libFunc.setValueData(newRecord, ['apacct'], [readLoa.getValue(libLoa.LOA_FIELD.ACCOUNT_DEBITLOAN)]);
                             libFunc.setValue(newRecord, readLoa, ['exchangerate'], [libLoa.LOA_FIELD.EXCHANGE_RATE]);
                             libFunc.setValueData(newRecord, ['memo', 'trandate'], [libLoa.buildMemo(readLoa, 'Thanh toán khoản vay'), new Date()]);
-                            libFunc.setDisableFields(form, ['apacct']);
+                            // libFunc.setDisableFields(form, ['apacct']);
                             let billId = libLoa.findLatestRelatedTransaction(trid, ['VendBill']);
+                            log.error('billId', billId);
                             if (billId) {
                                 libLoa.tickApplyLine(newRecord, billId);
                             }
@@ -609,7 +610,7 @@ define(['N/record', 'N/runtime', 'N/search', '../lib/scv_lib_function.js', '../l
                             libFunc.setValueData(newRecord, ['aracct'], [readLoa.getValue(libLoa.LOA_FIELD.ACCOUNT_DEBITLOAN)]);
                             libFunc.setValue(newRecord, readLoa, ['exchangerate'], [libLoa.LOA_FIELD.EXCHANGE_RATE]);
                             libFunc.setValueData(newRecord, ['memo', 'trandate'], [libLoa.buildMemo(readLoa, 'Thu nợ gốc'), new Date()]);
-                            libFunc.setDisableFields(form, ['aracct']);
+                            // libFunc.setDisableFields(form, ['aracct']);
                             let invoiceId = libLoa.findLatestRelatedTransaction(trid, ['Invoice']);
                             if (invoiceId) {
                                 libLoa.tickApplyLine(newRecord, invoiceId);

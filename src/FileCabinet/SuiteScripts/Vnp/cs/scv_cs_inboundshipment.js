@@ -5,6 +5,7 @@
  * 14 Aug 2026          Khanh Tran   		    Init, create file.
  * 14 Aug 2026          Khanh Tran              Tính toán field trên Inbound Shipment (Move từ CPC) from ms. Thủy(https://app.clickup.com/t/86d413xaz)
  * 17 Aug 2026          Khanh Tran              Kế thừa thông tin từ Purchase Order sang Inbound Shipment from ms. Thủy(https://app.clickup.com/t/86d41e56h)
+ * 16 Sep 2026          Khanh Tran              Add button 'Create VAT Journal' tại [inboundShipment] from ms. Thủy (https://app.clickup.com/t/14yhnhmfjkj)
  */
 /**
  * @NApiVersion 2.1
@@ -13,12 +14,21 @@
  */
 define(['N/search',
     '../lib/scv_lib_function.js',
+
+    '../cons/scv_cons_record.js',
+
+    '../common/scv_common_inboundshipment.js',
     
     '../cons/scv_cons_search.js',
 ],
 
     function(search,
         lbf,
+        
+        constRecord,
+
+        cmInboundShipment,
+
         constSearch,
     ) {
     /**
@@ -33,6 +43,10 @@ define(['N/search',
 
     function pageInit(scriptContext) {
         let curRec = scriptContext.currentRecord;
+        constRecord.setCurrentRecord(curRec);
+
+        window.doAllocateInboundShipment = doAllocateInboundShipment;
+
         let objRes = getTotalOfFieldsSublist(curRec, 'items', [
             'shipmentitemamount', 'custrecord_scv_ibs_custom_amt', 'custrecord_scv_inb_amt',
             'custrecord_scv_inb_amt_vnd', 'custrecord_scv_inb_importtax_amount', 'custrecord_scv_inb_tax_amount', 'custrecord_scv_inb_tax_total_item'
@@ -45,6 +59,40 @@ define(['N/search',
         curRec.setValue('custrecord_scv_importtax_amount', (objRes.custrecord_scv_inb_importtax_amount * 1).toFixed());
         curRec.setValue('custrecord_scv_imp_vatamt', (objRes.custrecord_scv_inb_tax_amount * 1).toFixed());
         curRec.setValue('custrecord_scv_inb_tax_total', (objRes.custrecord_scv_inb_tax_total_item * 1).toFixed());
+    }
+
+    const showLoading = (isShow, message = 'Đang xử lý…') => {
+        let currentLoading = document.getElementById('scv_inbound_loading');
+        if (currentLoading) currentLoading.remove();
+        if (!isShow) return;
+
+        let loadingHost = document.createElement('div');
+        loadingHost.id = 'scv_inbound_loading';
+        loadingHost.style.cssText = 'position:fixed;inset:0;z-index:100000;display:grid;place-items:center;background:rgba(245,248,250,.65);backdrop-filter:blur(2px);cursor:wait;';
+        loadingHost.innerHTML = `
+            <style>@keyframes scvInboundLoading {to {transform:rotate(360deg)}}</style>
+            <div role="status" style="display:flex;align-items:center;gap:14px;padding:22px 28px;background:#fff;border:1px solid #e5eaee;border-radius:14px;box-shadow:0 12px 40px #1837461a;font:500 14px Arial,sans-serif;color:#315c70;">
+                <span aria-hidden="true" style="width:26px;height:26px;box-sizing:border-box;border:3px solid #e5edf1;border-top-color:#315c70;border-radius:50%;animation:scvInboundLoading .8s linear infinite;"></span>
+                <span data-loading-message></span>
+            </div>`;
+        loadingHost.querySelector('[data-loading-message]').textContent = message;
+        document.body.appendChild(loadingHost);
+    }
+
+    const doAllocateInboundShipment = () => {
+        showLoading(true, 'Đang phân bổ…');
+
+        setTimeout(() => {
+            try {
+                let inboundShipmentRec = constRecord.getCurrentRecord();
+                cmInboundShipment.doAllocateInboundShipment(inboundShipmentRec);
+            } catch (error) {
+                console.error('doAllocateInboundShipment', error);
+                alert(error.message);
+            } finally {
+                showLoading(false);
+            }
+        }, 0);
     }
   
     /**

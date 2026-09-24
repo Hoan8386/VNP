@@ -302,6 +302,9 @@ define(['N/url', 'N/record', 'N/search', 'N/format',
 
         if (!allowedStatusByType[newRecord.type]?.includes(statusRef)) return;
 
+        let checkPknItr = newRecord.getValue({fieldId: 'custbody_scv_check_pkn_itr'});
+        if (!checkPknItr) return;
+
         let suiteletUrl = url.resolveScript({
             scriptId: 'customscript_scv_sl_receiveorder',
             deploymentId: 'customdeploy_scv_sl_receiveorder',

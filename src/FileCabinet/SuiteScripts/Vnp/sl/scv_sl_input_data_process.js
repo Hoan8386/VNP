@@ -6,6 +6,55 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
 
     (commonData, libFunc, libRep) => {
 
+        /**
+         * Defines the Suitelet script trigger point.
+         * @param {Object} scriptContext
+         * @param {ServerRequest} scriptContext.request - Incoming request
+         * @param {ServerResponse} scriptContext.response - Suitelet response
+         * @since 2015.2
+         */
+        const onRequest = (scriptContext) => {
+            let body = JSON.parse(scriptContext.request.body);
+            let subsidiary = body.subsidiary;
+            let data = body.data;
+            let result = null;
+            let listAccount = getStatAccounts();
+            let sjId = '';
+            if (data.kind === commonData.FileKind.XLSX && data.sheets) {
+                let keys = Object.keys(data.sheets);
+                let key = keys[0];
+                let listData = data.sheets[key];
+                if (listData && util.isArray(listData)) {
+                    if (body.reportType === commonData.ReportType.PL_REPORT) {
+                        result = parsePLReport(subsidiary, listData, listAccount);
+                    } else if (body.reportType === commonData.ReportType.BS_REPORT) {
+                        result = parseBSReport(subsidiary, listData, listAccount);
+                    } else if (body.reportType === commonData.ReportType.BAO_CAO_LUU_CHUYEN_TIEN_TE_GIAN_TIEP) {
+                        result = parseLCTTGTReport(subsidiary, listData, listAccount);
+                    } else if (body.reportType === commonData.ReportType.BAO_CAO_LUU_CHUYEN_TIEN_TE_TRUC_TIEP) {
+                        result = parseLCTTTTReport(subsidiary, listData, listAccount);
+                    }
+
+                    if (result) {
+                        result.fields.custbody_scv_fs_report_type = commonData.ReportTypeToReportList[body.reportType];
+                        sjId = libFunc.createRecord(commonData.RecordType.STATISTICAL_JOURNALENTRY, commonData.Sublist.LINE, result.fields, result.lines);
+                    }
+                }
+            } else if (data.kind === commonData.FileKind.WORD && data.paragraphs) {
+                // File Word BCTC giữa niên độ (gồm BS, PL, LCTT, TM) -> 1 record thống kê
+                let listEntity = getEntity();
+                result = parseBCTMTCReport(subsidiary, data.paragraphs, listAccount, listEntity);
+                if (result) {
+                    result.fields.custbody_scv_fs_report_type = commonData.ReportTypeToReportList[body.reportType];
+                    log.error('commonData.ReportTypeToReportList', commonData.ReportTypeToReportList[body.reportType]);
+                    sjId = libFunc.createRecord(commonData.RecordType.STATISTICAL_JOURNALENTRY, commonData.Sublist.LINE, result.fields, result.lines);
+                }
+            }
+
+            log.error('sjId', sjId);
+            scriptContext.response.write({output: JSON.stringify({sjId: sjId})});
+        }
+
         // Bỏ dấu tiếng Việt + viết thường + gộp khoảng trắng, để dò cột/tiêu đề không phụ thuộc dấu
         const stripAccent = (s) => String(s == null ? '' : s)
             .normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -104,7 +153,7 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
 
                 const prefix = commonData.AccountPrefix.PL_REPORT;
                 let accountId = listAccount.find(o => o.acctnumber === `${prefix}_${stripLeadingZeros(maSo)}`)?.id;
-                if(accountId) {
+                if (accountId) {
                     if (curVal !== null) lines.push(makeLine(accountId, curVal, commonData.PeriodType.CURRENT, dates));
                     if (prevVal !== null) lines.push(makeLine(accountId, prevVal, commonData.PeriodType.PREVIOUS, dates));
                 }
@@ -393,11 +442,17 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             const isMaSo = (i) => /^\d{1,4}$/.test(String(P[i] == null ? '' : P[i]).trim()) && wordHasLetter(P[i + 1]);
             let i = start;
             while (i < end) {
-                if (!isMaSo(i)) { i++; continue; }
+                if (!isMaSo(i)) {
+                    i++;
+                    continue;
+                }
                 const maSo = String(P[i]).trim();
                 let j = i + 2;
                 const vals = [];
-                while (j < end && !isMaSo(j) && wordIsValueTok(P[j])) { vals.push(P[j]); j++; }
+                while (j < end && !isMaSo(j) && wordIsValueTok(P[j])) {
+                    vals.push(P[j]);
+                    j++;
+                }
                 if (vals.length >= 2) {
                     const curVal = wordToNumber(vals[vals.length - 2]);
                     const prevVal = wordToNumber(vals[vals.length - 1]);
@@ -450,8 +505,14 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
          */
         const TM_CONFIG = {
             'tiền': {cols: 'std'},
-            'phải thu ngắn hạn của khách hàng': {cols: 'std', account: 'phải thu khách hàng và trả trước cho người bán ngắn hạn'},
-            'trả trước cho người bán ngắn hạn': {cols: 'std', account: 'phải thu khách hàng và trả trước cho người bán ngắn hạn'},
+            'phải thu ngắn hạn của khách hàng': {
+                cols: 'std',
+                account: 'phải thu khách hàng và trả trước cho người bán ngắn hạn'
+            },
+            'trả trước cho người bán ngắn hạn': {
+                cols: 'std',
+                account: 'phải thu khách hàng và trả trước cho người bán ngắn hạn'
+            },
             'nợ xấu': {cols: 'giagoc', entity: true},
             'hàng tồn kho': {cols: 'giagoc'},
             'thuế và các khoản phải thu, phải nộp nhà nước': {cols: 'std'},
@@ -460,8 +521,16 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             'chi phí xây dựng cơ bản dở dang': {cols: 'std'},
             'đầu tư tài chính dài hạn': {cols: 'col', cur: 1, prev: null, entity: true},
             'chi phí trả trước': {cols: 'std'},
-            'phải trả người bán ngắn hạn': {cols: 'giagoc', entity: true, account: 'phải trả cho người bán và người mua trả tiền trước ngắn hạn'},
-            'người mua trả tiền trước ngắn hạn': {cols: 'giagoc', entity: true, account: 'phải trả cho người bán và người mua trả tiền trước ngắn hạn'},
+            'phải trả người bán ngắn hạn': {
+                cols: 'giagoc',
+                entity: true,
+                account: 'phải trả cho người bán và người mua trả tiền trước ngắn hạn'
+            },
+            'người mua trả tiền trước ngắn hạn': {
+                cols: 'giagoc',
+                entity: true,
+                account: 'phải trả cho người bán và người mua trả tiền trước ngắn hạn'
+            },
             'chi phí phải trả ngắn hạn': {cols: 'std'},
             'phải trả khác': {cols: 'std'},
             'vay ngắn hạn': {cols: 'col', cur: 0, prev: 4},
@@ -470,7 +539,10 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             'quỹ khen thưởng, phúc lợi': {cols: 'std'},
             'tình hình tăng, giảm vốn chủ sở hữu': {cols: 'tanggiamvcsh', account: 'vốn chủ sở hữu'},//
             'chi tiết vốn đầu tư của chủ sở hữu': {cols: 'chitietdautuvcsh', account: 'vốn chủ sở hữu'},//
-            'các giao dịch về vốn với các chủ sở hữu và phân phối cổ tức, lợi nhuận': {cols: 'std', account: 'vốn chủ sở hữu'},
+            'các giao dịch về vốn với các chủ sở hữu và phân phối cổ tức, lợi nhuận': {
+                cols: 'std',
+                account: 'vốn chủ sở hữu'
+            },
             'cổ tức': {cols: 'std', account: 'vốn chủ sở hữu'},
             'cổ phiếu': {cols: 'col', cur: 0, prev: 2, account: 'vốn chủ sở hữu'},
             'các khoản mục ngoài bảng cân đối kế toán': {cols: 'std'},
@@ -482,17 +554,41 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             'thu nhập và chi phí khác': {cols: 'std'},
             'chi phí kinh doanh theo yếu tố': {cols: 'std'},
             'chi phí thuế tndn': {cols: 'std', account: 'thuế thu nhập doanh nghiệp'},
-            'dưới đây là đối chiếu giữa chi phí thuế tndn và lợi nhuận kế toán trước thuế nhân với thuế suất áp dụng cho công ty': {cols: 'std', account: 'chi phí thuế tndn'},
+            'dưới đây là đối chiếu giữa chi phí thuế tndn và lợi nhuận kế toán trước thuế nhân với thuế suất áp dụng cho công ty': {
+                cols: 'std',
+                account: 'chi phí thuế tndn'
+            },
             'tài sản thuế thu nhập hoãn lại': {cols: 'std', account: 'thuế thu nhập doanh nghiệp'},
             'nghiệp vụ với các bên liên quan': {cols: 'std', labels: 2, entity: true},
             // memo = cột 2 (nội dung nghiệp vụ) vì 1 bên liên quan có thể có nhiều dòng (vd Cổ tức công bố / Cổ tức đã trả)
-            'những giao dịch trọng yếu của công ty với các bên liên quan trong kỳ này và kỳ trước bao gồm': {cols: 'std', labels: 2, labelCol: 1, entity: true, account: 'nghiệp vụ với các bên liên quan'},
+            'những giao dịch trọng yếu của công ty với các bên liên quan trong kỳ này và kỳ trước bao gồm': {
+                cols: 'std',
+                labels: 2,
+                labelCol: 1,
+                entity: true,
+                account: 'nghiệp vụ với các bên liên quan'
+            },
             // memo = cột 1 (tên bên liên quan) vì mỗi bên chỉ có 1 dòng, nội dung nghiệp vụ đều là "Mua hàng hóa"
-            'vào ngày kết thúc kỳ kế toán, số dư các khoản phải thu và phải trả với các bên liên quan như sau': {cols: 'std', labels: 2, labelCol: 1, entity: true, account: 'nghiệp vụ với các bên liên quan'},
-            'tiền lương, thù lao của các thành viên hội đồng quản trị (“hđqt”) và ban tổng giám đốc': {cols: 'std', account: 'nghiệp vụ với các bên liên quan'},
-            'tiền lương và chi phí hoạt động của ban kiểm soát': {cols: 'std', account: 'nghiệp vụ với các bên liên quan'},
+            'vào ngày kết thúc kỳ kế toán, số dư các khoản phải thu và phải trả với các bên liên quan như sau': {
+                cols: 'std',
+                labels: 2,
+                labelCol: 1,
+                entity: true,
+                account: 'nghiệp vụ với các bên liên quan'
+            },
+            'tiền lương, thù lao của các thành viên hội đồng quản trị (“hđqt”) và ban tổng giám đốc': {
+                cols: 'std',
+                account: 'nghiệp vụ với các bên liên quan'
+            },
+            'tiền lương và chi phí hoạt động của ban kiểm soát': {
+                cols: 'std',
+                account: 'nghiệp vụ với các bên liên quan'
+            },
             'các cam kết': {cols: 'std'},
-            'công ty hiện đang cho thuê tài sản theo hợp đồng thuê hoạt động. vào ngày kết thúc kỳ kế toán, các khoản tiền thuê tối thiểu trong tương lai theo hợp đồng thuê hoạt động được trình bày như sau': {cols: 'std', account: 'các cam kết'},
+            'công ty hiện đang cho thuê tài sản theo hợp đồng thuê hoạt động. vào ngày kết thúc kỳ kế toán, các khoản tiền thuê tối thiểu trong tương lai theo hợp đồng thuê hoạt động được trình bày như sau': {
+                cols: 'std',
+                account: 'các cam kết'
+            },
             'lãi trên cổ phiếu': {cols: 'std'}
         };
         // Tra cứu config theo tên đã bỏ dấu (khớp bền vững với header trong document)
@@ -512,12 +608,16 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             'Tiền lương, thù lao của các thành viên Hội đồng Quản trị (“HĐQT”) và Ban Tổng Giám đốc',
             'Tiền lương và chi phí hoạt động của Ban kiểm soát',
             'Công ty hiện đang cho thuê tài sản theo hợp đồng thuê hoạt động. Vào ngày kết thúc kỳ kế toán, các khoản tiền thuê tối thiểu trong tương lai theo hợp đồng thuê hoạt động được trình bày như sau'
-        ].forEach(n => { TM_TEXT_HEADS[stripAccent(n)] = true; });
+        ].forEach(n => {
+            TM_TEXT_HEADS[stripAccent(n)] = true;
+        });
 
         // Tiêu đề cột của bảng TM (không phải dữ liệu, không phải entity) -> bỏ qua, đọc dòng kế tiếp
         const TM_NOISE_LABELS = {};
         ['Tên']
-            .forEach(n => { TM_NOISE_LABELS[stripAccent(n)] = true; });
+            .forEach(n => {
+                TM_NOISE_LABELS[stripAccent(n)] = true;
+            });
 
         /**
          * Dòng chữ KHÔNG có ô số đi kèm: là tiêu đề cột ("Tên") hay tiêu đề phụ
@@ -533,7 +633,9 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             if (cfg.cols === 'col') return {cur: cfg.cur, prev: cfg.prev};
             if (cfg.cols === 'giagoc') {
                 const gi = [];
-                subHeaders.forEach((s, idx) => { if (s === 'gia goc') gi.push(idx); });
+                subHeaders.forEach((s, idx) => {
+                    if (s === 'gia goc') gi.push(idx);
+                });
                 if (gi.length >= 2) return {cur: gi[0], prev: gi[1]};
                 return {cur: 0, prev: nVals >= 3 ? 2 : 1};
             }
@@ -624,7 +726,10 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             let carry = [];                    // nhãn dòng trước - dùng lại cho cột bị gộp ô
             let stopped = false;
             while (k < end && !stopped) {
-                if (!wordHasLetter(P[k])) { k++; continue; }
+                if (!wordHasLetter(P[k])) {
+                    k++;
+                    continue;
+                }
 
                 // Gom ô nhãn: các dòng chữ liên tiếp, bỏ tiêu đề cột / tiêu đề phụ xen giữa
                 let j = k;
@@ -632,7 +737,10 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
                 while (j < end && wordHasLetter(P[j]) && !wordIsCellTok(P[j])) {
                     const t = stripAccent(P[j]);
                     // Gặp bảng phụ khác -> dừng cả bảng
-                    if (t.indexOf('don vi tinh') !== -1 || t.indexOf('chi tiet tinh hinh') !== -1) { stopped = true; break; }
+                    if (t.indexOf('don vi tinh') !== -1 || t.indexOf('chi tiet tinh hinh') !== -1) {
+                        stopped = true;
+                        break;
+                    }
                     if (!isTMNoiseLabel(t)) labelCols.push(P[j]);
                     j++;
                 }
@@ -640,7 +748,10 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
 
                 // Gom ô số
                 const vals = [];
-                while (j < end && wordIsCellTok(P[j])) { vals.push(P[j]); j++; }
+                while (j < end && wordIsCellTok(P[j])) {
+                    vals.push(P[j]);
+                    j++;
+                }
 
                 k = j > k ? j : k + 1;
                 // khối chữ thuần (ghi chú, diễn giải) hoặc ô số không có nhãn -> bỏ
@@ -651,7 +762,9 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
                 // (Word gộp ô khi trùng dòng trên) thì lấy lại nhãn của dòng trước.
                 const take = labelCols.slice(-nLabels);
                 const row = carry.slice(0, nLabels);
-                take.forEach((t, x) => { row[nLabels - take.length + x] = t; });
+                take.forEach((t, x) => {
+                    row[nLabels - take.length + x] = t;
+                });
                 carry = row;
 
                 const cols = resolveTMCols(cfg, subHeaders, vals.length);
@@ -728,12 +841,18 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             let group = '';       // tên cụm gần nhất ("Nguyên giá:"...)
             let pending = null;   // dòng "Vào ngày" đầu của cặp đang chờ ghép
             while (k < end) {
-                if (!wordHasLetter(P[k]) || wordIsCellTok(P[k])) { k++; continue; }
+                if (!wordHasLetter(P[k]) || wordIsCellTok(P[k])) {
+                    k++;
+                    continue;
+                }
                 const label = String(P[k]).trim();
 
                 let j = k + 1;
                 const vals = [];
-                while (j < end && wordIsCellTok(P[j])) { vals.push(P[j]); j++; }
+                while (j < end && wordIsCellTok(P[j])) {
+                    vals.push(P[j]);
+                    j++;
+                }
                 k = j > k ? j : k + 1;
 
                 if (vals.length === 0) {                 // dòng chữ đứng riêng -> tên cụm mới, mở cặp mới
@@ -744,7 +863,10 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
                 const date = tmMatrixDate(label);
                 if (!date) continue;                     // dòng không phải mốc "Vào ngày" -> bỏ
 
-                if (!pending) { pending = {date: date, vals: vals}; continue; }
+                if (!pending) {
+                    pending = {date: date, vals: vals};
+                    continue;
+                }
 
                 // Đủ cặp: ngày nhỏ hơn = Previous, lớn hơn = Current
                 const asc = wordDateSortKey(pending.date) <= wordDateSortKey(date);
@@ -790,7 +912,10 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             while (k < end && stripAccent(P[k]).indexOf('don vi tinh') === -1) k++;
             k++;
             const block = [];
-            while (k < end && wordHasLetter(P[k]) && !wordIsCellTok(P[k])) { block.push(P[k]); k++; }
+            while (k < end && wordHasLetter(P[k]) && !wordIsCellTok(P[k])) {
+                block.push(P[k]);
+                k++;
+            }
             if (block.length < 2) return lines;
             let rowLabel = block.pop();
             const colHeaders = block;
@@ -810,7 +935,10 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             // 3) Từng dòng dữ liệu = [1 ô nhãn][nCols ô số]. Bỏ dòng "TỔNG CỘNG".
             while (k < end && rowLabel) {
                 const vals = [];
-                while (k < end && wordIsCellTok(P[k]) && vals.length < nCols) { vals.push(P[k]); k++; }
+                while (k < end && wordIsCellTok(P[k]) && vals.length < nCols) {
+                    vals.push(P[k]);
+                    k++;
+                }
 
                 if (vals.length === nCols && stripAccent(rowLabel) !== 'tong cong') {
                     const percentVal = percentIdx !== -1 ? wordToPercent(vals[percentIdx]) : null;
@@ -830,7 +958,10 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
 
                 // Đọc nhãn dòng kế tiếp
                 rowLabel = null;
-                while (k < end && wordHasLetter(P[k]) && !wordIsCellTok(P[k])) { rowLabel = P[k]; k++; }
+                while (k < end && wordHasLetter(P[k]) && !wordIsCellTok(P[k])) {
+                    rowLabel = P[k];
+                    k++;
+                }
             }
             return lines;
         };
@@ -875,16 +1006,26 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             const seenDates = []; // tất cả mốc ngày các cụm đã gặp -> xác định min/max
             const rows = [];      // {label, vals, period} chờ đến khi biết đủ periodType
             while (k < end) {
-                if (!wordHasLetter(P[k]) || wordIsCellTok(P[k])) { k++; continue; }
+                if (!wordHasLetter(P[k]) || wordIsCellTok(P[k])) {
+                    k++;
+                    continue;
+                }
                 const label = String(P[k]).trim();
 
                 let j = k + 1;
                 const vals = [];
-                while (j < end && wordIsCellTok(P[j])) { vals.push(P[j]); j++; }
+                while (j < end && wordIsCellTok(P[j])) {
+                    vals.push(P[j]);
+                    j++;
+                }
                 k = j > k ? j : k + 1;
 
                 const pDate = tmPeriodDate(label);
-                if (pDate) { period = pDate; seenDates.push(pDate); continue; } // mở cụm "Cho giai đoạn" mới
+                if (pDate) {
+                    period = pDate;
+                    seenDates.push(pDate);
+                    continue;
+                } // mở cụm "Cho giai đoạn" mới
                 if (vals.length === 0 || !period) continue; // dòng chữ đứng riêng / chưa vào cụm -> bỏ
 
                 rows.push({label: label, vals: vals, period: period});
@@ -923,13 +1064,19 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
                 const raw = String(P[i] == null ? '' : P[i]).replace(/\(tiếp theo\)/gi, '').trim();
                 // name = phần tên sau số, bỏ hậu tố "(tiếp theo)"
                 const m = raw.match(headerRe);
-                if (m) { heads.push({idx: i, name: m[2].trim()}); continue; }
+                if (m) {
+                    heads.push({idx: i, name: m[2].trim()});
+                    continue;
+                }
                 // Header dạng câu dẫn, không đánh số ở đầu -> bỏ dấu câu cuối rồi tra TM_TEXT_HEADS.
                 // Ngay sau header luôn là "Đơn vị tính"/tiêu đề cột, KHÔNG bao giờ là ô số; nhờ vậy
                 // loại được dòng dữ liệu trùng tên header (vd "Tiền lương ... Ban kiểm soát" vừa là
                 // header vừa là chỉ tiêu duy nhất của bảng) - nếu nhận nhầm sẽ cắt mất dữ liệu.
                 const plain = raw.replace(/[:;.\s]+$/, '').trim();
-                if (plain && TM_TEXT_HEADS[stripAccent(plain)] && !wordIsCellTok(P[i + 1])) heads.push({idx: i, name: plain});
+                if (plain && TM_TEXT_HEADS[stripAccent(plain)] && !wordIsCellTok(P[i + 1])) heads.push({
+                    idx: i,
+                    name: plain
+                });
             }
             heads.push({idx: end, name: null});
             for (let h = 0; h < heads.length - 1; h++) {
@@ -994,54 +1141,6 @@ define(['../common/scv_common_input_data.js', '../lib/scv_lib_function.js', '../
             subsidiary: subsidiary || commonData.Subsidiary.VINAPHARM,
             unitstype: 1
         });
-
-        /**
-         * Defines the Suitelet script trigger point.
-         * @param {Object} scriptContext
-         * @param {ServerRequest} scriptContext.request - Incoming request
-         * @param {ServerResponse} scriptContext.response - Suitelet response
-         * @since 2015.2
-         */
-        const onRequest = (scriptContext) => {
-            let body = JSON.parse(scriptContext.request.body);
-            let subsidiary = body.subsidiary;
-            let data = body.data;
-            let result = null;
-            let listAccount = getStatAccounts();
-            let sjId = '';
-            if (data.kind === commonData.FileKind.XLSX && data.sheets) {
-                let keys = Object.keys(data.sheets);
-                let key = keys[0];
-                let listData = data.sheets[key];
-                if (listData && util.isArray(listData)) {
-                    if (body.reportType === commonData.ReportType.PL_REPORT) {
-                        result = parsePLReport(subsidiary, listData, listAccount);
-                    } else if (body.reportType === commonData.ReportType.BS_REPORT) {
-                        result = parseBSReport(subsidiary, listData, listAccount);
-                    } else if (body.reportType === commonData.ReportType.BAO_CAO_LUU_CHUYEN_TIEN_TE_GIAN_TIEP) {
-                        result = parseLCTTGTReport(subsidiary, listData, listAccount);
-                    } else if (body.reportType === commonData.ReportType.BAO_CAO_LUU_CHUYEN_TIEN_TE_TRUC_TIEP) {
-                        result = parseLCTTTTReport(subsidiary, listData, listAccount);
-                    }
-
-                    if (result) {
-                        result.fields.custbody_scv_fs_report_type = commonData.ReportTypeToReportList[body.reportType];
-                        sjId = libFunc.createRecord(commonData.RecordType.STATISTICAL_JOURNALENTRY, commonData.Sublist.LINE, result.fields, result.lines);
-                    }
-                }
-            } else if (data.kind === commonData.FileKind.WORD && data.paragraphs) {
-                // File Word BCTC giữa niên độ (gồm BS, PL, LCTT, TM) -> 1 record thống kê
-                let listEntity = getEntity();
-                result = parseBCTMTCReport(subsidiary, data.paragraphs, listAccount, listEntity);
-                if (result) {
-                    result.fields.custbody_scv_fs_report_type = commonData.ReportTypeToReportList[body.reportType];log.error('commonData.ReportTypeToReportList', commonData.ReportTypeToReportList[body.reportType]);
-                    sjId = libFunc.createRecord(commonData.RecordType.STATISTICAL_JOURNALENTRY, commonData.Sublist.LINE, result.fields, result.lines);
-                }
-            }
-
-            log.error('sjId', sjId);
-            scriptContext.response.write({output: JSON.stringify({sjId: sjId})});
-        }
 
         return {onRequest}
 

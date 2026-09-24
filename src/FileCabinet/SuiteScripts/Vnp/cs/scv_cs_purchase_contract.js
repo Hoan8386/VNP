@@ -112,7 +112,11 @@ define(['../lib/scv_lib_purchase_contract_calc'],
         const sublistChanged = (scriptContext) => {
             try {
                 if (scriptContext.sublistId !== libCalc.SUBLIST_ITEM) return;
-                libCalc.recalcAllLines(scriptContext.currentRecord);
+                // Field changes already recalculate only the active line.  Do
+                // not recalculate every line after a commit: doing so rebuilds
+                // custom amount fields from blank input values and overwrites
+                // values on other lines with zero.
+                libCalc.recalcTotalFromAllLines(scriptContext.currentRecord);
             } catch (e) {
                 log.error('Error sublistChanged', e);
             }

@@ -59,7 +59,9 @@ define([
     const renderRecordToPdf = (recordId, printFileName) => {
         const renderer = libPdf.renderTemplateWithXml(getPdfPrintFile(printFileName));
         const rec = addDefaultRecordRender(renderer, Knkt.RECORD_TYPE, recordId);
-        printKnkt(rec, renderer, recordId);
+        printKnkt(rec, renderer, recordId, {
+            excludeCompleted: getPdfPrintFile(printFileName) === Knkt.PRINT_FILE_LAN_2
+        });
         return renderer.renderAsPdf();
     };
 
@@ -71,10 +73,11 @@ define([
         const renderer = render.create();
         renderer.templateContent = templateFile.getContents();
         const rec = addDefaultRecordRender(renderer, Knkt.RECORD_TYPE, recordId);
-        const dataJson = printKnkt(rec, renderer, recordId);
-        const wordFilePrefix = wordPrintFile === Knkt.WORD_PRINT_FILE_LAN_2
-            ? Knkt.WORD_PREFIX_LAN_2
-            : Knkt.WORD_PREFIX;
+        const wordTemplate = getWordTemplate(wordPrintFile);
+        const dataJson = printKnkt(rec, renderer, recordId, {
+            excludeCompleted: wordTemplate.excludeCompleted === true
+        });
+        const wordFilePrefix = wordTemplate.prefix;
         const wordFileName = wordFilePrefix
             + dataJson.soBaoCao.replace(/[\\/:*?"<>|\u0000-\u001F\u007F]/g, '_')
             + Knkt.DOC_EXTENSION;
@@ -100,8 +103,8 @@ define([
         return rec;
     };
 
-    const printKnkt = (rec, renderer, recordId) => {
-        const dataJson = getDataKnkt(rec, recordId);
+    const printKnkt = (rec, renderer, recordId, options) => {
+        const dataJson = getDataKnkt(rec, recordId, options || {});
         renderer.addCustomDataSource({
             format: render.DataSource.OBJECT,
             alias: Template.DATA_ALIAS,
@@ -110,8 +113,8 @@ define([
         return dataJson;
     };
 
-    const getDataKnkt = (rec, recordId) => {
-        const tree = buildPhatHienTree(recordId);
+    const getDataKnkt = (rec, recordId, options) => {
+        const tree = buildPhatHienTree(recordId, options);
         const ngayKy = getNgayKyVietNam();
         return {
             soBaoCao: libPrintFormat.asText(
@@ -136,7 +139,7 @@ define([
         };
     };
 
-    const buildPhatHienTree = (recordId) => {
+    const buildPhatHienTree = (recordId, options) => {
         const findingRows = getFindingRows(recordId);
         const findingEntries = findingRows.map((row, findingIndex) => ({
             id: row.id,
@@ -166,9 +169,11 @@ define([
             }
 
             const output = {
-                stt: String(findingEntry.output.khuyenNghiList.length + 1),
+                stt: Knkt.EMPTY,
                 khuyenNghi: row.text,
                 thoiHanPhanHoi: row.dueDate,
+                ngayThucHien: Knkt.EMPTY,
+                ngayThucHienTruoc: Knkt.EMPTY,
                 tinhHinhThucHien: Knkt.EMPTY,
                 tinhHinhThucHienTruoc: Knkt.EMPTY,
                 ketQuaThucHien: Knkt.EMPTY,
@@ -181,7 +186,6 @@ define([
                 resultRows: []
             };
             findingEntry.recommendationById.set(row.id, entry);
-            findingEntry.output.khuyenNghiList.push(output);
             recommendationEntries.push(entry);
         });
 
@@ -190,26 +194,40 @@ define([
             const recommendationEntry = recommendationEntries.find(
                 (entry) => entry.id === row.recommendationId
             );
-            if (!recommendationEntry) {
-                return;
+            if (recommendationEntry) {
+                recommendationEntry.resultRows.push(row);
             }
-            recommendationEntry.resultRows.push(row);
-            keepLatestValue(
-                recommendationEntry.findingEntry.latest,
-                row.ngayThucHien,
-                row.ngayThucHienSort
-            );
         });
 
         recommendationEntries.forEach((entry) => finalizeRecommendation(entry));
+
+        // FDD task06 Request List #6: bỏ khuyến nghị có kết quả mới nhất là
+        // "đã hoàn thành". Lọc SAU finalize (cần biết kết quả mới nhất) và
+        // TRƯỚC khi tính ngày/STT để các giá trị đó chỉ phản ánh dòng được in.
+        const printedEntries = options && options.excludeCompleted
+            ? recommendationEntries.filter((entry) => !isCompletedResult(entry.output.ketQuaThucHien))
+            : recommendationEntries;
+
+        const latest = {date: Knkt.EMPTY, dateSort: Knkt.EMPTY};
+        printedEntries.forEach((entry) => {
+            const findingEntry = entry.findingEntry;
+            entry.output.stt = String(findingEntry.output.khuyenNghiList.length + 1);
+            findingEntry.output.khuyenNghiList.push(entry.output);
+            entry.resultRows.forEach((row) => {
+                keepLatestValue(findingEntry.latest, row.ngayThucHien, row.ngayThucHienSort);
+                keepLatestValue(latest, row.ngayThucHien, row.ngayThucHienSort);
+            });
+            if (entry.previousResult) {
+                keepLatestValue(
+                    findingEntry.previous,
+                    entry.previousResult.ngayThucHien,
+                    entry.previousResult.ngayThucHienSort
+                );
+            }
+        });
         findingEntries.forEach((entry) => {
             entry.output.ngayThucHien = entry.latest.date;
             entry.output.ngayThucHienTruoc = entry.previous.date;
-        });
-
-        const latest = {date: Knkt.EMPTY, dateSort: Knkt.EMPTY};
-        resultRows.forEach((row) => {
-            keepLatestValue(latest, row.ngayThucHien, row.ngayThucHienSort);
         });
         return {
             phatHienList: findingEntries.map((entry) => entry.output),
@@ -342,19 +360,25 @@ define([
         if (latestResult) {
             recommendationEntry.output.tinhHinhThucHien = latestResult.tinhHinhThucHien;
             recommendationEntry.output.ketQuaThucHien = latestResult.ketQuaThucHien;
+            recommendationEntry.output.ngayThucHien = latestResult.ngayThucHien;
         }
         if (previousResult) {
             recommendationEntry.output.tinhHinhThucHienTruoc =
                 previousResult.tinhHinhThucHien;
             recommendationEntry.output.ketQuaThucHienTruoc =
                 previousResult.ketQuaThucHien;
-            keepLatestValue(
-                recommendationEntry.findingEntry.previous,
-                previousResult.ngayThucHien,
-                previousResult.ngayThucHienSort
-            );
+            recommendationEntry.output.ngayThucHienTruoc = previousResult.ngayThucHien;
+            recommendationEntry.previousResult = previousResult;
         }
     };
+
+    const normalizeResultText = (value) => {
+        const text = libPrintFormat.asText(value).trim().replace(/\s+/g, ' ').toLowerCase();
+        return typeof text.normalize === 'function' ? text.normalize('NFC') : text;
+    };
+
+    const isCompletedResult = (ketQuaThucHien) =>
+        Knkt.COMPLETED_RESULT_TEXTS.includes(normalizeResultText(ketQuaThucHien));
 
     const runTierSearch = (type, filters, columns, mapResult) => {
         const rows = [];
@@ -369,9 +393,16 @@ define([
         ? printFileName
         : Knkt.PRINT_FILE;
 
-    const getWordPrintFile = (printFileName) => Knkt.WORD_PRINT_FILES.includes(printFileName)
-        ? printFileName
-        : Knkt.WORD_PRINT_FILE;
+    // Only a printfile registered in Knkt.WORD_TEMPLATE may be rendered; the
+    // parameter comes from the query string, so an unknown value falls back to
+    // the default template instead of reaching file.load().
+    const getWordPrintFile = (printFileName) =>
+        Object.prototype.hasOwnProperty.call(Knkt.WORD_TEMPLATE, printFileName)
+            ? printFileName
+            : Knkt.DEFAULT_WORD_PRINT_FILE;
+
+    const getWordTemplate = (wordPrintFile) =>
+        Knkt.WORD_TEMPLATE[wordPrintFile] || Knkt.WORD_TEMPLATE[Knkt.DEFAULT_WORD_PRINT_FILE];
 
     const toSortId = (value) => {
         const numericValue = Number(value);

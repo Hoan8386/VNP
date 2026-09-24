@@ -33,7 +33,7 @@ define(['N/record', 'N/url'],
                             line: j
                         });
                         quantity = newRecord.getSublistValue({sublistId: sl, fieldId: 'quantity', line: j});
-                        let location = newRecord.getSublistValue({sublistId: sl, fieldId: 'location', line: j});
+                        let location = newRecord.getSublistValue({sublistId: sl, fieldId: 'location', line: j}) || locationHeader;
                         if (isLocationValid(recType, locationHeader, location) && (inventorydetailavail === true || inventorydetailavail === 'T') && quantity > 0) {
                             try {
                                 recSubIVD = newRecord.getSublistSubrecord({

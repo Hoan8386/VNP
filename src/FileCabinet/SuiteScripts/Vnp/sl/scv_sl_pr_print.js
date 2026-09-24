@@ -50,7 +50,11 @@ define([
     const printPr = (rec, renderer, config) => {
         const header = getHeaderFromRecord(rec);
         validatePaymentType(header, config);
-        const dataJson = buildDataJson(header, getDetailRows(rec), config);
+        const dataJson = buildDataJson(
+            header,
+            getPrintRows(rec, header, config),
+            config
+        );
         renderer.addCustomDataSource({
             format: render.DataSource.OBJECT,
             alias: Template.DATA_ALIAS,
@@ -116,6 +120,13 @@ define([
             throw new Error('Payment request type does not match print form.');
         }
     };
+
+    const getPrintRows = (rec, header, config) => config.KEY === Pr.FORMS.DNTU.KEY
+        ? [{
+            dienGiai: header.noiDung,
+            soTien: rec.getValue({fieldId: Pr.HEADER_FIELD.AMOUNT})
+        }]
+        : getDetailRows(rec);
 
     const getDetailRows = (rec) => {
         const lineCount = rec.getLineCount({sublistId: Pr.SUBLIST_ID});

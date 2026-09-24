@@ -19,29 +19,38 @@ define([
          * @since 2015.2
          */
         const onRequest = (scriptContext) => {
-            const newRecord = record.load({type: "customrecord_ncfar_assetproposal", id: 1101});
-            let propsourceid = newRecord.getValue({
-                fieldId: 'custrecord_propsourceid'
-            });
+            log.error("res", searchUserNoteConfig('customerpayment'));
+        }
 
-            let propsourceline = newRecord.getValue({
-                fieldId: 'custrecord_propsourceline'
+        const searchUserNoteConfig = (_rectype) => {
+            var userNoteSearch = search.create({
+                type: "customrecord_scv_slussernote_config",
+                filters: [
+                    ["isinactive", "is", "F"],
+                    "AND",
+                    ["custrecord_scv_recordtype", search.Operator.CONTAINS, _rectype]
+                ],
+                columns:
+                [
+                    search.createColumn({name: "name", label: "Name"}),
+                    search.createColumn({name: "custrecord_scv_recordtype", label: "Record type"}),
+                    search.createColumn({name: "custrecord_scv_field_id", label: "Field ID"}),
+                    search.createColumn({name: "custrecord_scv_slusernote_statusfield_id", label: "Status Field ID"}),
+                    search.createColumn({name: "custrecord_scv_slusernote_statusvalue_id", label: "Status Value"}),
+                    search.createColumn({name: "custrecord_scv_slusernote_void", label: "Is Void Record?"}),
+                ]
             });
-
-            const filters = [
-                search.createFilter({
-                    name: "internalid",
-                    operator: "anyof",
-                    values: propsourceid
-                }),
-                search.createFilter({
-                    name: "line",
-                    operator: "equalto",
-                    values: propsourceline
-                }),
-            ];
-            const a = constSearch.getDataSource_Mixed("customsearch_scv_upd_proposal", filters, [], {});
-            log.error("a", a);
+            var myColumns = userNoteSearch.columns;
+            userNoteSearch = userNoteSearch.run().getRange({start: 0, end: 1});
+            var objField = {};
+            if(userNoteSearch.length > 0){
+                objField.recType = userNoteSearch[0].getValue(myColumns[1]);
+                objField.fieldId = userNoteSearch[0].getValue(myColumns[2]);
+                objField.statusFieldId = userNoteSearch[0].getValue(myColumns[3]);
+                objField.statusValueId = userNoteSearch[0].getValue(myColumns[4]);
+                objField.isVoidRecord = userNoteSearch[0].getValue(myColumns[5]);
+            }
+            return objField;
         }
 
         return {onRequest}

@@ -88,7 +88,7 @@ define([
         });
         scriptContext.form.addButton({
             id: 'custpage_scv_btn_unc_pdf',
-            label: 'Print UNC', // TODO(BA-Q2): BA xác nhận nhãn button.
+            label: 'UNC', // TODO(BA-Q2): BA xác nhận nhãn button.
             functionName: "window.open('" + urlSl + "');"
         });
         comUI.addIconToButton(scriptContext.form);

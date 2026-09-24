@@ -3,21 +3,37 @@
  * @NScriptType ClientScript
  * @NModuleScope SameAccount
  */
-define(['N/currentRecord', 'N/https', 'N/url',
+define(['N/currentRecord', 'N/https', 'N/ui/message', 'N/url',
         '../lib/scv_lib_cs.js', '../lib/scv_lib_cs_xls.js', '../lib/scv_lib_report_custom.js', '../cons/scv_cons_record.js'],
 
-    function (ccr, https, url, libCs, libCsXLS, libRpCustom, constRecord) {
+    function (ccr, https, message, url, libCs, libCsXLS, libRpCustom, constRecord) {
 
         const refresh = () => {
             window.location.reload();
         }
 
-        let listTxnConfigFilters = null;
-        let listDataFieldConfig, datas = null, dataConfig = null, isDirty = true;
+        let listTxnConfigFilters = null, listTxnConfigFiltersDefault = null;
+        let listDataFieldConfig, datas = null, listDataTab = [], dataConfig = null, isDirty = true;
 
         function pageInit(scriptContext) {
             let currentRecord = scriptContext.currentRecord;
-            listTxnConfigFilters = currentRecord.getValue('custpage_data_filter_config');
+            listTxnConfigFilters = getTxnConfigFilters(currentRecord, 'custpage_data_filter_config');
+            listTxnConfigFiltersDefault = getTxnConfigFilters(currentRecord, 'custpage_data_default_config');
+            listDataFieldConfig = currentRecord.getValue('custpage_data_field_config');
+            libRpCustom.resizeGrid("scvTabsContainer");
+            if (listDataFieldConfig) {
+                listDataFieldConfig = JSON.parse(listDataFieldConfig);
+                renderDxTabsWithDxGrid(listDataFieldConfig);
+            }
+
+            let currentParams = new URLSearchParams(window.location.search);
+            if (currentParams.get('isExecute') === 'T') {
+                searchResult();
+            }
+        }
+
+        const getTxnConfigFilters = (currentRecord, fieldId) => {
+            let listTxnConfigFilters = currentRecord.getValue(fieldId);
             if (listTxnConfigFilters) {
                 listTxnConfigFilters = JSON.parse(listTxnConfigFilters);
                 for (let objFilter of listTxnConfigFilters) {
@@ -39,29 +55,60 @@ define(['N/currentRecord', 'N/https', 'N/url',
                     }
                 }
             }
-            listDataFieldConfig = currentRecord.getValue('custpage_data_field_config');
-            libRpCustom.resizeGrid("scvTabsContainer");
-            if (listDataFieldConfig) {
-                listDataFieldConfig = JSON.parse(listDataFieldConfig);
-                renderDxTabsWithDxGrid(listDataFieldConfig);
-            }
+            return listTxnConfigFilters;
         }
 
-        const renderDxTabsWithDxGrid = (listDataFieldConfig) => {
-            let objDataFieldConfig = listDataFieldConfig[0];
+        const buildDxGridColumns = (objDataFieldConfig) => {
             let columns = objDataFieldConfig?.custrecord_scv_txcf_rp_column;
+            if (columns && listTxnConfigFilters) {
+                let currentRecord = ccr.get();
+                for (let objFilter of listTxnConfigFilters) {
+                    let fieldValue;
+                    if (objFilter.type_display === 'Date' || objFilter.type_display === 'Date/Time' ||
+                        objFilter.type_display === 'List/Record' || objFilter.type_display === 'Multiple Select') {
+                        fieldValue = currentRecord.getText(objFilter.id);
+                    } else {
+                        fieldValue = currentRecord.getValue(objFilter.id);
+                    }
+                    columns = columns.split(`[${objFilter.id}]`).join(fieldValue !== null && fieldValue !== undefined ? fieldValue : '');
+                }
+            }
             columns = columns ? JSON.parse(columns) : [];
             let summary = null;
             if (!util.isArray(columns)) {
                 summary = columns.summary;
                 columns = columns.columns;
             }
+            return {columns, summary};
+        }
 
-            let items = [{
+        const evalColumnCellTemplates = (columns) => {
+            if (!util.isArray(columns)) {
+                return;
+            }
+            for (let column of columns) {
+                if (!column) {
+                    continue;
+                }
+                if (typeof column.cellTemplate === 'string') {
+                    let cellTemplate = column.cellTemplate.trim();
+                    if (cellTemplate.indexOf('function') === 0 || cellTemplate.indexOf('=>') !== -1) {
+                        column.cellTemplate = eval(`(${cellTemplate})`);
+                    }
+                }
+                // grouped/nested column headers can repeat the same shape in column.columns
+                evalColumnCellTemplates(column.columns);
+            }
+        }
+
+        const buildDxGridTabItem = (objDataFieldConfig, gridDatas) => {
+            let {columns, summary} = buildDxGridColumns(objDataFieldConfig);
+            evalColumnCellTemplates(columns);
+            return {
                 title: objDataFieldConfig?.text,
                 template: function () {
                     return $("<div>").dxDataGrid({
-                        dataSource: datas,
+                        dataSource: gridDatas,
                         columns: columns,
                         summary: summary,
                         showBorders: true,
@@ -73,7 +120,15 @@ define(['N/currentRecord', 'N/https', 'N/url',
                         }
                     });
                 }
-            }];
+            };
+        }
+
+        const renderDxTabsWithDxGrid = (listDataFieldConfig) => {
+            let objDataFieldConfig = listDataFieldConfig[0];
+            let items = [buildDxGridTabItem(objDataFieldConfig, datas)];
+            for (let objDataTab of listDataTab) {
+                items.push(buildDxGridTabItem(objDataTab.txnMappingConfig, objDataTab.datas));
+            }
 
             $("#scvTabsContainer").dxTabPanel({items: items});
         }
@@ -91,7 +146,7 @@ define(['N/currentRecord', 'N/https', 'N/url',
             let currentRecord = scriptContext.currentRecord;
             if (scriptContext.fieldId === 'custpage_txn_config') {
                 window.onbeforeunload = null;
-                let params = {custpage_txn_config: currentRecord.getValue('custpage_txn_config')};
+                let params = {custpage_txn_group: currentRecord.getValue('custpage_txn_group'), custpage_txn_config: currentRecord.getValue('custpage_txn_config')};
                 let urlTxnReport = getUrlSearch(params);
                 window.location.replace(urlTxnReport);
             } else {
@@ -163,22 +218,94 @@ define(['N/currentRecord', 'N/https', 'N/url',
             }
         }
 
+        const XML_ENTITIES = {'&lt;': '<', '&gt;': '>', '&amp;': '&', '&quot;': '"', '&apos;': "'", '&nbsp;': ' '};
+
+        const decodeXmlEntities = (value) => {
+            if (typeof value !== 'string' || value.indexOf('&') === -1) {
+                return value;
+            }
+            // Decode in a single pass so "&amp;lt;" becomes "&lt;" (not "<")
+            return value.replace(/&(?:lt|gt|amp|quot|apos|nbsp|#\d+|#x[0-9a-fA-F]+);/g, (entity) => {
+                if (XML_ENTITIES[entity]) {
+                    return XML_ENTITIES[entity];
+                }
+                let code = entity[2] === 'x' ? parseInt(entity.slice(3, -1), 16) : parseInt(entity.slice(2, -1), 10);
+                return isNaN(code) ? entity : String.fromCodePoint(code);
+            });
+        }
+
+        const decodeXmlEntitiesInDatas = (value) => {
+            if (typeof value === 'string') {
+                return decodeXmlEntities(value);
+            }
+            if (Array.isArray(value)) {
+                for (let i = 0; i < value.length; i++) {
+                    value[i] = decodeXmlEntitiesInDatas(value[i]);
+                }
+            } else if (value && typeof value === 'object') {
+                for (let key in value) {
+                    value[key] = decodeXmlEntitiesInDatas(value[key]);
+                }
+            }
+            return value;
+        }
+
         const handleSearchResult = (body) => {
             let resBody = JSON.parse(body);
-            datas = resBody.listDataJoinSource.datas;
+            datas = decodeXmlEntitiesInDatas(resBody.listDataJoinSource.datas);
             dataConfig = resBody.listDataJoinSource.dataConfig;
+            listDataTab = resBody.listDataTab || [];
+            for (let objDataTab of listDataTab) {
+                objDataTab.datas = decodeXmlEntitiesInDatas(objDataTab.datas);
+            }
             renderDxTabsWithDxGrid(listDataFieldConfig);
             libCs.showLoadingDialog(false);
+        }
+
+        const submitButton = () => {
+            window.onbeforeunload = null;
+            libCs.showLoadingDialog(true);
+            let currentRecord = ccr.get();
+            let {objaParams, message} = getParams(currentRecord);
+            if (message) {
+                alert(message);
+                libCs.showLoadingDialog(false);
+            } else {
+                objaParams.isSubmit = 'T';
+                callToGetDatas(objaParams, handleSubmitButton);
+            }
+        }
+
+        const handleSubmitButton = (body) => {
+            let resBody = JSON.parse(body);
+            let myMessage = resBody.messageInfo;
+            libCs.showLoadingDialog(false);
+            if (myMessage) {
+                let myMsg = message.create({
+                    title: 'Information',
+                    message: myMessage,
+                    type: message.Type.WARNING
+                });
+                myMsg.show({duration: 0});
+            }
         }
 
         const getParams = (currentRecord) => {
             let objaParams = {
                 isExport: 'T',
+                custpage_txn_group: currentRecord.getValue('custpage_txn_group'),
                 custpage_txn_config: currentRecord.getValue('custpage_txn_config')
             };
             let message = !objaParams.custpage_txn_config ? 'Please fill Txn Type' : '';
-            if (listTxnConfigFilters) {
-                for (let objFilter of listTxnConfigFilters) {
+            message = message || fillParamsFromConfig(currentRecord, objaParams, listTxnConfigFilters);
+            fillParamsFromConfig(currentRecord, objaParams, listTxnConfigFiltersDefault);
+            return {objaParams, message};
+        }
+
+        const fillParamsFromConfig = (currentRecord, objaParams, listConfig) => {
+            let message = '';
+            if (listConfig) {
+                for (let objFilter of listConfig) {
                     if (objFilter.type_display === 'Date' || objFilter.type_display === 'Date/Time') {
                         objaParams[objFilter.id] = currentRecord.getText(objFilter.id);
                     } else if (objFilter.type_display === 'Multiple Select') {
@@ -192,7 +319,7 @@ define(['N/currentRecord', 'N/https', 'N/url',
                     }
                 }
             }
-            return {objaParams, message};
+            return message;
         }
 
         const exportResult = async () => {
@@ -218,8 +345,12 @@ define(['N/currentRecord', 'N/https', 'N/url',
 
         const handleExportResult = (body, objaParams, currentRecord) => {
             let resBody = JSON.parse(body);
-            datas = resBody.listDataJoinSource.datas;
+            datas = decodeXmlEntitiesInDatas(resBody.listDataJoinSource.datas);
             dataConfig = resBody.listDataJoinSource.dataConfig;
+            listDataTab = resBody.listDataTab || [];
+            for (let objDataTab of listDataTab) {
+                objDataTab.datas = decodeXmlEntitiesInDatas(objDataTab.datas);
+            }
             renderDxTabsWithDxGrid(listDataFieldConfig);
 
             exportExcel(objaParams, currentRecord, dataConfig, datas);
@@ -236,6 +367,20 @@ define(['N/currentRecord', 'N/https', 'N/url',
 
             initDataHeaderSheet(currentSheetFirst, headerFields, params, dataConfig);
             updateDataToSheet(currentSheetFirst, lineFields, listDataResult);
+
+            for (let i = 0; i < listDataTab.length; i++) {
+                let objDataTab = listDataTab[i];
+                let currentSheet = workbook.worksheets[i + 1];
+                if (!currentSheet) {
+                    continue;
+                }
+                let tabConfig = objDataTab.txnMappingConfig;
+                let tabHeaderFields = tabConfig.custrecord_scv_txcf_header_field ? JSON.parse(tabConfig.custrecord_scv_txcf_header_field) : {};
+                let tabLineFields = tabConfig.custrecord_scv_txcf_line_field ? JSON.parse(tabConfig.custrecord_scv_txcf_line_field) : {};
+
+                initDataHeaderSheet(currentSheet, tabHeaderFields, params, objDataTab.dataConfig);
+                updateDataToSheet(currentSheet, tabLineFields, objDataTab.datas);
+            }
 
             // Save File
             await libCsXLS.saveWorkbook(workbook, reportName + ".xlsx");
@@ -454,13 +599,28 @@ define(['N/currentRecord', 'N/https', 'N/url',
             libCs.showLoadingDialog(false);
         }
 
+        const redirectReport = (txnReportId) => {
+            let currentRecord = ccr.get();
+            let {objaParams, message} = getParams(currentRecord);
+            if (message) {
+                alert(message);
+            } else {
+                objaParams.isExport = 'F';
+                objaParams.isExecute = 'T';
+                objaParams.custpage_txn_config = txnReportId;
+                window.open(getUrlSearch(objaParams), '_blank');
+            }
+        }
+
         return {
             pageInit: pageInit,
             fieldChanged: fieldChanged,
             refresh,
             searchResult,
+            submitButton,
             exportResult,
-            exportRawData
+            exportRawData,
+            redirectReport
         };
 
     });

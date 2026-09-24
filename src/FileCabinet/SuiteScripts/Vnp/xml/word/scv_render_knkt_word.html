@@ -144,7 +144,10 @@
             <p class="bold h1 report-title">BÁO CÁO KẾT QUẢ THỰC HIỆN CÁC KHUYẾN NGHỊ</p>
             <p class="bold report-subtitle">TẠI BÁO CÁO KIỂM TOÁN NỘI BỘ SỐ ${dataJson.soBaoCao?html} BAN HÀNH NGÀY ${dataJson.ngayPhatHanh?html}</p>
             <p class="bold report-company">CÔNG TY ${dataJson.congTy?html} – ${dataJson.donVi?html}</p>
-            <p class="report-updated"><i>Cập nhật đến <#if dataJson.ngayCapNhat?string?length gt 0>${dataJson.ngayCapNhat?html}<#else>...</#if></i></p>
+            <!-- Chốt 10/09/2026: mẫu lần 1 là phiếu TRỐNG để đơn vị điền tay —
+                 ngày và dữ liệu thực hiện bỏ trống. dataJson.ngayCapNhat vẫn được
+                 Suitelet tính cho mẫu NB, đừng xoá bên scv_sl_knkt_print.js. -->
+            <p class="report-updated"><i>Cập nhật đến ...</i></p>
         </div>
 
         <#list dataJson.phatHienList as ph>
@@ -156,7 +159,7 @@
                         <td class="cell cell-top bold" width="7%" rowspan="2" align="center">TT</td>
                         <td class="cell cell-top bold" width="29%" rowspan="2" align="center">Khuyến nghị</td>
                         <td class="cell cell-top bold" width="14%" rowspan="2" align="center">Thời hạn<br/>phản hồi</td>
-                        <td class="cell-last cell-top bold" colspan="2" align="center">Thực hiện đến ngày <#if ph.ngayThucHien?string?length gt 0>${ph.ngayThucHien?html}<#else>...</#if></td>
+                        <td class="cell-last cell-top bold" colspan="2" align="center">Thực hiện đến ngày ...</td>
                     </tr>
                     <tr>
                         <td class="cell" width="25%" align="center">Tình hình thực hiện</td>
@@ -169,8 +172,12 @@
                             <td class="cell" align="center">${kn.stt?html}</td>
                             <td class="cell cell-left" align="left">${kn.khuyenNghi?html}</td>
                             <td class="cell" align="center">${kn.thoiHanPhanHoi?html}</td>
-                            <td class="cell cell-left" align="left">${kn.tinhHinhThucHien?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}&#160;</td>
-                            <td class="cell-last cell-left" align="left">${kn.ketQuaThucHien?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}&#160;</td>
+                            <!-- Để trống có chủ đích. kn.tinhHinhThucHien / kn.ketQuaThucHien
+                                 VẪN được Suitelet tính: mẫu lần 2 + NB dùng để hiển thị, và
+                                 chính mẫu lần 1 dùng custrecord_scv_kqkn_ketquathuchien để LỌC
+                                 khuyến nghị đã hoàn thành. Không hiển thị != không cần dữ liệu. -->
+                            <td class="cell cell-left" align="left">&#160;</td>
+                            <td class="cell-last cell-left" align="left">&#160;</td>
                         </tr>
                     </#list>
                 </tbody>

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Report</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn3.devexpress.com/jslib/21.1.6/css/dx.light.css" />
+    <link rel="stylesheet" type="text/css" href="https://cdn3.devexpress.com/jslib/21.2.5/css/dx.common.css" />
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script type="text/javascript" src="https://cdn3.devexpress.com/jslib/21.2.5/js/dx.all.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.2.1/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        .card {
+            min-height: 35rem;
+        }
+
+        .dx-header-row {
+            background-color: #E5E5E5 !important;
+            vertical-align: bottom;
+            color: #484848 !important;
+            font-size: 12px;
+            text-align: center!important;
+        }
+
+        td[role=columnheader] {
+            text-align: center!important
+        }
+.lop1-row td:not(:first-child),
+.lop2-row td:not(:first-child) {
+    display: none; /* Ẩn các ô thừa */
+}
+
+        .dx-datagrid-headers {
+            position: sticky;
+            top: 0px;
+            background-color: white;
+            z-index: 1000;
+        }
+        .dx-datagrid-headers .dx-datagrid-table .dx-row > td{
+            border-bottom-width: 1px !important;
+            border-bottom-style: solid !important;
+            border-bottom-color: black !important;
+
+            border-left-width: 1px !important;
+            border-left-style: solid !important;
+            border-left-color: black !important;
+
+            border-right-width: 1px !important;
+            border-right-style: solid !important;
+            border-right-color: black !important;
+
+            border-top-width: 1px !important;
+            border-top-style: solid !important;
+            border-top-color: black !important;
+
+            border-width: 1px !important;
+            border-style: solid !important;
+            border-color: black !important;
+        }
+.align-left td {
+    text-align: left !important;
+}
+
+        .dx-data-row{
+            font-size: 13px
+        }
+        td[valign="top"][colspan="3"] {
+            width: 100% !important;
+        }
+	        td:has(.uir-tab-fields) {
+	            width: 100%;
+	        }
+	        html,
+	        body,
+	        .container-fluid,
+	        .row,
+	        .col-md-12 {
+	            width: 100% !important;
+	            max-width: none !important;
+	        }
+	        #grdData {
+	            width: 100% !important;
+	            max-width: none !important;
+	        }
+	    </style>
+    <script>//FEFEEE
+    $(document).ready(function () {
+        init();
+    });
+
+	    function init(){
+	        opGrid = JSON.parse(JSON.stringify(opGrid));
+	        arrData = JSON.parse(JSON.stringify(arrData));
+	        expandNetSuiteContainer();
+	        renderGridLogCall();
+
+        resizeGrid();
+        syncScvUI();
+    }
+
+    function renderGridLogCall(){
+        var objGrdData = {
+            dataSource: {
+                store: arrData,
+                reshapeOnPush: true,
+            },
+            columns: [],
+            columnResizingMode: opGrid.columnResizingMode||"widget",
+            columnMinWidth: opGrid.columnMinWidth||50,
+            showBorders: setDefaultBoolean(opGrid.showBorders, true),
+            showColumnLines: setDefaultBoolean(opGrid.showColumnLines, true),
+            showRowLines: setDefaultBoolean(opGrid.showRowLines, true),
+            allowColumnResizing: setDefaultBoolean(opGrid.allowColumnResizing, true),
+            columnAutoWidth: setDefaultBoolean(opGrid.columnAutoWidth, true),
+            repaintChangesOnly: setDefaultBoolean(opGrid.repaintChangesOnly, true),
+            wordWrapEnabled: setDefaultBoolean(opGrid.wordWrapEnabled, true),
+            selection: opGrid.selection||"single", // or "multiple" | "none"
+            searchPanel: { visible: setDefaultBoolean(opGrid.searchPanel, true) },
+            groupPanel: { visible: setDefaultBoolean(opGrid.groupPanel, true) },
+            rowAlternationEnabled: setDefaultBoolean(opGrid.rowAlternationEnabled, false),
+            paging: { pageSize: opGrid.pageSize||100},
+            loadPanel: { enabled: setDefaultBoolean(opGrid.loadPanel, true)},
+            columnFixing: {enabled: setDefaultBoolean(opGrid.columnFixing, true)},
+			columnChooser: {enabled: setDefaultBoolean(opGrid.columnChooser, true), mode: opGrid.columnChooseMode||'select'},
+            pager: {
+                showPageSizeSelector: true,
+                allowedPageSizes: [100, 500, 1000, 10000],
+                showPageSizeSelector: true,
+                showInfo: true,
+                showNavigationButtons: true,
+            },
+            editing: {
+                mode: opGrid.editMode||'cell',
+                allowUpdating: setDefaultBoolean(opGrid.allowUpdating, false),
+                allowAdding: setDefaultBoolean(opGrid.allowAdding, false),
+                allowDeleting: setDefaultBoolean(opGrid.allowDeleting, false),
+            },
+            headerFilter: {
+                visible: setDefaultBoolean(opGrid.headerFilterVisible, true),
+                allowSearch: setDefaultBoolean(opGrid.headerFilterAllowSearch, true),
+            },
+            filterRow: {
+                visible: setDefaultBoolean(opGrid.filterRowVisible, true),
+                applyFilter: 'auto',
+            },
+            scrolling: {
+                mode: "standard",
+                scrollByContent: true,
+                showScrollbar: "always"
+            },
+onCellPrepared: function(e) {
+    if (e.rowType === "data") {
+        if (e.data.lv1) {
+            e.cellElement.css({
+                "font-weight": "bold",
+                "background-color": "#f5f5f5",
+                // "text-align": "center",
+            });
+        } else if (e.data.lv2) {
+            e.cellElement.css({
+                "font-weight": "bold",
+                // "background-color": "#e0f7fa",
+                // "text-align": "center",
+            });
+        } else if (e.data.lv3) {
+            e.cellElement.css({
+                "font-weight": "bold",
+                // "background-color": "#E49EDD",
+                // "text-align": "center",
+            });
+        }
+    }
+},
+
+onRowPrepared: function(e) {
+    if (e.rowType === "data") {
+        if (e.data.lv1) {
+            e.rowElement.css({
+                "font-weight": "bold",
+                // "background-color": "#f5f5f5",
+            }) // Thêm class tùy chỉnh
+        } else if (e.data.lv2) {
+            e.rowElement.css({
+                "font-weight": "bold",
+                // "background-color": "#e0f7fa",
+            }) // Thêm class tùy chỉnh
+        }
+    }
+},
+
+
+            sorting: {mode: opGrid.sortingMode||"multiple"},//'multiple'
+            filterPanel: { visible: setDefaultBoolean(opGrid.filterPanel, true)},
+            summary: {},
+            toolbar: {
+                items: [
+                    "groupPanel",
+                    "searchPanel",
+                    "exportButton",
+                    "columnChooserButton"
+                ]
+            }
+        };
+
+        /*if(opGrid.columns.length > 0) {
+            objGrdData.columns = opGrid.columns;
+            objGrdData.columns.forEach(e => {
+                e.headerCellTemplate = function (header, info) {
+                    $('<div>')
+                        .html(info.column.caption)
+                        .css('text-align: center;', 'center')
+                        .appendTo(header);
+                }
+            });
+        }*/
+        if(opGrid.columns.length > 0) {
+            objGrdData.columns = opGrid.columns.map(function(ele_col){
+                ele_col.allowEditing = setDefaultBoolean(ele_col.allowEditing, false);
+                if(!!ele_col.lookup){
+                    if(!!ele_col.lookup.dataSource){
+                        var lstDataSource = [];
+                        var curDS = ele_col.lookup.dataSource;
+                        for(var i = 0; i < curDS.length; i++){
+                            var obj = {...curDS[i]};
+                            lstDataSource.push(obj);
+                        }
+
+                        var valueExpr = ele_col.lookup.valueExpr;
+                        var displayExpr = ele_col.lookup.displayExpr;
+                        var columnsTemplate = [];
+                        if(lstDataSource.length > 0){
+                            var objTemp = lstDataSource[0];
+                            Object.keys(objTemp).forEach(propName => {
+                                if(propName != valueExpr){
+                                    columnsTemplate.push(propName);
+                                }
+                            });
+                        }
+                        
+                        ele_col.editCellTemplate = (cellElement, cellInfo) => {
+                            return $('<div>').dxDropDownBox({
+                            dropDownOptions: { width: 500 },
+                            dataSource: lstDataSource,
+                            keyExpr:valueExpr,
+                            value: cellInfo.value,
+                            valueExpr: valueExpr,
+                            displayExpr: displayExpr,
+                            contentTemplate(e) {
+                                return $('<div>').dxDataGrid({
+                                dataSource:  lstDataSource,
+                                keyExpr: valueExpr,
+                                columns: columnsTemplate,
+                                hoverStateEnabled: true,
+                                scrolling: { mode: 'virtual' },
+                                height: 400,
+                                selection: { mode: 'single' },
+                                selectedRowKeys: [cellInfo.value],
+                                focusedRowEnabled: true,
+                                focusedRowKey: cellInfo.value,
+                                columnResizingMode: opGrid.columnResizingMode||"widget",
+                                columnMinWidth: opGrid.columnMinWidth||50,
+                                showBorders: setDefaultBoolean(opGrid.showBorders, true),
+                                showColumnLines: setDefaultBoolean(opGrid.showColumnLines, true),
+                                showRowLines: setDefaultBoolean(opGrid.showRowLines, true),
+                                allowColumnResizing: setDefaultBoolean(opGrid.allowColumnResizing, true),
+                                columnAutoWidth: setDefaultBoolean(opGrid.columnAutoWidth, true),
+                                repaintChangesOnly: setDefaultBoolean(opGrid.repaintChangesOnly, true),
+                                wordWrapEnabled: setDefaultBoolean(opGrid.wordWrapEnabled, true),
+                                searchPanel: { visible: setDefaultBoolean(opGrid.searchPanel, true) },
+                                headerFilter: {
+                                    visible: true,
+                                    allowSearch: true,
+                                },
+                                filterRow: {
+                                    visible: true,
+                                    applyFilter: 'auto',
+                                },
+                                filterPanel: { visible: setDefaultBoolean(opGrid.filterPanel, true)},
+                                onRowDblClick(event_rowDblclick){
+                                    e.component.option('value', event_rowDblclick.key);
+                                    cellInfo.setValue(event_rowDblclick.key);
+                                    e.component.close();
+                                },
+                                });
+                            },
+                            });
+                        };
+                    }
+                }
+                return ele_col;
+            });
+            objGrdData.columns.forEach((e, idx) => {
+                e.headerCellTemplate = headerCellTemplate;
+                if(!!e.columns && e.columns.length > 0){
+                    e.columns.forEach(colChild => {
+                        colChild.headerCellTemplate = headerCellTemplate
+                    })
+                };
+                e.hightLightRow = e.hightLightRow||{};
+                e.hightLightRow.enable = setDefaultBoolean(e.hightLightRow.enable, false);
+                e.hightLightRow.values = e.hightLightRow.values||[];
+                if(e.hightLightRow.enable == true){
+                    e.cellTemplate = function(container, options){
+                        if(!options.value) return;
+                        var idxValueWarning = e.hightLightRow.values.findIndex(e_find => e_find == options.value);
+                        if(idxValueWarning > -1 || e.hightLightRow.values.length == 0 || options.value == "Total"){
+                            container.parent().css({"background": e.hightLightRow.background || "#ffe082", "font-weight": "bold"});
+                            $('<div>').append("<div>" + options.value + "</div>").appendTo(container);
+                        }else{
+                            if(options.data.tranlink){
+                                $('<div>').append("<div><a target='_blank' href='"+ options.data.tranlink +"'>" + options.value + "</a></div>").appendTo(container);
+                            } else {
+                                $('<div>').append("<div>" + options.value + "</div>").appendTo(container);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        if(opGrid.summaryTotalItems.length > 0){
+            objGrdData.summary.totalItems = opGrid.summaryTotalItems;
+        }
+        if(opGrid.summaryGroupItems.length > 0){
+            objGrdData.summary.groupItems = opGrid.summaryGroupItems;
+        }
+
+        if(opGrid.addMarkAllButtons){
+            objGrdData.toolbar.items.unshift(
+                {
+                    location: 'before',
+                    widget: 'dxButton',
+                    options: {
+                        text: 'Mark All',
+                        onClick(e) {
+                            arrData = arrData.map(function(objData){
+                                objData.is_check = true;
+                                return objData;
+                            });
+                            $("#grdData").dxDataGrid("instance").refresh();
+                        },
+                    },
+                },
+                {
+                    location: 'before',
+                    widget: 'dxButton',
+                    options: {
+                        text: 'Unmark All',
+                        onClick(e) {
+                            arrData = arrData.map(function(objData){
+                                objData.is_check = false;
+                                return objData;
+                            });
+                            $("#grdData").dxDataGrid("instance").refresh();
+                        },
+                    },
+                }
+            );
+        }
+
+        if(opGrid.addMarkFilterButtons){
+            objGrdData.toolbar.items.unshift(
+                {
+                    location: 'before',
+                    widget: 'dxButton',
+                    options: {
+                        text: 'Mark Filter',
+                        onClick(e) {
+                            let dataGrid = $("#grdData").dxDataGrid("instance");
+                            let dataSource = dataGrid.getDataSource();
+                            
+                            dataSource.load().done(function(filteredData) {
+                                arrData.forEach(function(objData) {
+                                    let filteredItem = filteredData.find(filteredObj => filteredObj[opGrid.addMarkFilterButtons] === objData[opGrid.addMarkFilterButtons]);
+                                    if (filteredItem) {
+                                        objData.is_check = true;
+                                    }
+                                });
+                                dataGrid.refresh();
+                            });
+                        },
+                    },
+                },
+                {
+                    location: 'before',
+                    widget: 'dxButton',
+                    options: {
+                        text: 'Unmark Filter',
+                        onClick(e) {
+                            let dataGrid = $("#grdData").dxDataGrid("instance");
+                            let dataSource = dataGrid.getDataSource();
+                            
+                            dataSource.load().done(function(filteredData) {
+                                arrData.forEach(function(objData) {
+                                    let filteredItem = filteredData.find(filteredObj => filteredObj[opGrid.addMarkFilterButtons] === objData[opGrid.addMarkFilterButtons]);
+                                    if (filteredItem) {
+                                        objData.is_check = false;
+                                    }
+                                });
+                                dataGrid.refresh();
+                            });
+                        },
+                    },
+                }
+            );
+        }
+        
+        objGrdData.export = {enabled: setDefaultBoolean(opGrid.exportExcelEnable, true)};
+        if(objGrdData.export.enabled){
+            var objExcel = opGrid.excel||{};
+            var fileName = objExcel.name||"Report " + Date.now();
+            objGrdData.onExporting = function(e) {
+                var workbook = new ExcelJS.Workbook();
+                var worksheet = workbook.addWorksheet(objExcel.worksheet||'Report');
+                DevExpress.excelExporter.exportDataGrid({
+                    component: e.component,
+                    worksheet: worksheet,
+                    autoFilterEnabled: true,
+                }).then(function() {
+                    worksheet.eachRow((row) => {
+                        row.eachCell((cell) => {
+                            delete cell.fill;
+                        });
+                    });
+                    workbook.xlsx.writeBuffer().then(function(buffer) {
+                        saveAs(new Blob([buffer], { type: 'application/octet-stream' }), fileName+'.xlsx');
+                    });
+                });
+                e.cancel = true;
+            }
+        }
+
+        if(!!opGrid?.toolbar?.items){
+            let items = opGrid.toolbar.items;
+            for(let i = 0; i < items.length; i++){
+                objGrdData.toolbar.items.push(items[i])
+            }
+        }
+
+        $('#grdData').dxDataGrid(objGrdData);
+    }
+
+    function setDefaultBoolean(val, val_def){
+        return typeof(val) == "boolean" ? val : val_def;
+    }
+
+    function headerCellTemplate(header, info){
+        if(!!info.column.headerStyle) {
+            let style = info.column.headerStyle;
+            Object.keys(style).forEach(ele => {
+                if(!!style[ele]){
+                    let objCss = {};
+                    objCss[ele] = style[ele];
+                    header.parent().css(objCss);
+                    header.css(objCss);
+                }
+            })
+        }
+        $('<div>')
+            .html(info.column.caption)
+            .css('text-align: center;', 'center')
+            .appendTo(header);
+    }
+
+    // function resizeGrid(){
+    //     var windowWidth = window.innerWidth;
+    //     $('#grdData').css("width",(windowWidth - 100) + "px");
+    //     $('#grdData').css("max-width",(windowWidth - 100) + "px");
+    //     setTimeout(function(){
+    //         resizeGrid()
+    //     }, 100);
+    // }
+	    function getAvailableGridWidth() {
+	        var grid = document.getElementById('grdData');
+	        var left = grid ? grid.getBoundingClientRect().left : 0;
+	        return Math.max(window.innerWidth - left - 20, 900);
+	    }
+
+	    function resizeGrid() {
+	        expandNetSuiteContainer();
+	        var width = getAvailableGridWidth();
+	        $('#grdData').css({width: width + 'px', maxWidth: width + 'px'});
+	        var gridInstance = $('#grdData').dxDataGrid && $('#grdData').dxDataGrid('instance');
+	        if (gridInstance) {
+	            gridInstance.updateDimensions();
+	        }
+	        setTimeout(function () {
+	            resizeGrid()
+	        }, 1000);
+	    }
+
+	    function expandNetSuiteContainer() {
+	        var grid = document.getElementById('grdData');
+	        if (!grid) return;
+	        var node = grid.parentElement;
+	        while (node && node !== document.body) {
+	            if (node.tagName === 'TD') {
+	                node.colSpan = Math.max(node.colSpan || 1, 2);
+	            }
+	            node.style.width = '100%';
+	            node.style.minWidth = '100%';
+	            node.style.maxWidth = 'none';
+	            node = node.parentElement;
+	        }
+	    }
+
+    //PQH: test lỗi treo màn hình
+    function syncScvUI(){
+        console.log("sync UI")
+        setTimeout(function(){
+            syncScvUI();
+        }, 10000);
+    }
+    </script>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12 p-2">
+            <div style="overflow-x: auto; width: 100%;"> <!-- Thêm dòng này -->
+                <div id="grdData"></div>
+            </div>
+<!--            <div id="grdData"></div>-->
+        </div>
+
+    </div>
+</div>
+</body>
+</html>

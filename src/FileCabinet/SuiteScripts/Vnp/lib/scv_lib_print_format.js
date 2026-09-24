@@ -112,6 +112,70 @@ define(['N/search', 'N/log'], (search, log) => {
     };
 
     /**
+     * Reads values from a sublist subrecord by line and field.
+     * A line without the requested subrecord, unavailable subrecords, and caught
+     * errors return an empty array. Each returned object is keyed by subFieldId.
+     * @param {Object} rec
+     * @param {string} sublistId
+     * @param {string} fieldId
+     * @param {number} lineIndex
+     * @param {string} subSublistId
+     * @param {string[]} subFieldIds
+     * @param {string[]} [subTextFieldIds]
+     * @returns {Array<Object>}
+     */
+    const readSublistSubrecordValues = (
+        rec, sublistId, fieldId, lineIndex, subSublistId, subFieldIds,
+        subTextFieldIds
+    ) => {
+        try {
+            const subrecord = rec.getSublistSubrecord({
+                sublistId,
+                fieldId,
+                line: lineIndex
+            });
+            if (!subrecord) return [];
+
+            const fields = Array.isArray(subFieldIds) ? subFieldIds : [];
+            const lineCount = subrecord.getLineCount({sublistId: subSublistId});
+            const values = [];
+
+            for (let subLineIndex = 0; subLineIndex < lineCount; subLineIndex += 1) {
+                const row = {};
+                fields.forEach((subFieldId) => {
+                    try {
+        const value = subrecord.getSublistValue({
+            sublistId: subSublistId,
+            fieldId: subFieldId,
+            line: subLineIndex
+        });
+        if (Array.isArray(subTextFieldIds) && subTextFieldIds.includes(subFieldId)) {
+            try {
+                const text = subrecord.getSublistText({
+                    sublistId: subSublistId,
+                    fieldId: subFieldId,
+                    line: subLineIndex
+                });
+                row[subFieldId + 'Text'] = text === null || text === undefined ? '' : text;
+            } catch (e) {
+                row[subFieldId + 'Text'] = '';
+            }
+        }
+                        row[subFieldId] = value === null || value === undefined ? '' : value;
+                    } catch (error) {
+                        row[subFieldId] = '';
+                    }
+                });
+                values.push(row);
+            }
+
+            return values;
+        } catch (error) {
+            return [];
+        }
+    };
+
+    /**
      * Reads an item sublist value by (record, field, line).
      * Raw null/undefined values are preserved; caught errors return undefined.
      * CHÚ Ý: thứ tự tham số NGƯỢC với readSublistValue. Gọi nhầm không ném lỗi mà lặng lẽ trả rỗng.
@@ -196,6 +260,7 @@ define(['N/search', 'N/log'], (search, log) => {
         formatDate,
         readSublistValue,
         readSublistText,
+        readSublistSubrecordValues,
         getSublistValueSafe,
         getSafeFieldValue,
         getSafeFieldText

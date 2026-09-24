@@ -2,7 +2,7 @@ define([],
     () => {
         
         const PRIMARY_COLOR = "#000000";
-        const PRIMARY_BG = "";
+        const PRIMARY_BG = "#D3E0E6";
         const FONT_SIZE = "15px";
         const FONT_FAMILY = "'Times New Roman', Times, serif";
         

@@ -6,6 +6,17 @@ define(['N/query', 'N/runtime', 'N/url', '../common/scv_common_input_data.js'],
 
     (query, runtime, url, commonData) => {
 
+        /**
+         * Defines the Suitelet script trigger point.
+         * @param {Object} scriptContext
+         * @param {ServerRequest} scriptContext.request - Incoming request
+         * @param {ServerResponse} scriptContext.response - Suitelet response
+         * @since 2015.2
+         */
+        const onRequest = (scriptContext) => {
+            scriptContext.response.write({output: buildHtml(getSubsidiaryOptions(), getProcessUrl())});
+        }
+
         // Escape ký tự đặc biệt để nhúng an toàn vào HTML
         const escapeHtml = (s) => String(s == null ? '' : s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -30,16 +41,6 @@ define(['N/query', 'N/runtime', 'N/url', '../common/scv_common_input_data.js'],
                 .join('');
         };
 
-        /**
-         * Defines the Suitelet script trigger point.
-         * @param {Object} scriptContext
-         * @param {ServerRequest} scriptContext.request - Incoming request
-         * @param {ServerResponse} scriptContext.response - Suitelet response
-         * @since 2015.2
-         */
-        const onRequest = (scriptContext) => {
-            scriptContext.response.write({ output: buildHtml(getSubsidiaryOptions(), getProcessUrl())});
-        }
 
         /**
          * Resolve URL của Suitelet xử lý để client gọi bằng fetch/ajax

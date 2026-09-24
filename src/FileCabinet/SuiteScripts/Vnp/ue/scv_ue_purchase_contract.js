@@ -5,7 +5,7 @@
 define(['N/url', '../lib/scv_lib_purchase_contract_calc'],
     (url, libCalc) => {
 
-        // FDD (FIN) - Chức năng tạo Payment Request từ PC, PO - sheet "Từ PC"
+        // Sales Contract buttons: create payment request and create Sales Order.
         const PAYR_RECORD = 'customrecord_scv_paymentrequest';
         const ALLOWED_ORDER_TYPES = ['1', '2', '3', '4', '5'];
         const APPROVAL_STATUS_APPROVED = '6';
@@ -22,7 +22,7 @@ define(['N/url', '../lib/scv_lib_purchase_contract_calc'],
                 if (scriptContext.type !== scriptContext.UserEventType.VIEW) return;
                 addPaymentRequestButton(scriptContext.form, scriptContext.newRecord);
             } catch (e) {
-                log.error('beforeLoad Purchase Contract Payment Request button', e);
+                log.error('beforeLoad Sales Contract buttons', e);
             }
         }
 
@@ -54,7 +54,7 @@ define(['N/url', '../lib/scv_lib_purchase_contract_calc'],
         const beforeSubmit = (scriptContext) => {
             try {
                 if (scriptContext.type !== 'create' && scriptContext.type !== 'edit') return;
-                libCalc.recalcAllLines(scriptContext.newRecord);
+                libCalc.recalcTotalFromAllLines(scriptContext.newRecord);
             } catch (e) {
                 log.error('Error beforeSubmit', e);
             }

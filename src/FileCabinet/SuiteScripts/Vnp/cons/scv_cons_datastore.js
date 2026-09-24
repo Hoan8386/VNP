@@ -1,18 +1,15 @@
 /**
  * Nội dung: 
- * Version: 1.250612.4
+ * Version: 1.260716.10
  * =======================================================================================
  *  Date                Author                  Description
  *  12 Jun 2024         Huy Pham                Init & create file
  */
 define(['N/query', 'N/record', 
     '../cons/scv_cons_crypto.js'
-],
-function(query, record, 
+], (query, record, 
     constCrypto
-) {
-	const ID = "";
-    const TYPE = "";
+) => {
 	const RECORDS = {
         _N:{
             file: null
@@ -37,13 +34,36 @@ function(query, record,
                 NAME: "Temporary",
                 PARENT_NAME: "DataStore",
             },
+            FileImport: {
+                ID: "",
+                NAME: "FileImport",
+                PARENT_NAME: "DataStore",
+            },
+            SuiteQL: {
+                ID: "",
+                NAME: "SuiteQL",
+                PARENT_NAME: "DataStore",
+            },
+            OpenAI: {
+                ID: "",
+                NAME: "OpenAI",
+                PARENT_NAME: "DataStore",
+            },
+            BackupRecords: {
+                ID: "",
+                NAME: "BackupRecords",
+                PARENT_NAME: "DataStore",
+            },
         }
     }
 
 	let dataStore = {};
 
-    const initModulServer = ({file}) =>{
-		RECORDS._N.file = file||null;
+    const initModulServer = () =>{
+        require(['N/file'], function (N_file)
+        {
+            RECORDS._N.file = N_file;
+        });
 	}
 
     const setDataStore = (_key, _dataSource) =>{
@@ -70,7 +90,7 @@ function(query, record,
         });
 
         let arrFolderCabinet = query.runSuiteQL({
-            query: `SELECT parent, id, name, appfolder
+            query: `SELECT parent, id, name, appfolder, level as folder_level
             FROM MediaItemFolder
             WHERE name IN ('${arrFolderName.join("','")}')
             START WITH id = '${RECORDS.Folder.UserDocuments.ID}'
@@ -178,11 +198,10 @@ function(query, record,
             folderName = RECORDS.Folder.Temporary.NAME, 
             fileName = constCrypto.generateUUID(),
             fileType = "JSON",
-            N_file = null
         }) =>{
 
-        if(!!N_file && !RECORDS._N.file){
-            initModulServer({file: N_file});
+        if(!RECORDS._N.file){
+            initModulServer();
         }
 
         let dataStore = getDataStore(key);
@@ -209,11 +228,10 @@ function(query, record,
         folderName = RECORDS.Folder.Temporary.NAME,
         fileName = "",
         fileType = "JSON",
-        N_file = null
     }) =>{
 
-        if(!!N_file && !RECORDS._N.file){
-            initModulServer({file: N_file});
+        if(!RECORDS._N.file){
+            initModulServer();
         }
 
         let fileId = id;
@@ -242,9 +260,27 @@ function(query, record,
         return contents;
     }
 
+    const deleteDataStoreFile = ({
+        id = null,
+        folderName = RECORDS.Folder.Temporary.NAME,
+        fileName = "",
+    }) =>{
+        if(!RECORDS._N.file){
+            initModulServer();
+        }
+
+        let fileId = id;
+        
+        if(!fileId){
+            let filePath = getPathDataStoreFile({folderName, fileName});
+            let fileData = RECORDS._N.file.load({id: filePath});
+
+            fileId = fileData.id;
+        }
+
+        RECORDS._N.file.delete({id: fileId});
+    }
     return {
-		ID,
-		TYPE,
 		RECORDS,
         initModulServer,
 		setDataStore,
@@ -253,7 +289,8 @@ function(query, record,
         getFolderIdByName,
         getPathDataStoreFile,
         saveDataStoreFile,
-        loadDataStoreFile
+        loadDataStoreFile,
+        deleteDataStoreFile,
     };
     
 });

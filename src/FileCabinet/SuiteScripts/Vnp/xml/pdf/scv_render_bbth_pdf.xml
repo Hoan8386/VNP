@@ -1,0 +1,201 @@
+<?xml version="1.0"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+    <head>
+        <link name="Times" type="font" subtype="opentype"
+              src="${libPdf.font.times?html}"
+              src-bold="${libPdf.font.times_bold?html}"
+              src-italic="${libPdf.font.times_italic?html}"
+              src-bolditalic="${libPdf.font.times_bolditalic?html}"
+              bytes="2"/>
+        <style type="text/css">
+            * {
+            font-family: Times;
+            font-size: 10pt;
+            }
+            table {
+            font-family: Times;
+            font-size: 10pt;
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            }
+            td {
+            font-family: Times;
+            font-size: 10pt;
+            text-align: center;
+            <!--            vertical-align: middle;-->
+            }
+            .h1 {
+            font-size: 18pt;
+            }
+            .table-cus {
+            width: 100%;
+            border-spacing: 0;
+            }
+            .cell {
+            border-left: 0.5pt solid black;
+            border-bottom: 0.5pt solid black;
+            padding: 6pt 4pt;
+            text-align: center;
+            }
+            .cell-last {
+            border-left: 0.5pt solid black;
+            border-right: 0.5pt solid black;
+            border-bottom: 0.5pt solid black;
+            padding: 6pt 4pt;
+            text-align: center;
+            }
+            .cell-top {
+            border-top: 0.5pt solid black;
+            }
+            .bold {
+            font-weight: bold;
+            }
+            .m-0{
+            margin: 0;
+            padding: 0;
+            }
+        </style>
+    </head>
+    <body size="A4" orientation="portrait" padding="30px">
+        <!-- Document code -->
+        <table width="100%" style="margin-top: 0;">
+            <tr>
+                <td width="100%" style="text-align: right;" align="right">
+                    <p class="bold m-0" align="right">BM.02.QT.KDXNK.09</p>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Title and transaction date -->
+        <table width="100%" style="margin-top: 18px;">
+            <tr>
+                <td width="100%" align="center">
+                    <p class="h1 bold m-0" align="center">BIÊN BẢN TRẢ HÀNG</p>
+                </td>
+            </tr>
+            <tr style="margin-top: 8px;">
+                <td width="100%" align="left">
+                    <!-- Địa điểm để chữ tĩnh: địa chỉ trong account nhập free text (override=T),
+                         không có field thành phố tách sẵn để đọc. Xem CODEX_GOAL_bbth_city_static.md. -->
+                    <p align="left" margin="0" padding="0">Hôm nay, Hà Nội ngày ${dataJson.tranday} tháng ${dataJson.tranmonth} năm ${dataJson.tranyear}</p>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Legal basis -->
+        <table width="100%" style="margin-top: 18px;">
+            <tr>
+                <td width="100%" align="left">
+                    <!-- TODO(BA-Q1): FDD bỏ trống Field ID; giữ nguyên dấu chấm tĩnh. -->
+                    <p align="left" margin-left="20px" margin-top="0" margin-bottom="0" padding="0">- Căn cứ biên bản kiểm nhận ngày ...... tháng ...... năm ......</p>
+                </td>
+            </tr>
+            <tr>
+                <td width="100%" align="left">
+                    <p align="left" margin-left="20px" margin-top="0" margin-bottom="0" padding="0">- Căn cứ chỉ đạo của Tổng Giám đốc Tổng công ty Dược Việt Nam – CTCP.</p>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Return statement -->
+        <table width="100%" style="margin-top: 12px;">
+            <tr>
+                <td width="100%" style="text-align: left;" align="left">
+                    <#if subsidiary??><b>${subsidiary.legalname!''}</b></#if>
+                    trả lại cho
+                    <#if vendor??><i>${vendor.custentity_scv_legal_name!''}</i></#if>
+                    số hàng sau:
+                </td>
+            </tr>
+        </table>
+
+        <!-- Item lines -->
+        <table width="100%" class="table-cus" align="center" style="margin-top: 18px;">
+            <thead>
+                <tr height="42px">
+                    <td class="cell cell-top bold" width="6%" rowspan="2" align="center">STT</td>
+                    <td class="cell cell-top bold" width="49%" colspan="3" align="center">Tên mục kiểm soát</td>
+                    <td class="cell cell-top bold" width="8%" rowspan="2" align="center">ĐVT</td>
+                    <td class="cell cell-top bold" width="9%" rowspan="2" align="center">Số lượng</td>
+                    <td class="cell cell-top bold" width="18%" rowspan="2" align="center">Lý do trả lại</td>
+                    <td class="cell-last cell-top bold" width="10%" rowspan="2" align="center">Ghi chú</td>
+                </tr>
+                <tr height="30px">
+                    <td class="cell bold" width="26%" align="center">Tên hàng</td>
+                    <td class="cell bold" width="12%" align="center">SKS</td>
+                    <td class="cell bold" width="11%" align="center">HD</td>
+                </tr>
+            </thead>
+            <tbody>
+                <#list dataJson.lines as line>
+                    <#if line_has_next>
+                        <#assign lineBorder = "0.5pt dotted black">
+                    <#else>
+                        <#assign lineBorder = "0.5pt solid black">
+                    </#if>
+                    <tr height="30px">
+                        <td class="cell" style="border-bottom: ${lineBorder};" align="center">${line.stt}</td>
+                        <td class="cell" style="border-bottom: ${lineBorder}; text-align: left;" align="left"><p align="left" margin="0" padding="0">${line.tenHang}</p></td>
+                        <td class="cell" style="border-bottom: ${lineBorder};" align="center">${line.sks}</td>
+                        <td class="cell" style="border-bottom: ${lineBorder};" align="center">${line.hd}</td>
+                        <td class="cell" style="border-bottom: ${lineBorder};" align="center">${line.dvt}</td>
+                        <td class="cell" style="border-bottom: ${lineBorder}; text-align: right;" align="right">${line.soLuong}</td>
+                        <!-- TODO(BA-Q2): body field may not exist on the account; !'' keeps print safe. -->
+                        <td class="cell" style="border-bottom: ${lineBorder}; text-align: left;" align="left">${record.custbody_scv_rea_reason!''}</td>
+                        <!-- TODO(BA-Q4): FDD has no Field ID for Ghi chú; keep this cell empty. -->
+                        <td class="cell-last" style="border-bottom: ${lineBorder};" align="center">&#160;</td>
+                    </tr>
+                </#list>
+                <#if dataJson.lines?size == 0>
+                    <tr height="30px">
+                        <td class="cell" style="border-bottom: 0.5pt solid black;" align="center">&#160;</td>
+                        <td class="cell" style="border-bottom: 0.5pt solid black; text-align: left;" align="left">&#160;</td>
+                        <td class="cell" style="border-bottom: 0.5pt solid black;" align="center">&#160;</td>
+                        <td class="cell" style="border-bottom: 0.5pt solid black;" align="center">&#160;</td>
+                        <td class="cell" style="border-bottom: 0.5pt solid black;" align="center">&#160;</td>
+                        <td class="cell" style="border-bottom: 0.5pt solid black; text-align: right;" align="right">&#160;</td>
+                        <td class="cell" style="border-bottom: 0.5pt solid black; text-align: left;" align="left">&#160;</td>
+                        <td class="cell-last" style="border-bottom: 0.5pt solid black;" align="center">&#160;</td>
+                    </tr>
+                </#if>
+            </tbody>
+        </table>
+
+        <!-- Copy statement -->
+        <table width="100%" style="margin-top: 18px;">
+            <tr>
+                <td width="100%" align="center">
+                    Biên bản được lập thành 02 bản có giá trị như nhau, mỗi bên giữ 01 bản.
+                </td>
+            </tr>
+        </table>
+
+        <!-- Signatures -->
+        <table width="100%" style="margin-top: 40px;">
+            <tr>
+                <td style="text-align: left; height: 70px;" align="left" width="50%">
+                    <table width="70%" style="width: 70%;" align="left">
+                        <tr>
+                            <td style="text-align: center;" align="center">
+                                <p align="center" class="bold" margin="0" padding="0">Bên nhận</p>
+                                <p align="center" class="bold" margin="0" padding="0"><i>(Ký tên)</i></p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+                <td style="text-align: right; height: 70px;" align="right" width="50%">
+                    <table width="70%" style="width: 70%;" align="right">
+                        <tr>
+                            <td style="text-align: center;" align="center">
+                                <p align="center" class="bold" margin="0" padding="0">Bên giao</p>
+                                <p align="center" class="bold" margin="0" padding="0"><i>(Ký tên)</i></p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </pdf>

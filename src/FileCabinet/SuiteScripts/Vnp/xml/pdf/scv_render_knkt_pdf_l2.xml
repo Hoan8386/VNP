@@ -83,8 +83,8 @@
                         <td class="cell cell-top bold" width="6%" align="center">TT</td>
                         <td class="cell cell-top bold" width="22%" align="center">Khuyến nghị</td>
                         <td class="cell cell-top bold" width="14%" align="center">Thời hạn<br/>phản hồi</td>
-                        <td class="cell cell-top bold" width="29%" align="center">Tình hình và kết quả thực hiện<br/>đến ngày <#if ph.ngayThucHienTruoc?has_content>${ph.ngayThucHienTruoc?html}<#else>…</#if></td>
-                        <td class="cell-last cell-top bold" width="29%" align="center">Tình hình và kết quả thực hiện<br/>đến ngày <#if ph.ngayThucHien?has_content>${ph.ngayThucHien?html}<#else>…</#if></td>
+                        <td class="cell cell-top bold" width="29%" align="center">Tình hình và kết quả thực hiện<br/>đến ngày <#if ph.ngayThucHien?has_content>${ph.ngayThucHien?html}<#else>…</#if></td>
+                        <td class="cell-last cell-top bold" width="29%" align="center">Tình hình và kết quả thực hiện<br/>đến ngày …</td>
                     </tr>
                 </thead>
                 <tbody>
@@ -93,8 +93,8 @@
                             <td class="cell" align="center">${kn.stt?html}</td>
                             <td class="cell cell-left">${kn.khuyenNghi?html}</td>
                             <td class="cell" align="center">${kn.thoiHanPhanHoi?html}</td>
-                            <td class="cell cell-left">${kn.tinhHinhThucHienTruoc?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}</td>
-                            <td class="cell-last cell-left">${kn.tinhHinhThucHien?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}</td>
+                            <td class="cell cell-left">${kn.tinhHinhThucHien?html?replace("\r\n", "<br/>")?replace("\n", "<br/>")}</td>
+                            <td class="cell-last cell-left"></td>
                         </tr>
                     </#list>
                 </tbody>

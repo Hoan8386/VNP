@@ -9,9 +9,9 @@
  * @NScriptType ClientScript
  * @NModuleScope SameAccount
  */
-define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js', '../olib/lodash.min.js'],
+define(['N/currentRecord', 'N/search', 'N/record', '../common/scv_common_duplicate.js', '../olib/clib.js', '../olib/lodash.min.js', '../lib/scv_lib_function.js'],
 
-    (currentRecord, duplicateCheck, clib, _) => {
+    (currentRecord, search, record, duplicateCheck, clib, _, libFn) => {
 
         let sstax;
         let paymentAmountManuallyChanged = false;
@@ -23,6 +23,7 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
         const staticFields = {
             [staticTransType.PAYMENT_REQUEST]: {
                 'recmachcustrecord_scv_pay': {
+                    ITEM: 'custrecord_scv_pay_detail_item',
                     QUANTITY: 'custrecord_scv_pay_detail_qty',
                     RATE: 'custrecord_scv_pay_detail_rate',
                     TAX_RATE: 'custrecord_scv_pay_detail_taxrate',
@@ -91,6 +92,22 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
         }
 
 
+        const getItemPurchaseTaxCode = (itemId) => {
+            try {
+                if (!isNotNull(itemId)) return '';
+                let itemType = libFn.getItemRecordType(itemId);
+                if (!isNotNull(itemType)) return '';
+                let lkItem = search.lookupFields({type: itemType, id: itemId, columns: ['taxschedule']});
+                let taxScheduleId = lkItem.taxschedule?.[0]?.value;
+                if (!isNotNull(taxScheduleId)) return '';
+                let recSchedule = record.load({type: 'taxschedule', id: taxScheduleId});
+                return recSchedule.getSublistValue({sublistId: 'nexuses', fieldId: 'salestaxcode', line: 0}) || '';
+            } catch (e) {
+                console.log('getItemPurchaseTaxCode:' + JSON.stringify(e));
+                return '';
+            }
+        }
+
         const updateDataInLine = (scriptContext) => {
             try {
                 let currentRecord = scriptContext.currentRecord;
@@ -105,7 +122,21 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
                 // Return list fields record
                 let factorCurrency = getFactorCurrency(currentRecord);
                 let staticFieldsRecord = staticFields[transType][sublistId];
-                if (scriptContext.fieldId === staticFieldsRecord.TAX_CODE) {
+                let fieldId = scriptContext.fieldId;
+
+                if (fieldId === staticFieldsRecord.ITEM) {
+                    let itemId = currentRecord.getCurrentSublistValue({
+                        sublistId: scriptContext.sublistId,
+                        fieldId: staticFieldsRecord.ITEM
+                    });
+                    let purchaseTaxCode = getItemPurchaseTaxCode(itemId);
+                    if (isNotNull(purchaseTaxCode)) {
+                        funcSetCurrentLineValue(currentRecord, scriptContext.sublistId, staticFieldsRecord.TAX_CODE, purchaseTaxCode);
+                        fieldId = staticFieldsRecord.TAX_CODE;
+                    }
+                }
+
+                if (fieldId === staticFieldsRecord.TAX_CODE) {
                     let taxcode = currentRecord.getCurrentSublistValue({
                         sublistId: scriptContext.sublistId,
                         fieldId: staticFieldsRecord.TAX_CODE
@@ -115,7 +146,7 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
                     funcSetCurrentLineValue(currentRecord, scriptContext.sublistId, staticFieldsRecord.TAX_RATE, _.replace(rate, '%', ''));
                 }
 
-                if (scriptContext.fieldId === staticFieldsRecord?.RATE || scriptContext.fieldId === staticFieldsRecord?.QUANTITY) {
+                if (fieldId === staticFieldsRecord?.RATE || fieldId === staticFieldsRecord?.QUANTITY) {
                     let quantity = currentRecord.getCurrentSublistValue({
                         sublistId: scriptContext.sublistId,
                         fieldId: staticFieldsRecord.QUANTITY
@@ -133,7 +164,7 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
                     }
                 }
 
-                if (scriptContext.fieldId === staticFieldsRecord.TAX_CODE || scriptContext.fieldId === staticFieldsRecord.AMOUNT) {
+                if (fieldId === staticFieldsRecord.TAX_CODE || fieldId === staticFieldsRecord.AMOUNT) {
                     if (staticFieldsRecord.AMOUNT) {
                         amount = currentRecord.getCurrentSublistValue({
                             sublistId: scriptContext.sublistId,
@@ -154,7 +185,7 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
                     funcSetCurrentLineValue(currentRecord, scriptContext.sublistId, staticFieldsRecord.GROSS_AMOUNT, roundValue(grossAmount, factorCurrency));
                 }
 
-                if (scriptContext.fieldId === staticFieldsRecord.TAX_AMOUNT) {
+                if (fieldId === staticFieldsRecord.TAX_AMOUNT) {
                     amount = currentRecord.getCurrentSublistValue({
                         sublistId: scriptContext.sublistId,
                         fieldId: staticFieldsRecord.AMOUNT
@@ -167,7 +198,7 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
                     funcSetCurrentLineValue(currentRecord, scriptContext.sublistId, staticFieldsRecord.GROSS_AMOUNT, roundValue(grossAmount, factorCurrency));
                 }
 
-                updateSumGrossAmount(scriptContext, grossAmount, amount, taxamt, scriptContext.lineNum)
+                updateSumGrossAmount(scriptContext, grossAmount, amount, taxamt)
 
             } catch (e) {
                 log.error("Error update Data In Line Expense: ", e);
@@ -218,6 +249,9 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
             if (transType !== staticTransType.PAYMENT_REQUEST || !staticFields[transType]) return;
             const listSublist = staticFields[transType].listSublist;
             if (listSublist.indexOf(sublistId) === -1) return;
+            if (lineId === undefined || lineId === null || lineId === '') {
+                lineId = curRec.getCurrentSublistIndex({sublistId});
+            }
             const objAmt = funcGetTotalAmount(curRec, sublistFieldChanged, 1, grossAmount, amount, taxAmt, lineId);
             updateAmountMain(curRec, transType, objAmt);
         }
@@ -231,13 +265,25 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
         const updateAmountMain = (curRec, transType, objAmt) => {
             let factorNumber = getFactorCurrency(curRec);
             if (staticFields[transType].SUM_AMOUNT) {
-                curRec.setValue(staticFields[transType].SUM_AMOUNT, roundValue(objAmt.totalAmount, factorNumber), true);
+                curRec.setValue({
+                    fieldId: staticFields[transType].SUM_AMOUNT,
+                    value: roundValue(objAmt.totalAmount, factorNumber),
+                    ignoreFieldChange: true
+                });
             }
             if (staticFields[transType].SUM_GROSS_AMT && !paymentAmountManuallyChanged) {
-                curRec.setValue(staticFields[transType].SUM_GROSS_AMT, roundValue(objAmt.totalGrossAmt, factorNumber), true);
+                curRec.setValue({
+                    fieldId: staticFields[transType].SUM_GROSS_AMT,
+                    value: roundValue(objAmt.totalGrossAmt, factorNumber),
+                    ignoreFieldChange: true
+                });
             }
             if (staticFields[transType].SUM_TAX_AMT) {
-                curRec.setValue(staticFields[transType].SUM_TAX_AMT, roundValue(objAmt.totalTaxAmt, factorNumber), true);
+                curRec.setValue({
+                    fieldId: staticFields[transType].SUM_TAX_AMT,
+                    value: roundValue(objAmt.totalTaxAmt, factorNumber),
+                    ignoreFieldChange: true
+                });
             }
         }
 
@@ -276,28 +322,8 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
             if (transType !== staticTransType.PAYMENT_REQUEST || !staticFields[transType]) return;
             const listSublist = staticFields[transType].listSublist;
             if (listSublist.indexOf(sublistId) === -1) return;
-            let grossAmount = 0, amount = 0, taxAmt = 0;
-            if (staticFields[transType][sublistId].GROSS_AMOUNT) {
-                grossAmount = curRecLine.getCurrentSublistValue({
-                    sublistId: sublistId,
-                    fieldId: staticFields[transType][sublistId].GROSS_AMOUNT
-                }) * 1;
-            }
-            if (staticFields[transType][sublistId].AMOUNT) {
-                amount = curRecLine.getCurrentSublistValue({
-                    sublistId: sublistId,
-                    fieldId: staticFields[transType][sublistId].AMOUNT
-                }) * 1;
-            }
-            if (staticFields[transType][sublistId].TAX_AMOUNT) {
-                taxAmt = curRecLine.getCurrentSublistValue({
-                    sublistId: sublistId,
-                    fieldId: staticFields[transType][sublistId].TAX_AMOUNT
-                }) * 1;
-            }
-            const lineId = curRecLine.getCurrentSublistIndex({sublistId: sublistId});
             let curRec = currentRecord.get();
-            const objAmt = funcGetTotalAmount(curRec, sublistId, factor, grossAmount, amount, taxAmt, lineId);
+            const objAmt = funcGetTotalAmount(curRec, sublistId);
             updateAmountMain(curRec, transType, objAmt);
         }
 
@@ -322,14 +348,15 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
             };
             const listSublist = staticFields[transType].listSublist;
             const npSL = listSublist.length;
-            const currentLine = Number(lineId);
+            const currentLine = (lineId !== '' && lineId !== null && lineId !== undefined) ? Number(lineId) : -1;
+            const hasCurrentLine = !isNaN(currentLine) && currentLine >= 0;
             for (let i = 0; i < npSL; i++) {
                 const curSublistId = listSublist[i];
                 const objFieldSublist = staticFields[transType][curSublistId];
                 const lineCount = curRec.getLineCount(curSublistId);
                 for (let j = 0; j < lineCount; j++) {
                     let lineGrossAmount = 0, lineAmount = 0, lineTaxAmt = 0;
-                    if (j === currentLine && sublistFieldChanged === curSublistId) {
+                    if (hasCurrentLine && j === currentLine && sublistFieldChanged === curSublistId) {
                         lineGrossAmount = grossAmount * factor;
                         lineAmount = amount * factor;
                         lineTaxAmt = taxAmt * factor;
@@ -361,7 +388,7 @@ define(['N/currentRecord', '../common/scv_common_duplicate.js', '../olib/clib.js
                     totalTaxAmt += lineTaxAmt;
                 }
 
-                if (currentLine === lineCount) {
+                if (hasCurrentLine && currentLine === lineCount) {
                     totalGrossAmt += grossAmount * factor;
                     totalAmount += amount * factor;
                     totalTaxAmt += taxAmt * factor;

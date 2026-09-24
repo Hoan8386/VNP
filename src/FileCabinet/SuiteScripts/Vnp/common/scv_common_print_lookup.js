@@ -71,9 +71,26 @@ define(['N/query', '../lib/scv_lib_print_format.js'], (query, libPrintFormat) =>
         return libPrintFormat.asText(rows[0]?.symbol);
     };
 
+    /**
+     * Gets an entity's VNP legal name without allowing an unavailable field or
+     * lookup error to stop the print.
+     * @param {string} entityType
+     * @param {string|number} entityId
+     * @returns {string}
+     */
+    const getEntityLegalName = (entityType, entityId) => {
+        if (!entityType || !entityId) return '';
+        return libPrintFormat.getSafeFieldValue(
+            entityType,
+            entityId,
+            'custentity_scv_legal_name'
+        );
+    };
+
     return {
         getSubsidiaryInfo,
         getSubsidiaryLegalName,
-        getCurrencySymbol
+        getCurrencySymbol,
+        getEntityLegalName
     };
 });

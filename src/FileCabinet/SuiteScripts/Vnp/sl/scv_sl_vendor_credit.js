@@ -35,11 +35,14 @@ define(['N/record', 'N/search', '../common/scv_common_internal.js'],
         const onRequest = (scriptContext) => {
             let parameters = scriptContext.request.parameters;
             let vendorcreditId = parameters.vendorcreditId;
+            // Type của record nguồn truyền từ UE (../ue/scv_ue_vendor_credit.js) - không hardcode
+            // RecordType.VENDOR_CREDIT nữa để phòng khi UE mở rộng cho record type khác gọi chung Suitelet này.
+            let vendorcreditType = parameters.vendorcreditType || RecordType.VENDOR_CREDIT;
             let transactionType = parameters.transactionType;
             let transactionId = null;
 
             try {
-                let recBillCredit = record.load({type: RecordType.VENDOR_CREDIT, id: vendorcreditId});
+                let recBillCredit = record.load({type: vendorcreditType, id: vendorcreditId});
                 let relatedTransactionId = recBillCredit.getValue({fieldId: 'custbody_scv_related_transaction'});
 
                 let requestBody = transactionType === record.Type.CHECK
@@ -55,7 +58,7 @@ define(['N/record', 'N/search', '../common/scv_common_internal.js'],
                     transactionId = commonInternal.addRecord(requestBody, requestBody.type);
 
                     record.submitFields({
-                        type: RecordType.VENDOR_CREDIT,
+                        type: vendorcreditType,
                         id: vendorcreditId,
                         values: {custbody_scv_related_transaction: transactionId},
                         options: {enableSourcing: false, ignoreMandatoryFields: true}

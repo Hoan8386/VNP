@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+<head>
+    <link name="Times" type="font" subtype="opentype"
+          src="${libPdf.font.times?html}"
+          src-bold="${libPdf.font.times_bold?html}"
+          src-italic="${libPdf.font.times_italic?html}"
+          src-bolditalic="${libPdf.font.times_bolditalic?html}"
+          bytes="2"/>
+    <link name="Arial" type="font" subtype="opentype"
+          src="${libPdf.font.arial?html}"
+          src-bold="${libPdf.font.arial_bold?html}"
+          src-italic="${libPdf.font.arial_italic?html}"
+          src-bolditalic="${libPdf.font.arial_bolditalic?html}"
+          bytes="2"/>
+    <macrolist><macro id="header"><p align="right"><b>BM.01.QT.KDXNK.09</b></p></macro></macrolist>
+    <style type="text/css">
+        * { font-family: Times; }
+        body, p, table, td, th, b { font-family: Times; font-size: 11pt; color: #000000; }
+        p { margin: 2pt 0; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th, td { border: 0.5pt solid #000000; padding: 3pt; vertical-align: middle; }
+        /* Mẫu in để đầu bảng CÙNG độ đậm với phần thân — không in đậm. */
+        th { font-weight: normal; text-align: center; }
+        /* text-align tường minh: BFO canh đều (justify) khi thừa hưởng và đó là
+           nguồn gốc của hiện tượng giãn chữ "K h ô n g". */
+        .goods td, .goods th { font-size: 9pt; padding: 2pt; text-align: center; }
+        .goods td.left { text-align: left; }
+        .title { font-family: Times; font-size: 14pt; font-weight: bold; margin: 0 0 6pt 0; }
+        .section { font-family: Times; font-size: 11pt; font-weight: bold; margin-top: 5pt; margin-bottom: 2pt; margin-left: 0; }
+        .note { font-style: italic; margin-top: 0; margin-bottom: 3pt; margin-left: 26pt; }
+        .noborder td { border: 0; }
+        /* Khối đầu trang dựng bằng bảng có cột đệm cố định thay vì margin-left:
+           BFO không áp dụng thụt lề ổn định trên thẻ p, và cột đệm cho phép canh
+           chính xác "chữ sau dấu –" = "dấu +" = "Số … như sau:" trên cùng một mốc. */
+        .hdr td { border: 0; padding: 0 0 1.5pt 0; vertical-align: top; text-align: left; }
+        .chkwrap { table-layout: auto; }
+        .chkwrap td { border: 0; padding: 0; }
+        /* Ô vuông của bảng chứng từ. PHẢI đứng sau ".chkwrap td" và phải là
+           selector riêng: BFO cho luật trong stylesheet đè lên style= inline,
+           nên đặt border trực tiếp trên thẻ td sẽ bị ".chkwrap td { border: 0 }"
+           xoá mất, và cái hiện ra khi đó là ô xám mặc định của widget. */
+        .chkwrap td.chkbox { border: 0.75pt solid #000000; background-color: #ffffff; }
+        .sign { height: 30pt; vertical-align: top; text-align: center; }
+    </style>
+</head>
+<body size="A4-landscape" padding="22pt" header="header" header-height="18pt">
+    <#--
+      ===================== DẤU TICK — HAI BẪY ĐÃ TRẢ GIÁ =====================
+
+      BẪY 1 — tick tới đây là CHUỖI, không phải boolean.
+      render.DataSource.OBJECT nuốt mất field kiểu boolean khi sang FreeMarker.
+      Bằng chứng: log ghi tickCount hangHoa:9, chungTu:3 (SL tick đúng 12 ô) mà
+      bản in ra trống hoàn toàn và KHÔNG có lỗi render nào; mọi field kiểu chuỗi
+      trong cùng object thì in đúng. Nên SL gửi sẵn '' hoặc ký tự đánh dấu
+      (Pnk.RESULT.TICK_GLYPH trong cons/scv_cons_print.js).
+      TUYỆT ĐỐI không quay lại dạng <#if cell.tick> kiểu boolean.
+
+      BẪY 2 — KHÔNG BAO GIỜ viết ký tự ✓ trực tiếp vào template.
+      Đã quét bảng cmap của cả 14 file .ttf trong Vnp/font/ (arial, times, utm):
+      KHÔNG file nào chứa U+2713 ✓, U+2714 ✔, U+2611 ☑ hay U+2610 ☐. Chỉ có
+      U+221A √ (dấu căn — sai nghĩa) và chữ X. BFO không thay font khi thiếu
+      glyph: nó in ô trống và KHÔNG báo lỗi — nên lỗi này rất khó lần ra.
+
+      Cách lấy dấu ✓ mà không phải thêm font: dùng widget <input type="checkbox">
+      của BFO. Widget tự vẽ dấu check bằng ZapfDingbats — một trong 14 font chuẩn
+      luôn có sẵn trong mọi file PDF, không phụ thuộc Vnp/font/.
+      Giá trị `g` truyền vào là CHUỖI ('' hoặc Pnk.RESULT.TICK_GLYPH bên cons),
+      chỉ dùng để biết có đánh dấu hay không — không phải để in ra.
+      =========================================================================
+    -->
+    <#--
+      BFO bắt buộc mọi <input> phải có "id" hoặc "name", thiếu là lỗi
+      "Error Parsing XML: Missing id or name attribute" và KHÔNG ra được PDF.
+      Tên còn phải DUY NHẤT từng ô: các ô trùng tên bị PDF gom thành một nhóm,
+      tick một ô sẽ tick luôn cả nhóm.
+      Dùng một bộ đếm chung cho cả hai macro để không bao giờ trùng.
+      (<#assign> trong macro ghi vào namespace của template nên đếm được xuyên suốt;
+       <#local> thì không — đừng đổi.)
+    -->
+    <#assign markSeq = 0>
+
+    <#--
+      LUÔN tắt viền + nền của widget, ở CẢ HAI bảng.
+      BFO tô viền mặc định của widget màu xám nhạt, in ra mờ hơn hẳn mẫu.
+      Ô vuông của bảng chứng từ vẽ bằng border của <td> (nét đen, sắc) — xem macro chk.
+      Widget chỉ còn đúng một nhiệm vụ: vẽ dấu ✓ bên trong.
+    -->
+    <#assign MARK_STYLE = "border:none; background-color:transparent; color:#000000; width:9pt; height:9pt; font-size:9pt;">
+
+    <#macro box g><#assign markSeq = markSeq + 1><input type="checkbox" name="chk${markSeq?string("0")}" style="${MARK_STYLE}"<#if (g!'')?string != ''> checked="checked"</#if>/></#macro>
+
+    <#--
+      Bảng hàng hóa: mẫu vẽ ✓ TRẦN, không có ô vuông bọc ngoài — khác bảng chứng từ.
+      Widget checkbox mặc định luôn kèm ô, nhưng BFO CÓ nhận border:none trên
+      widget (đã in kiểm chứng), nên tắt viền là ra được dấu trần.
+      Ô không đánh dấu để &#160; chứ không render widget rỗng — tránh đẻ thêm
+      form field vô ích trong file PDF.
+    -->
+    <#macro mark g><#if (g!'')?string != ''><#assign markSeq = markSeq + 1><input type="checkbox" name="mrk${markSeq?string("0")}" checked="checked" style="${MARK_STYLE}"/><#else>&#160;</#if></#macro>
+
+    <#--
+      ================== QUY TẮC CHỐNG GIÃN CHỮ — DÙNG CHO MỌI Ô ==================
+      BFO giãn từng ký tự khi một dòng không tìm được chỗ ngắt (chuỗi dài không có
+      khoảng trắng, hoặc ô quá hẹp) — đã gây lỗi ở "K h ô n g đạt" và ở cột nồng độ.
+      Macro <@t> chèn zero-width space sau ";" "/" "," để luôn có chỗ ngắt.
+
+      BẮT BUỘC: MỌI ô dữ liệu đi qua <@t value/>, kể cả ô hiện chưa thấy lỗi.
+      Không dùng ${...?html} trực tiếp cho dữ liệu trong bảng hay khối đầu trang.
+      Thứ tự ?html rồi mới ?replace là cố ý: chèn trước sẽ bị ?html escape mất.
+      =============================================================================
+    -->
+    <#macro t v><#local s = (v!'')?string><#if s == ''>&#160;<#else>${s?html?replace(";", ";&#8203;")?replace("/", "/&#8203;")?replace(",", ",&#8203;")}</#if></#macro>
+
+    <#--
+      Bảng chứng từ: mẫu vẽ ☑ / ☐ — CÓ ô vuông bọc ngoài, khác bảng hàng hóa.
+
+      Ô vuông vẽ bằng border của <td> này, KHÔNG phải viền của widget: viền mặc
+      định của widget ra màu xám nhạt, in mờ hơn hẳn mẫu. Widget đã bị tắt viền
+      qua MARK_STYLE nên hai bên không chồng thành ô lồng ô.
+      Đừng gỡ border ở đây với lý do "widget tự vẽ ô rồi" — đã thử, ra ô xám.
+    -->
+    <#macro chk g>
+        <table class="chkwrap" cellpadding="0" cellspacing="0"><tr>
+            <td width="45%">&#160;</td>
+            <td class="chkbox" width="10pt" style="width:10pt; height:10pt;"><@box g/></td>
+            <td width="45%">&#160;</td>
+        </tr></table>
+    </#macro>
+
+    <p class="title" align="center">PHIẾU NHẬP KHO KIÊM BIÊN BẢN KIỂM NHẬN</p>
+
+    <table class="hdr">
+        <#--
+          Hàng 0 chỉ để chốt bề rộng cột đệm:
+            c0 = 14pt  thụt lề nền của cả khối (mẫu in không sát mép bảng)
+            c1 = 12pt  thụt thêm cho dòng gạch "–"
+            c2 = 10pt  ô chứa dấu "–"
+            c3 = 10pt  ô chứa dấu "+"
+            c4 = phần còn lại
+          Mốc 36pt (c0+c1+c2) dùng chung cho: chữ sau dấu "–", dấu "+", dòng "Số …".
+        -->
+        <tr style="height:0;"><td width="14pt"></td><td width="12pt"></td><td width="10pt"></td><td width="10pt"></td><td></td></tr>
+        <tr><td></td><td colspan="4">Hôm nay, ngày <@t dataJson.ngay/> tháng <@t dataJson.thang/> năm <@t dataJson.nam/></td></tr>
+        <tr><td></td><td></td><td>&#8211;</td><td colspan="2">Bên giao hàng: <@t dataJson.benGiaoHang/></td></tr>
+        <tr><td></td><td></td><td>&#8211;</td><td colspan="2">Bên nhận hàng:</td></tr>
+        <tr><td></td><td></td><td></td><td>+</td><td>Dược sĩ phụ trách chuyên môn: <@t dataJson.kho.pharmacist/></td></tr>
+        <tr><td></td><td></td><td></td><td>+</td><td>Thủ kho: <@t dataJson.kho.storekeeper/></td></tr>
+        <tr><td></td><td></td><td></td><td>+</td><td>Chuyên viên kiểm soát chất lượng: <@t dataJson.kho.qualityControl/></td></tr>
+        <tr><td></td><td colspan="4">Giao nhận hàng hóa theo hóa đơn mua bán:</td></tr>
+        <tr><td></td><td></td><td></td><td colspan="2">Số <@t dataJson.soPhieu/> ngày <@t dataJson.ngay/> tháng <@t dataJson.thang/> năm <@t dataJson.nam/> như sau:</td></tr>
+        <tr><td></td><td></td><td>&#8211;</td><td colspan="2">Địa chỉ kiểm nhận: <@t dataJson.kho.address/></td></tr>
+    </table>
+
+    <p class="section">1.&#160;&#160;&#160;Kiểm tra chứng từ:</p>
+    <p class="note">Lựa chọn tương ứng với hình thức hàng nhập kho (hàng mua trong nước/hàng nhập khẩu/hàng trả lại/hàng thu hồi)</p>
+    <table>
+        <thead><tr><th align="center" width="5%">STT</th><th align="center" width="33%">Chứng từ</th><th align="center" width="12%">Kiểm tra</th><th align="center" width="5%">STT</th><th align="center" width="33%">Chứng từ</th><th align="center" width="12%">Kiểm tra</th></tr></thead>
+        <tbody>
+        <#assign documentCount = dataJson.chungTu?size>
+        <#-- Chỉ in đúng số dòng có dữ liệu; không độn dòng trống. -->
+        <#assign half = (documentCount / 2)?ceiling>
+        <#if half lt 1><#assign half = 1></#if>
+        <#list 0..(half - 1) as i>
+        <tr>
+            <#list [i, i + half] as j>
+            <#if j lt documentCount>
+            <td align="center">${(j + 1)?string?html}</td>
+            <td><@t dataJson.chungTu[j].criteriaLabel/></td>
+            <td align="center"><@chk (dataJson.chungTu[j].tick)!""/></td>
+            <#else><td>&#160;</td><td>&#160;</td><td>&#160;</td></#if>
+            </#list>
+        </tr>
+        </#list>
+        </tbody>
+    </table>
+
+    <p class="section">2.&#160;&#160;&#160;Kiểm nhận hàng:</p>
+    <#--
+      7 cột cố định chiếm 55%; 45% còn lại chia đều cho các nhóm tiêu chí, để cột
+      "Không đạt" luôn đủ rộng dù BA thêm tiêu chí.
+    -->
+    <#assign criteriaCount = dataJson.tieuChiNhan?size>
+    <#if criteriaCount lt 1><#assign criteriaCount = 1></#if>
+    <#assign tickPair = (44 / criteriaCount)?string("0.##")>
+    <table class="goods">
+        <thead>
+        <tr>
+            <th align="center" rowspan="2" width="4%">STT</th><th align="center" rowspan="2" width="15%">Tên hàng</th><th align="center" rowspan="2" width="10%">Nồng độ<br/>hàm lượng</th>
+            <th align="center" rowspan="2" width="4%">ĐVT</th><th align="center" rowspan="2" width="7%">Số lô</th><th align="center" rowspan="2" width="8%">Hạn dùng</th>
+            <#list dataJson.tieuChiNhan as criterion>
+            <th align="center" colspan="2" width="${tickPair}%"><p align="center" style="margin:0; padding:0; text-align:center;"><@t criterion.label/></p></th>
+            </#list>
+            <th align="center" rowspan="2" width="8%">Đề xuất</th>
+        </tr>
+        <tr><#list dataJson.tieuChiNhan as criterion><th align="center"><p align="center" style="margin:0; padding:0; text-align:center;"><@t criterion.positiveLabel/></p></th><th align="center"><p align="center" style="margin:0; padding:0; text-align:center;"><@t criterion.negativeLabel/></p></th></#list></tr>
+        </thead>
+        <tbody>
+        <#-- Đánh STT bằng biến đếm tự tăng, không dùng ?index. -->
+        <#assign rowNo = 0>
+        <#list dataJson.hangHoa as row>
+        <#assign rowNo = rowNo + 1>
+        <tr>
+            <td align="center">${rowNo?string("0")}</td>
+            <td class="left" align="left"><@t row.tenHang/></td>
+            <td align="center"><@t row.nongDo/></td>
+            <td align="center"><@t row.dvt/></td>
+            <td align="center"><@t row.soLo/></td>
+            <td align="center"><@t row.hanDung/></td>
+            <#list row.tieuChi as cell>
+                <#-- Kết quả hàng hóa dùng dấu tick đứng riêng, không có khung checkbox. -->
+                <td align="center"><@mark (cell.tick)!""/></td>
+                <td align="center"><@mark (cell.untick)!""/></td>
+            </#list>
+            <td>&#160;</td>
+        </tr>
+        </#list>
+        <#-- Không in dòng trống dự phòng: bảng chỉ gồm đúng số dòng hàng có thật. -->
+        </tbody>
+    </table>
+
+    <p style="margin-top:6pt; margin-left:0;">Kết luận: <@t dataJson.ketLuan/></p>
+    <table class="noborder" style="page-break-inside:avoid;">
+        <tr>
+            <td class="sign" width="25%" align="center"><p align="center"><b>Người giao hàng</b></p></td>
+            <td class="sign" width="25%" align="center"><p align="center"><b>Thủ kho</b></p></td>
+            <td class="sign" width="25%" align="center"><p align="center"><b>Chuyên viên KSCL</b></p></td>
+            <td class="sign" width="25%" align="center"><p align="center"><b>DS phụ trách chuyên môn</b></p><p align="center" margin="0" style="font-style:italic;">(Phê duyệt)</p></td>
+        </tr>
+        <#-- Ô trống để ký tay; tên in bên dưới chữ ký. -->
+        <tr>
+            <td style="height:60pt;">&#160;</td>
+            <td style="height:60pt;">&#160;</td>
+            <td style="height:60pt;">&#160;</td>
+            <td style="height:60pt;">&#160;</td>
+        </tr>
+        <tr>
+            <td width="25%" align="center"><p align="center" margin="0">&#160;</p></td>
+            <td width="25%" align="center"><p align="center" margin="0"><@t dataJson.kho.storekeeper/></p></td>
+            <td width="25%" align="center"><p align="center" margin="0"><@t dataJson.kho.qualityControl/></p></td>
+            <td width="25%" align="center"><p align="center" margin="0"><@t dataJson.kho.pharmacist/></p></td>
+        </tr>
+    </table>
+</body>
+</pdf>

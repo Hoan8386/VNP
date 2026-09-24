@@ -28,7 +28,7 @@ define([
                 let form = scriptContext.form;
                 form.addButton({
                     id: 'custpage_scv_btn_ddh_pdf',
-                    label: 'In Đơn đặt hàng', // TODO(BA-Q1): FDD ô J3 "Tên button" bỏ trống, chờ BA chốt.
+                    label: 'Đơn đặt hàng', // TODO(BA-Q1): FDD ô J3 "Tên button" bỏ trống, chờ BA chốt.
                     functionName: "window.open('" + urlSl + "');"
                 });
                 comUI.addIconToButton(scriptContext.form, 'custpage_scv_field_icons_ddh');

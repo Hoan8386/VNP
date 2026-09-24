@@ -2,9 +2,9 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
-define(['N/url', '../lib/scv_lib_function.js', '../common/scv_common_itg_vietstock.js'],
+define(['N/format', 'N/url', '../lib/scv_lib_function.js', '../common/scv_common_itg_vietstock.js'],
 
-    (url, libFunc, vietStock) => {
+    (format, url, libFunc, vietStock) => {
 
         const RecordType = {
             PROJECT: 'customrecord_cseg_inv_portfolio'
@@ -16,6 +16,11 @@ define(['N/url', '../lib/scv_lib_function.js', '../common/scv_common_itg_vietsto
         // Suitelet màn hình nhập tham số đồng bộ Financial info (scv_sl_itg_vietstock_form.js)
         const SCRIPT_ID_FORM = 'customscript_scv_sl_itg_vietstock_form';
         const DEPLOY_ID_FORM = 'customdeploy_scv_sl_itg_vietstock_form';
+
+        // Suitelet Review Info Change (sl/scv_sl_ric_proj.js) - id script/deployment tạo trong NetSuite,
+        // sửa lại 2 hằng số này nếu id thực tế khác lúc tạo Script record / Deployment record.
+        const SCRIPT_ID_RIC = 'customscript_scv_sl_ric_proj';
+        const DEPLOY_ID_RIC = 'customdeploy_scv_sl_ric_proj';
 
         /**
          * Tách Stock Code từ tên Project, lấy phần cuối cùng sau dấu "-".
@@ -43,12 +48,30 @@ define(['N/url', '../lib/scv_lib_function.js', '../common/scv_common_itg_vietsto
                 let newRecord = scriptContext.newRecord;
                 if (newRecord.type !== RecordType.PROJECT) return;
 
+                let recordId = newRecord.id;
+
+                // Review Info Change (sl/scv_sl_ric_proj.js): độc lập với Vietstock/stockCode bên dưới,
+                // luôn hiển thị khi xem Project. Mở thẳng kèm To Date = hôm nay + tự Search luôn.
+                let urlSuiteletRic = url.resolveScript({
+                    scriptId: SCRIPT_ID_RIC,
+                    deploymentId: DEPLOY_ID_RIC,
+                    params: {
+                        projectId: recordId,
+                        custpage_todate: format.format({value: libFunc.getDateNow(), type: format.Type.DATE}),
+                        custpage_is_search: 'T'
+                    }
+                });
+                scriptContext.form.addButton({
+                    id: 'custpage_scv_review_info_change',
+                    label: 'Review Info Change',
+                    functionName: `require([], () => {window.location.href='${urlSuiteletRic}';})`
+                });
+
                 let projectName = newRecord.getValue({fieldId: 'name'});
                 let stockCode = newRecord.getValue('custrecord_scv_proj_stockcode') || getStockCodeFromName(projectName);
                 if (!stockCode) return;
                 libFunc.addCssPleaseWait(scriptContext.form);
 
-                let recordId = newRecord.id;
                 let urlSuitelet = url.resolveScript({
                     scriptId: SCRIPT_ID,
                     deploymentId: DEPLOY_ID,

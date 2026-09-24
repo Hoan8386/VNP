@@ -52,41 +52,35 @@ define(['N/cache', 'N/task', '../common/scv_common_txn_exe.js'],
         const createTaskOrGetMessage = (parameters) => {
             let txn_config = parameters.txn_config;
             let isCheckMessage = parameters.isCheckMessage;
-            
+
             let myCache = cache.getCache({
                 name: 'cTxnExe',
                 scope: cache.Scope.PUBLIC
             });
-            let mrTaskId = parameters.mrTaskId;
-            if (!mrTaskId) {
-                mrTaskId = myCache.get({key: 'mrTaskId', loader: 'loader'});
-            }
+            let listCachedTask = cmTxnExe.getCachedMrTaskList(myCache);
+            let mrTaskId = parameters.mrTaskId || listCachedTask[listCachedTask.length - 1]?.taskId;
             let iscomplete = true, messageInfo = '';
             if (mrTaskId) {
                 let taskStatus = task.checkStatus(mrTaskId);
                 if (taskStatus.status === 'COMPLETE' || taskStatus.status === 'FAILED' || taskStatus.status === 'CANCELED') {
                     messageInfo = 'Your request has been completed. Task ID: ' + mrTaskId;
-                    myCache.remove({key: 'mrTaskId'});
+                    listCachedTask = [];
+                    cmTxnExe.putCachedMrTaskList(myCache, listCachedTask);
                 } else {
                     iscomplete = false;
                     messageInfo = 'You cannot do this record because other task is: ' + taskStatus.status;
                 }
             }
-            
+
             if (iscomplete && isCheckMessage !== 'T') {
-                let mrTask = task.create({
-                    taskType: task.TaskType.MAP_REDUCE,
-                    scriptId: 'customscript_scv_mr_txn_exe',
-                    deploymentId: 'customdeploy_scv_mr_txn_exe'
-                });
-                mrTask.params = {
-                    custscript_scv_mr_txn_exe_config: txn_config,
-                };
-                mrTaskId = mrTask.submit();
-                myCache.put({key: 'mrTaskId', value: mrTaskId});
-                messageInfo = 'Your request has been submitted. Task ID: ' + mrTaskId;
+                let params = {custscript_scv_mr_txn_exe_config: txn_config};
+                let result = cmTxnExe.submitMrTask(listCachedTask, txn_config, params,
+                    () => 'customdeploy_scv_mr_txn_exe', 1, 1);
+                cmTxnExe.putCachedMrTaskList(myCache, listCachedTask);
+                mrTaskId = result.taskId || mrTaskId;
+                messageInfo = result.taskId ? 'Your request has been submitted. Task ID: ' + result.taskId : result.message;
             }
-            
+
             return {iscomplete, messageInfo, mrTaskId};
         }
         

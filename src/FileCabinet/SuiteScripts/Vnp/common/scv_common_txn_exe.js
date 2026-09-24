@@ -1,10 +1,69 @@
 /**
  * @NApiVersion 2.1
  */
-define(['N/record', '../lib/scv_lib_report.js', '../olib/alasql/alasql.min@4.6.6.js', '../olib/lodash.min.js'],
-    
-    (record, libRep, alasql, lodash) => {
-        
+define(['N/record', 'N/task', '../lib/scv_lib_report.js', '../olib/alasql/alasql.min@1.7.3.js', '../olib/lodash.min.js'],
+
+    (record, task, libRep, alasql, lodash) => {
+
+        const CACHE_KEY_MR_TASK = 'mrTaskId';
+        const MAX_MR_DEPLOYMENT = 99;
+
+        const isTaskRunningStatus = (status) => {
+            return status === task.TaskStatus.PENDING || status === task.TaskStatus.PROCESSING;
+        }
+
+        const getCachedMrTaskList = (myCache) => {
+            let cacheValue = myCache.get({key: CACHE_KEY_MR_TASK});
+            return cacheValue ? JSON.parse(cacheValue) : [];
+        }
+
+        const putCachedMrTaskList = (myCache, listCachedTask) => {
+            myCache.put({key: CACHE_KEY_MR_TASK, value: JSON.stringify(listCachedTask)});
+        }
+
+        // Finds the first free deployment slot (starting at i, built by getDeploymentId(i)) for config and
+        // submits a MAP_REDUCE task there. A cached slot already running the same config (index + config match)
+        // is reported as "Running" instead of resubmitted. Any task.create/submit failure (e.g. the slot is busy
+        // with a different config) moves on to the next i, up to maxIndex.
+        const submitMrTask = (listCachedTask, config, params, getDeploymentId, i, maxIndex = MAX_MR_DEPLOYMENT) => {
+            if (i > maxIndex) {
+                return {taskId: null, message: `No available deployment slot for config ${config}`, nextIndex: i};
+            }
+
+            let cachedEntry = listCachedTask.find(o => o.index === i && String(o.config) === String(config));
+            if (cachedEntry) {
+                let isRunning;
+                try {
+                    isRunning = isTaskRunningStatus(task.checkStatus(cachedEntry.taskId).status);
+                } catch (e) {
+                    isRunning = false;
+                }
+                if (isRunning) {
+                    return {taskId: null, message: `Config ${config} is Running`, nextIndex: i};
+                }
+            }
+
+            try {
+                let mrTask = task.create({
+                    taskType: task.TaskType.MAP_REDUCE,
+                    scriptId: 'customscript_scv_mr_txn_exe',
+                    deploymentId: getDeploymentId(i)
+                });
+                mrTask.params = params;
+                let taskId = mrTask.submit();
+                if (cachedEntry) {
+                    cachedEntry.config = config;
+                    cachedEntry.taskId = taskId;
+                } else {
+                    listCachedTask.push({index: i, config: config, taskId: taskId});
+                }
+                return {taskId, message: '', nextIndex: i + 1};
+            } catch (e) {
+                log.error('submitMrTask exception', e);
+                return submitMrTask(listCachedTask, config, params, getDeploymentId, i + 1, maxIndex);
+            }
+        }
+
         const RecordType = {
             TXN_MAPPING_CONFIG: 'customrecord_scv_txn_cfg',
             TXN_MAPPING_CONFIG_FILTER: 'customrecord_scv_txn_cfg_filter',
@@ -50,7 +109,7 @@ define(['N/record', '../lib/scv_lib_report.js', '../olib/alasql/alasql.min@4.6.6
         
         const getListTxnMappingConfig = (ids) => {
             let strWhere = ids && String(ids) ? ` and txn.id in (${ids}) ` : '';
-            let sqlTxnMappingConfig = `SELECT txn.id, txn.custrecord_scv_txcf_trans_type, txn.custrecord_scv_txcf_unique_key, txn.custrecord_scv_txcf_fields_notupd,
+            let sqlTxnMappingConfig = `SELECT txn.id, txn.name text, txn.custrecord_scv_txcf_trans_type, txn.custrecord_scv_txcf_unique_key, txn.custrecord_scv_txcf_fields_notupd,
                 txn.custrecord_scv_txcf_set_text_field, txn.custrecord_scv_txcf_header_field, txn.custrecord_scv_txcf_line_field, txn.custrecord_scv_txcf_fields_multiple,
                 txn.custrecord_scv_txcf_join_source
                 from customrecord_scv_txn_cfg txn
@@ -62,6 +121,25 @@ define(['N/record', '../lib/scv_lib_report.js', '../olib/alasql/alasql.min@4.6.6
             return listTxnMappingConfig;
         }
         
+        // customrecord_scv_txn_tab fields differ from customrecord_scv_txn_cfg only by the _scv_txtab_/_scv_txcf_
+        // prefix, so alias them back to the _scv_txcf_ names here — the rows can then be fed straight into
+        // buildJoinSourceReport just like a customrecord_scv_txn_cfg row, no separate build function needed.
+        const getListTxnMappingTab = (parentIds) => {
+            let strWhere = parentIds && String(parentIds) ? ` and txn.custrecord_scv_txtab_parent in (${parentIds}) ` : '';
+            let sqlTxnMappingTab = `SELECT txn.id, txn.name text, txn.custrecord_scv_txtab_parent,
+                    txn.custrecord_scv_txtab_header_field custrecord_scv_txcf_header_field,
+                    txn.custrecord_scv_txtab_line_field custrecord_scv_txcf_line_field,
+                    txn.custrecord_scv_txtab_join_source custrecord_scv_txcf_join_source,
+                    txn.custrecord_scv_txtab_rp_column custrecord_scv_txcf_rp_column
+                from customrecord_scv_txn_tab txn
+                where txn.isinactive = 'F' ${strWhere}
+                order by txn.custrecord_scv_txtab_sort, txn.id
+            `;
+            let listTxnMappingTab = [];
+            libRep.doSearchSqlAll(listTxnMappingTab, sqlTxnMappingTab, []);
+            return listTxnMappingTab;
+        }
+
         const getListTxnMappingConfigSource = (cfsc_parents) => {
             let strWhere = cfsc_parents && String(cfsc_parents) ? ` and txn.custrecord_scv_txn_cfsc_parent in (${cfsc_parents})` : '';
             let sqlTxnMappingConfigSource = `SELECT txn.id, txn.custrecord_scv_txn_cfsc_alias, txn.custrecord_scv_txn_cfsc_ss,
@@ -133,14 +211,15 @@ define(['N/record', '../lib/scv_lib_report.js', '../olib/alasql/alasql.min@4.6.6
         const buildJoinSource = (txnMappingConfig, listTxnMappingConfigSource, objDataFromSource, exeParams) => {
             let listDataJoinSource;
             if (txnMappingConfig.custrecord_scv_txcf_join_source) {
-                let aliases = extractTableAliases(txnMappingConfig.custrecord_scv_txcf_join_source);
+                let join_source = replaceParamsInSql(txnMappingConfig.custrecord_scv_txcf_join_source, exeParams);
+                let aliases = extractTableAliases(join_source);
                 let arrayDataFromSource = [];
                 aliases.forEach(alias => {
                     if (objDataFromSource[alias]) {
                         arrayDataFromSource.push(objDataFromSource[alias]);
                     }
                 });
-                listDataJoinSource = alasql(txnMappingConfig.custrecord_scv_txcf_join_source, arrayDataFromSource);
+                listDataJoinSource = alasql(join_source, arrayDataFromSource);
             } else {
                 listDataJoinSource = objDataFromSource[txnMappingConfig.listTxnMappingConfigSource[0].custrecord_scv_txn_cfsc_alias] || [];
             }
@@ -182,17 +261,34 @@ define(['N/record', '../lib/scv_lib_report.js', '../olib/alasql/alasql.min@4.6.6
             return listJoinSource;
         }
         
-        const buildJoinSourceReport = (txnMappingConfig, listTxnMappingConfigSource, objDataFromSource) => {
+        const replaceParamsInSql = (sql, parameters) => {
+            if (!sql || !parameters) return sql;
+            let paramKeys = Object.keys(parameters).filter(key => key.indexOf('custpage') === 0);
+            // replace key dài trước để tránh key ngắn là tiền tố của key dài (vd: custpage_txn và custpage_txn_config)
+            paramKeys.sort((a, b) => b.length - a.length);
+            for (let key of paramKeys) {
+                let value = parameters[key];
+                if (value === undefined || value === null) {
+                    value = '';
+                }
+                sql = sql.replace(new RegExp(key, 'g'), String(value));
+            }
+            return sql;
+        }
+
+        const buildJoinSourceReport = (txnMappingConfig, listTxnMappingConfigSource, objDataFromSource, parameters) => {
             let listDataJoinSource, dataConfig = {};
             if (txnMappingConfig.custrecord_scv_txcf_join_source) {
-                let aliases = extractTableAliases(txnMappingConfig.custrecord_scv_txcf_join_source);
+                let join_source = replaceParamsInSql(txnMappingConfig.custrecord_scv_txcf_join_source, parameters);
+
+                let aliases = extractTableAliases(join_source);
                 let arrayDataFromSource = [];
                 aliases.forEach(alias => {
                     if (objDataFromSource[alias]) {
                         arrayDataFromSource.push(objDataFromSource[alias]);
                     }
                 });
-                listDataJoinSource = alasql(txnMappingConfig.custrecord_scv_txcf_join_source, arrayDataFromSource);
+                listDataJoinSource = alasql(join_source, arrayDataFromSource);
                 
                 let keysDataFromSource = Object.keys(objDataFromSource);
                 let aliasConfig = keysDataFromSource.filter(item => !aliases.includes(item));
@@ -355,16 +451,22 @@ define(['N/record', '../lib/scv_lib_report.js', '../olib/alasql/alasql.min@4.6.6
         }
         
         return {
+            isTaskRunningStatus,
+            getCachedMrTaskList,
+            putCachedMrTaskList,
+            submitMrTask,
             RecordType,
             ConfigType,
             ReportType,
             MappingFieldType,
             getListTxnMappingConfig,
+            getListTxnMappingTab,
             getListTxnMappingConfigSource,
             getDataFromTxnMappingConfigSource,
             buildJoinSource,
             buildListJoinSource,
             buildJoinSourceReport,
+            replaceParamsInSql,
             createOrUpdateRecord
         }
         

@@ -27,6 +27,10 @@ define(['N/query', 'N/redirect', 'N/record', '../lib/scv_lib_function.js'],
             let slItem = 'item', slIVD = 'inventoryassignment', lcIVD;
             let lcIt = recRecord.getLineCount(slItem);
             let arrIt = [], arrLoc = [], locationline, itemline;
+            let locationHeader = recRecord.getValue('location');
+            if(locationHeader) {
+                arrLoc.push(locationHeader);
+            }
 
             for (let i = 0; i < lcIt; i++) {
                 itemline = recRecord.getSublistValue({sublistId: slItem, fieldId: 'item', line: i});
@@ -43,7 +47,7 @@ define(['N/query', 'N/redirect', 'N/record', '../lib/scv_lib_function.js'],
             let stquantity, stitem, conversionrate;
             let isSave = false;
             for (let j = 0; j < lcIt; j++) {
-                locationline = recRecord.getSublistValue({sublistId: slItem, fieldId: 'location', line: j});
+                locationline = recRecord.getSublistValue({sublistId: slItem, fieldId: 'location', line: j}) || locationHeader;
                 stitem = recRecord.getSublistValue({sublistId: slItem, fieldId: 'item', line: j});
                 inventorydetailavail = recRecord.getSublistValue({
                     sublistId: slItem,

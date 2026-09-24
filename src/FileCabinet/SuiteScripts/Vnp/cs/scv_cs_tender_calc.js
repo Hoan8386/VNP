@@ -42,6 +42,17 @@ define(['../lib/scv_lib_tender_calc'],
             }
         }
 
+        const postSourcing = (scriptContext) => {
+            try {
+                if (scriptContext.sublistId !== libCalc.SUBLIST_ITEM) return;
+                if (['item', 'quantity', 'rate', 'amount', libCalc.FIELD_UNIT].includes(scriptContext.fieldId)) {
+                    libCalc.setLineDefaults(scriptContext.currentRecord);
+                }
+            } catch (e) {
+                log.error('Error postSourcing', e);
+            }
+        }
+
         /**
          * Defines the function definition that is executed when field is changed.
          * @param {Object} scriptContext
@@ -53,7 +64,6 @@ define(['../lib/scv_lib_tender_calc'],
          * @since 2015.2
          */
         const fieldChanged = (scriptContext) => {
-            debugger;
             try {
                 const sublistId = scriptContext.sublistId;
                 const curRec = scriptContext.currentRecord;
@@ -68,8 +78,15 @@ define(['../lib/scv_lib_tender_calc'],
 
                 const currencyId = curRec.getValue('currency');
 
+                if (fieldId === libCalc.FIELD_UNIT) {
+                    libCalc.setCurrentEinvoiceUnit(curRec);
+                    libCalc.setLineDefaults(curRec);
+                    return;
+                }
+
                 if (fieldId === libCalc.FIELD_ITEM) {
                     libCalc.setTaxCodeFromItem(curRec);
+                    libCalc.setCurrentEinvoiceUnit(curRec);
                     libCalc.setTaxRateFromTaxCode(curRec);
                     libCalc.recalcAllGroups(curRec, currencyId);
                     libCalc.updateAllGroupTotals(curRec);
@@ -99,6 +116,7 @@ define(['../lib/scv_lib_tender_calc'],
 
         return {
             lineInit: lineInit,
+            postSourcing: postSourcing,
             fieldChanged: fieldChanged,
             sublistChanged: sublistChanged
         }

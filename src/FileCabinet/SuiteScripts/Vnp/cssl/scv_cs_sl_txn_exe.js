@@ -63,7 +63,7 @@ define(['N/currentRecord', 'N/https', 'N/url',
             let currentRecord = scriptContext.currentRecord;
             if (scriptContext.fieldId === 'custpage_txn_config') {
                 window.onbeforeunload = null;
-                let params = {custpage_txn_config: currentRecord.getValue('custpage_txn_config')};
+                let params = {custpage_txn_group: currentRecord.getValue('custpage_txn_group'), custpage_txn_config: currentRecord.getValue('custpage_txn_config')};
                 let urlTxnExe = getUrlSearch(params);
                 window.location.replace(urlTxnExe);
             } else {
@@ -124,9 +124,10 @@ define(['N/currentRecord', 'N/https', 'N/url',
         const getParams = (currentRecord) => {
             let objaParams = {
                 isExport: 'T',
+                custpage_txn_group: currentRecord.getValue('custpage_txn_group'),
                 custpage_txn_config: currentRecord.getValue('custpage_txn_config')
             };
-            let message = !objaParams.custpage_txn_config ? 'Please fill Txn Config' : '';
+            let message = !objaParams.custpage_txn_config ? 'Please fill Txn Type' : '';
             if (listTxnConfigFilters) {
                 for (let objFilter of listTxnConfigFilters) {
                     if (objFilter.type_display === 'Date' || objFilter.type_display === 'Date/Time') {

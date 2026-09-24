@@ -2,22 +2,9 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
-define(['N/record', 'N/search', 'N/url', '../lib/scv_lib_function.js'],
+define(['../common/scv_common_vendor_credit.js'],
 
-    (record, search, url, libFunc) => {
-
-        const RecordType = {
-            VENDOR_CREDIT: 'vendorcredit'
-        };
-
-        // Account số bắt đầu bằng 111/112 -> tạo Check; bắt đầu bằng 341 -> tạo JRL
-        const AccountPrefix = {
-            CHECK: ['111', '112'],
-            JOURNAL: ['341']
-        };
-
-        const SCRIPT_ID = 'customscript_scv_sl_vendor_credit';
-        const DEPLOY_ID = 'customdeploy_scv_sl_vendor_credit';
+    (cmVendorCredit) => {
 
         /**
          * Defines the function definition that is executed before record is loaded.
@@ -32,40 +19,9 @@ define(['N/record', 'N/search', 'N/url', '../lib/scv_lib_function.js'],
             try {
                 if (scriptContext.type !== 'view') return;
 
-                let newRecord = scriptContext.newRecord;
-                if (newRecord.type !== RecordType.VENDOR_CREDIT) return;
-
-                let accountId = newRecord.getValue({fieldId: 'custbody_scv_account'});
-                if (!accountId) return;
-
-                let accountNumber = search.lookupFields({
-                    type: search.Type.ACCOUNT,
-                    id: accountId,
-                    columns: ['number']
-                }).number || '';
-
-                let isCheckAccount = AccountPrefix.CHECK.some(prefix => accountNumber.startsWith(prefix));
-                let isJournalAccount = AccountPrefix.JOURNAL.some(prefix => accountNumber.startsWith(prefix));
-                if (!isCheckAccount && !isJournalAccount) return;
-
-                libFunc.addCssPleaseWait(scriptContext.form);
-
-                let relatedTransaction = newRecord.getValue({fieldId: 'custbody_scv_related_transaction'});
-                let recordId = newRecord.id;
-                let transactionType = isCheckAccount ? record.Type.CHECK : record.Type.JOURNAL_ENTRY;
-                let urlSuitelet = url.resolveScript({
-                    scriptId: SCRIPT_ID,
-                    deploymentId: DEPLOY_ID,
-                    params: {vendorcreditId: recordId, transactionType: transactionType}
-                });
-
-                let form = scriptContext.form;
-                if (relatedTransaction) {
-                    libFunc.addButtonHandel(form, 'custpage_scv_update', isCheckAccount ? 'Update Check' : 'Update JRL', urlSuitelet, recordId);
-                } else {
-                    let labelButton = isCheckAccount ? 'Create Check' : 'Create JRL';
-                    libFunc.addButtonHandel(form, 'custpage_scv_create', labelButton, urlSuitelet, recordId);
-                }
+                // Add button theo từng record type nằm ở ../common/scv_common_vendor_credit.js
+                // (hiện chỉ có vendorcredit - Create/Update Check hoặc JRL - các type khác tự bỏ qua).
+                cmVendorCredit.addButtonByRecordType(scriptContext.form, scriptContext.newRecord);
             } catch (e) {
                 log.error('beforeLoad error', e);
             }

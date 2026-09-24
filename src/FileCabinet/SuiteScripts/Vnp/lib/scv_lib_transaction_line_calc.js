@@ -8,6 +8,8 @@ define([],
         const SUBLIST_ITEM = 'item';
 
         const FIELD = {
+            UNIT: 'units',
+            EINVOICE_UNIT: 'custcol_scv_einvoice_unit',
             QUANTITY: 'quantity',
             RATE: 'rate',
             AMOUNT: 'amount',
@@ -21,6 +23,7 @@ define([],
         };
 
         const CALC_TRIGGER_FIELDS = [
+            FIELD.UNIT,
             FIELD.QUANTITY,
             FIELD.RATE,
             FIELD.TAX_RATE_CUSTOM,
@@ -75,6 +78,14 @@ define([],
             return true;
         }
 
+        function getCurrentText(curRec, fieldId) {
+            try {
+                return curRec.getCurrentSublistText({sublistId: SUBLIST_ITEM, fieldId: fieldId}) || '';
+            } catch (e) {
+                return '';
+            }
+        }
+
         function getLine(curRec, fieldId, line) {
             try {
                 return curRec.getSublistValue({sublistId: SUBLIST_ITEM, fieldId: fieldId, line: line});
@@ -92,12 +103,32 @@ define([],
             return true;
         }
 
+        function getLineText(curRec, fieldId, line) {
+            try {
+                return curRec.getSublistText({sublistId: SUBLIST_ITEM, fieldId: fieldId, line: line}) || '';
+            } catch (e) {
+                return '';
+            }
+        }
+
         function getCurrentTaxRate(curRec) {
             return toRate(getCurrent(curRec, FIELD.TAX_RATE_CUSTOM) || getCurrent(curRec, FIELD.TAX_RATE_NATIVE));
         }
 
         function getLineTaxRate(curRec, line) {
             return toRate(getLine(curRec, FIELD.TAX_RATE_CUSTOM, line) || getLine(curRec, FIELD.TAX_RATE_NATIVE, line));
+        }
+
+        function setCurrentLineDefaults(curRec) {
+            setCurrent(curRec, FIELD.QUANTITY, 0);
+            setCurrent(curRec, FIELD.RATE, 0);
+            setCurrent(curRec, FIELD.AMOUNT, 0);
+        }
+
+        function setLineDefaults(curRec, line) {
+            setLine(curRec, FIELD.QUANTITY, line, 0);
+            setLine(curRec, FIELD.RATE, line, 0);
+            setLine(curRec, FIELD.AMOUNT, line, 0);
         }
 
         function calcValues(options) {
@@ -111,7 +142,7 @@ define([],
             const discountAmt = roundNumber(amtPreDiscount * toRate(options.discountPer), digit);
             if (hasValue(options.ratePreDiscount)) {
                 rate = qty ? roundNumber((amtPreDiscount - discountAmt) / qty, 6) : 0;
-            } else {
+            } else if (options.changedFieldId === FIELD.RATE_VAT_CUSTOM) {
                 rate = roundNumber(rateVatCustom / (1 + taxRate), 6);
             }
             const amount = roundNumber(qty * rate, digit);
@@ -137,6 +168,7 @@ define([],
             setCurrent(curRec, FIELD.AMT_PRE_DISCOUNT, values.amtPreDiscount);
             setCurrent(curRec, FIELD.DISCOUNT_AMT, values.discountAmt);
             setCurrent(curRec, FIELD.RATE_VAT_CUSTOM, values.rateVatCustom);
+            setCurrent(curRec, FIELD.EINVOICE_UNIT, getCurrentText(curRec, FIELD.UNIT) || getCurrent(curRec, FIELD.UNIT));
         }
 
         function recalcLine(curRec, line) {
@@ -155,6 +187,7 @@ define([],
             setLine(curRec, FIELD.AMT_PRE_DISCOUNT, line, values.amtPreDiscount);
             setLine(curRec, FIELD.DISCOUNT_AMT, line, values.discountAmt);
             setLine(curRec, FIELD.RATE_VAT_CUSTOM, line, values.rateVatCustom);
+            setLine(curRec, FIELD.EINVOICE_UNIT, line, getLineText(curRec, FIELD.UNIT, line) || getLine(curRec, FIELD.UNIT, line));
         }
 
         function recalcAllLines(curRec) {
@@ -168,6 +201,7 @@ define([],
             SUBLIST_ITEM,
             FIELD,
             CALC_TRIGGER_FIELDS,
+            setCurrentLineDefaults,
             recalcCurrentLine,
             recalcAllLines
         };
