@@ -5,7 +5,7 @@
  *  Date                Author                  Description
  *  17 Aug 2026         Thanh Hoan              Init, create file. Chức năng phân bổ doanh thu chưa thực hiên from ms. Tâm(https://app.clickup.com/t/3773072/86d40yedc)
  */
-define([ 'N/record','N/search',
+define([ 'N/record','N/search', 'N/file',
 
     '../olib/alasql/alasql.min@4.6.6.js',
 
@@ -15,8 +15,9 @@ define([ 'N/record','N/search',
     '../cons/scv_cons_currency.js',
 
     '../cons/scv_cons_search_pbdtcth.js',
+    '../cons/scv_cons_search_pbdtcth_02.js',
     
-], ( record,search,
+], ( record,search,file,
 
     alasql,
 
@@ -26,6 +27,7 @@ define([ 'N/record','N/search',
     constCurrency,
 
     constSearchPbdtcth,
+    constSearchPbdtcth02,
 ) => {
     const getListSavedSearchId = () =>{
         return [
@@ -356,6 +358,123 @@ define([ 'N/record','N/search',
         }
         return period;
     }
+
+    const getDataExport = (arrSS1, arrSS2 ,params ,currentUserId ) => {
+        let objectResult = {};
+        let arrResult = [];
+        // console.log("arrSS1",arrSS1);
+        // console.log("arrSS2",arrSS2);
+        // console.log("params",params);
+
+        let objHeader = {};
+        let subsidiaryId = params.custpage_subsidiary || '';
+
+        if(subsidiaryId){
+            let objSubsidiary = search.lookupFields({
+                type: search.Type.SUBSIDIARY,
+                id: subsidiaryId,
+                columns: [
+                    'legalname',
+                    'custrecord_scv_sub_ktt'
+                ]
+            });
+
+            objHeader.companyName = objSubsidiary.legalname || '';
+            objHeader.chiefAccountant = objSubsidiary.custrecord_scv_sub_ktt?.[0]?.text || '';
+        }
+
+        if(currentUserId){
+            let objEmployee = search.lookupFields({
+                type: search.Type.EMPLOYEE,
+                id: currentUserId,
+                columns: [
+                    'custentity_scv_legal_name'
+                ]
+            });
+
+            objHeader.createdBy = objEmployee.custentity_scv_legal_name || '';
+        }
+
+        let SLDate = constFormat.parseDate(params.custpage_date);
+        let SLMonth = SLDate.getMonth() + 1;
+        let SLYear = SLDate.getFullYear();
+        objHeader.month = `${SLMonth}/${SLYear}`;
+       
+        objectResult.objHeader = objHeader;
+        arrSS1.forEach(objSS1 => {
+            let debitLoanNo = objSS1.debitagreement || '';
+            let objSS2 = arrSS2.find(obj => obj.id == debitLoanNo);
+            if(objSS2){
+                let startDate = constFormat.parseDate(objSS2.start_date);
+                let ngayBatDauTinhLai;
+                let endDate = constFormat.parseDate(objSS2.end_date);
+                let ngayTinhLai;
+                let soNgayTinhLai;
+                let tienLaiPhanBo;
+                
+                if(
+                    SLDate.getMonth() == startDate.getMonth() &&
+                    SLDate.getFullYear() == startDate.getFullYear()
+                ){
+                    ngayBatDauTinhLai = startDate;
+                }
+                else{
+                    ngayBatDauTinhLai = new Date(
+                        SLDate.getFullYear(),
+                        SLDate.getMonth(),
+                        1
+                    );
+                }
+
+                if(SLDate <= endDate){
+                    ngayTinhLai = SLDate;
+                }
+                else{
+                    ngayTinhLai = endDate;
+                }
+
+                soNgayTinhLai = Math.floor(
+                    (ngayTinhLai - ngayBatDauTinhLai) / (1000 * 60 * 60 * 24)
+                ) + 1;
+
+                // tienLaiPhanBo = (objSS1.allocationamt || 0) * soNgayTinhLai;
+                tienLaiPhanBo = (objSS1.allocationamt || 0) * (objSS1.amount || 0);
+                arrResult.push({
+                    amount: objSS1.amount || '',
+                    bankName: objSS2.entity_name || '',
+                    loanAmount: objSS2.amount || '',
+                    startDate: objSS2.start_date || '',
+                    term: objSS2.term || '',
+                    interestRate: objSS2.interest_rate || '',
+                    endDate: objSS2.end_date || '',
+                    soNgayGui : objSS2.duration,
+                    ngayBatDauTinhLai: ngayBatDauTinhLai,
+                    ngayTinhLai: ngayTinhLai,
+                    soNgayTinhLai: soNgayTinhLai,
+                    tienLaiPhanBo: tienLaiPhanBo,
+                });
+            }
+        });
+        objectResult.arrResult = arrResult;
+        return objectResult;
+    };
+
+    const getTemplateExcel = (params) =>{
+        let objRes = {
+            name: "Phân bổ doanh thu chưa thực hiện",
+            url: "",
+        };
+        
+         objRes.url = file.load({id: '../xlsx/scv_rpt_pbdtcth.xlsx'}).url;
+
+        return objRes;
+    }
+    
+    const getDataLoanInfor = () =>{
+        let arrResult = constSearchPbdtcth02.getDataSource();
+        return arrResult;
+    }
+
     return {
         getListSavedSearchId,
         getColumnsResult,
@@ -366,6 +485,9 @@ define([ 'N/record','N/search',
         createJournal,
         deleteJournalOld,
 
-        getPostingPeriod
+        getPostingPeriod,
+        getDataExport,
+        getDataLoanInfor,
+        getTemplateExcel
     };
 });

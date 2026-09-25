@@ -37,6 +37,12 @@ define(['N/runtime', 'N/redirect', 'N/search', 'N/task', 'N/ui/message',
                 case 'getDataSource':
                     objResponse.data = commonPbdtcth.getDataSource(params);
                     break;
+                case 'getDateLoanInfor':
+                    objResponse.data = commonPbdtcth.getDataLoanInfor(params);
+                    break;
+                case 'getTemplateExcel':
+                    objResponse.data = commonPbdtcth.getTemplateExcel(params);
+                    break;
             }
             
             constForm.write(objResponse);
@@ -112,6 +118,12 @@ define(['N/runtime', 'N/redirect', 'N/search', 'N/task', 'N/ui/message',
             id: 'custpage_btn_search',
             label: 'Search',
             functionName: 'searchResult()',
+        });
+        
+        constForm.addButton({
+            id: 'custpage_btn_export',
+            label: 'Export Interest Allocation',
+            functionName: 'exportResult()',
         });
 
         constForm.addSubmitButton({
